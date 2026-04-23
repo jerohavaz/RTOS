@@ -6,7 +6,9 @@ stages:
   - analyze
 
 default:
-  image: stm32-ci
+  image:
+    name: stm32-ci
+    pull_policy: if-not-present
   tags:
     - runner
   interruptible: true
@@ -16,6 +18,7 @@ variables:
 
 build_image:
   stage: docker
+  image: docker:27
   tags:
     - runner
   script:
