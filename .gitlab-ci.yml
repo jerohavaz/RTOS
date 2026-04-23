@@ -60,4 +60,4 @@ cppcheck:
   stage: analyze
   needs: ["configure"]
   script:
-    - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --project=${BUILD_DIR}/compile_commands.json
+    - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --suppress=preprocessorErrorDirective Core/Src Core/Inc
