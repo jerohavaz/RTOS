@@ -23,8 +23,7 @@ before_script:
 format:
   stage: format
   script:
-    - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) \
-      | xargs clang-format --dry-run --Werror
+    - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) | xargs clang-format --dry-run --Werror
 
 # -------------------
 # CONFIGURE
@@ -32,11 +31,7 @@ format:
 configure:
   stage: configure
   script:
-    - cmake -S . -B ${BUILD_DIR} \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    - cmake -S . -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   artifacts:
     paths:
       - ${BUILD_DIR}/
@@ -65,7 +60,4 @@ cppcheck:
   stage: analyze
   needs: ["configure"]
   script:
-    - cppcheck \
-        --enable=warning,style,performance,portability \
-        --error-exitcode=1 \
-        --project=${BUILD_DIR}/compile_commands.json
+    - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --project=${BUILD_DIR}/compile_commands.json
