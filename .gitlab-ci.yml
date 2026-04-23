@@ -1,0 +1,75 @@
+stages:
+  - format
+  - configure
+  - build
+  - analyze
+
+default:
+  image: ubuntu:22.04
+  tags: runner
+  interruptible: true
+
+variables:
+  BUILD_DIR: build
+
+before_script:
+  - apt-get update
+  - apt-get install -y \
+      cmake \
+      ninja-build \
+      gcc-arm-none-eabi \
+      cppcheck \
+      clang-format
+
+# -------------------
+# FORMAT CHECK
+# -------------------
+format:
+  stage: format
+  script:
+    - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) \
+      | xargs clang-format --dry-run --Werror
+
+# -------------------
+# CONFIGURE
+# -------------------
+configure:
+  stage: configure
+  script:
+    - cmake -S . -B ${BUILD_DIR} \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  artifacts:
+    paths:
+      - ${BUILD_DIR}/
+    expire_in: 1 week
+
+# -------------------
+# BUILD
+# -------------------
+build:
+  stage: build
+  needs: ["configure"]
+  script:
+    - cmake --build ${BUILD_DIR} --parallel
+    - arm-none-eabi-size ${BUILD_DIR}/*.elf
+  artifacts:
+    paths:
+      - ${BUILD_DIR}/*.elf
+      - ${BUILD_DIR}/*.map
+      - ${BUILD_DIR}/*.bin
+    expire_in: 1 week
+
+# -------------------
+# STATIC ANALYSIS
+# -------------------
+cppcheck:
+  stage: analyze
+  needs: ["configure"]
+  script:
+    - cppcheck \
+        --enable=warning,style,performance,portability \
+        --error-exitcode=1 \
+        --project=${BUILD_DIR}/compile_commands.json
