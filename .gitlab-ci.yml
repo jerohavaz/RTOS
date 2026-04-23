@@ -5,24 +5,29 @@ stages:
   - build
   - analyze
 
+variables:
+  BUILD_DIR: build
+  STM32_CI_IMAGE: $CI_REGISTRY_IMAGE/stm32-ci:$CI_COMMIT_SHA
+
+.docker-credentials: &docker-credentials
+  - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+
 default:
-  image:
-    name: stm32-ci
-    pull_policy: if-not-present
+  image: $STM32_CI_IMAGE
   tags:
     - runner
   interruptible: true
-
-variables:
-  BUILD_DIR: build
 
 build_image:
   stage: docker
   image: docker:27
   tags:
     - runner
+  before_script:
+    - *docker-credentials
   script:
-    - docker build -t stm32-ci -f gitlab-runner/Dockerfile .
+    - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/Dockerfile .
+    - docker push "$STM32_CI_IMAGE"
   rules:
     - changes:
         - gitlab-runner/Dockerfile
@@ -31,11 +36,15 @@ build_image:
 
 format:
   stage: format
+  needs:
+    - build_image
   script:
     - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) | xargs clang-format --dry-run --Werror
 
 configure:
   stage: configure
+  needs:
+    - build_image
   script:
     - cmake -S . -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   artifacts:
@@ -45,7 +54,8 @@ configure:
 
 build:
   stage: build
-  needs: ["configure"]
+  needs:
+    - configure
   script:
     - cmake --build ${BUILD_DIR} --parallel
     - arm-none-eabi-size ${BUILD_DIR}/*.elf
@@ -58,6 +68,7 @@ build:
 
 cppcheck:
   stage: analyze
-  needs: ["configure"]
+  needs:
+    - configure
   script:
     - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --suppress=preprocessorErrorDirective Core/Src Core/Inc
