@@ -6,7 +6,8 @@ stages:
 
 default:
   image: ubuntu:22.04
-  tags: runner
+  tags: 
+    - runner
   interruptible: true
 
 variables:
