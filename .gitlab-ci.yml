@@ -22,9 +22,8 @@ build_image:
     - docker build -t stm32-ci gitlab-runner/Dockerfile
   rules:
     - changes:
-        - Dockerfile
+        - gitlab-runner/Dockerfile
       when: always
-    - when: manual
 
 format:
   stage: format
