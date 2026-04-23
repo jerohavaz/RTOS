@@ -15,12 +15,7 @@ variables:
 
 before_script:
   - apt-get update
-  - apt-get install -y \
-      cmake \
-      ninja-build \
-      gcc-arm-none-eabi \
-      cppcheck \
-      clang-format
+  - apt-get install -y cmake ninja-build gcc-arm-none-eabi cppcheck clang-format
 
 # -------------------
 # FORMAT CHECK
