@@ -19,11 +19,12 @@ build_image:
   tags:
     - runner
   script:
-    - docker build -t stm32-ci gitlab-runner/Dockerfile
+    - docker build -t stm32-ci -f gitlab-runner/Dockerfile .
   rules:
     - changes:
         - gitlab-runner/Dockerfile
-      when: always
+        - .gitlab-ci.yml
+      when: on_success
 
 format:
   stage: format
