@@ -1,33 +1,36 @@
 stages:
+  - docker
   - format
   - configure
   - build
   - analyze
 
 default:
-  image: ubuntu:22.04
-  tags: 
+  image: stm32-ci
+  tags:
     - runner
   interruptible: true
 
 variables:
   BUILD_DIR: build
 
-before_script:
-  - apt-get update
-  - apt-get install -y cmake ninja-build gcc-arm-none-eabi cppcheck clang-format
+build_image:
+  stage: docker
+  tags:
+    - runner
+  script:
+    - docker build -t stm32-ci gitlab-runner/Dockerfile
+  rules:
+    - changes:
+        - Dockerfile
+      when: always
+    - when: manual
 
-# -------------------
-# FORMAT CHECK
-# -------------------
 format:
   stage: format
   script:
     - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) | xargs clang-format --dry-run --Werror
 
-# -------------------
-# CONFIGURE
-# -------------------
 configure:
   stage: configure
   script:
@@ -37,9 +40,6 @@ configure:
       - ${BUILD_DIR}/
     expire_in: 1 week
 
-# -------------------
-# BUILD
-# -------------------
 build:
   stage: build
   needs: ["configure"]
@@ -53,9 +53,6 @@ build:
       - ${BUILD_DIR}/*.bin
     expire_in: 1 week
 
-# -------------------
-# STATIC ANALYSIS
-# -------------------
 cppcheck:
   stage: analyze
   needs: ["configure"]
