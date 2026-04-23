@@ -20,7 +20,9 @@ default:
 
 build_image:
   stage: docker
-  image: docker:27
+  image: docker
+  services:
+    - docker:dind
   tags:
     - runner
   before_script:
