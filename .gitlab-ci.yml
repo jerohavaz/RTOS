@@ -31,6 +31,8 @@ build_image:
     - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/Dockerfile .
     - docker push "$STM32_CI_IMAGE"
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
     - changes:
         - gitlab-runner/Dockerfile
         - .gitlab-ci.yml
