@@ -1,0 +1,78 @@
+stages:
+  - docker
+  - format
+  - configure
+  - build
+  - analyze
+
+variables:
+  BUILD_DIR: build
+  STM32_CI_IMAGE: $CI_REGISTRY_IMAGE/stm32-ci:$CI_COMMIT_SHA
+
+.docker-credentials: &docker-credentials
+  - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+
+default:
+  image: $STM32_CI_IMAGE
+  tags:
+    - runner
+  interruptible: true
+
+build_image:
+  stage: docker
+  image: docker
+  services:
+    - docker:dind
+  tags:
+    - runner
+  before_script:
+    - *docker-credentials
+  script:
+    - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/Dockerfile .
+    - docker push "$STM32_CI_IMAGE"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - changes:
+        - gitlab-runner/Dockerfile
+        - .gitlab-ci.yml
+      when: on_success
+
+format:
+  stage: format
+  needs:
+    - build_image
+  script:
+    - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) | xargs clang-format --dry-run --Werror
+
+configure:
+  stage: configure
+  needs:
+    - build_image
+  script:
+    - cmake -S . -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  artifacts:
+    paths:
+      - ${BUILD_DIR}/
+    expire_in: 1 week
+
+build:
+  stage: build
+  needs:
+    - configure
+  script:
+    - cmake --build ${BUILD_DIR} --parallel
+    - arm-none-eabi-size ${BUILD_DIR}/*.elf
+  artifacts:
+    paths:
+      - ${BUILD_DIR}/*.elf
+      - ${BUILD_DIR}/*.map
+      - ${BUILD_DIR}/*.bin
+    expire_in: 1 week
+
+cppcheck:
+  stage: analyze
+  needs:
+    - configure
+  script:
+    - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --suppress=preprocessorErrorDirective Core/Src Core/Inc
