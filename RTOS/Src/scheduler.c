@@ -33,8 +33,7 @@ static uint32_t Scheduler_SelectNextIndex(void) {
         TCB_sctTCB_t *task = KERNEL_TaskGetByIndex(i);
 
         if ((task != 0) && (task->eTaskState == TaskState_Ready)) {
-            if ((best_index == UINT32_MAX) ||
-                (task->u8TaskPrio > best_prio)) {
+            if ((best_index == UINT32_MAX) || (task->u8TaskPrio > best_prio)) {
                 best_index = i;
                 best_prio = task->u8TaskPrio;
             }
@@ -55,8 +54,7 @@ static uint32_t Scheduler_SelectNextIndex(void) {
         uint32_t index = (start + offset) % task_count;
         TCB_sctTCB_t *task = KERNEL_TaskGetByIndex(index);
 
-        if ((task != 0) &&
-            (task->eTaskState == TaskState_Ready) &&
+        if ((task != 0) && (task->eTaskState == TaskState_Ready) &&
             (task->u8TaskPrio == best_prio)) {
             return index;
         }
@@ -66,8 +64,7 @@ static uint32_t Scheduler_SelectNextIndex(void) {
     return 0u;
 }
 
-void Scheduler_Start(void)
-{
+void Scheduler_Start(void) {
     uint32_t task_count = KERNEL_TaskGetCount();
 
     for (uint32_t i = 0u; i < task_count; i++) {
@@ -98,8 +95,7 @@ void Scheduler_OnFirstTaskStart() {
     g_psCurrentTCB->eTaskState = TaskState_Running;
 }
 
-void Scheduler_SwitchContext(void)
-{
+void Scheduler_SwitchContext(void) {
     if (g_psCurrentTCB == 0) {
         Kernel_Panic();
     }
