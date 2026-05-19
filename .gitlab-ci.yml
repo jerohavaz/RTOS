@@ -43,7 +43,7 @@ format:
   needs:
     - build_image
   script:
-    - find Core RTOS App -type f \( -name "*.c" -o -name "*.h" -o \) | xargs clang-format --dry-run --Werror
+    - find Core RTOS App -type f \( -name "*.c" -o -name "*.h" \) | xargs clang-format --dry-run --Werror
 
 configure:
   stage: configure
