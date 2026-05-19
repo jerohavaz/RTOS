@@ -43,7 +43,7 @@ format:
   needs:
     - build_image
   script:
-    - find Core -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) | xargs clang-format --dry-run --Werror
+    - find Core RTOS App -type f \( -name "*.c" -o -name "*.h" -o -name "*.s" \) | xargs clang-format --dry-run --Werror
 
 configure:
   stage: configure
@@ -75,4 +75,4 @@ cppcheck:
   needs:
     - configure
   script:
-    - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --suppress=preprocessorErrorDirective Core/Src Core/Inc
+    - cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --suppress=preprocessorErrorDirective Core/Src Core/Inc RTOS/Src RTOS/Inc App/Src App/Inc

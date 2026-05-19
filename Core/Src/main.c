@@ -21,11 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "app_tasks.h"
-#include "rtos_config.h"
-#include "scheduler.h"
-#include "task.h"
-#include "tcb.h"
+#include "app.h"
+#include "rtos.h"
 
 /* USER CODE END Includes */
 
@@ -47,7 +44,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-TCB_sctTCB_t g_asTaskList[RTOS_TOTAL_TASK_COUNT];
 
 /* USER CODE END PV */
 
@@ -93,12 +89,9 @@ int main(void) {
     /* USER CODE BEGIN 2 */
     __disable_irq();
 
-    Task_Create(&g_asTaskList[0], App_Task1, 0u, 1u);
-    Task_Create(&g_asTaskList[1], App_Task2, 1u, 1u);
-    Task_Create(&g_asTaskList[RTOS_IDLE_TASK_INDEX], App_IdleTask, 2u, 1u);
-
-    Scheduler_Init();
-    Scheduler_Start();
+    RTOS_Init();
+    APP_Init();
+    RTOS_Start();
 
     /* USER CODE END 2 */
 

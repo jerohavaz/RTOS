@@ -45,16 +45,21 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    Core/Src/scheduler.c
-    Core/Src/app_tasks.c
-    Core/Src/portasm.s
-    Core/Src/task.c
+    App/Src/app_tasks.c
+    App/Src/app.c
+    RTOS/Src/scheduler.c
+    RTOS/Src/portasm.s
+    RTOS/Src/task.c
+    RTOS/Src/idle.c
+    RTOS/Src/rtos.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     Core/Inc
+    App/Inc
+    RTOS/Inc
 )
 
 # Add project symbols (macros)

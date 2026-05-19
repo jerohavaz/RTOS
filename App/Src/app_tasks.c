@@ -24,9 +24,3 @@ void App_Task2(void) {
         BusyLoop_Delay(10000u);
     }
 }
-
-void App_IdleTask() {
-    while (1) {
-        __WFI();
-    }
-}
