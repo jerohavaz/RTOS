@@ -13,7 +13,6 @@
 
 Port_StartFirstTaskAsm:
     cpsie i
-    cpsie f
     dsb
     isb
 
@@ -24,7 +23,7 @@ Port_StartFirstTaskAsm:
 .global SVC_Handler
 .thumb_func
 .type SVC_Handler, %function
-
+// Check if SVC is executed by anything else and number it correctly
 SVC_Handler:
     cpsid i
 
@@ -43,7 +42,7 @@ SVC_Handler:
     ldmia r0!, {r4-r11}
     msr psp, r0
 
-    /* Switch Thread mode to PSP */
+    /* Switch Thread mode to PSP, FPU off and Privileged */
     movs r0, #2
     msr CONTROL, r0
     isb

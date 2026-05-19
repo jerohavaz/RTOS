@@ -93,8 +93,6 @@ int main(void) {
     /* USER CODE BEGIN 2 */
     __disable_irq();
 
-    Scheduler_Init();
-
     Task_Create(&g_asTaskList[0], App_Task1, 0u, 1u);
     Task_Create(&g_asTaskList[1], App_Task2, 1u, 1u);
     Task_Create(&g_asTaskList[RTOS_IDLE_TASK_INDEX], App_IdleTask, 2u, 1u);

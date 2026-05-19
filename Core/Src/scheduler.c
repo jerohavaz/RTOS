@@ -14,9 +14,9 @@ void Scheduler_Init() {
     g_psCurrentTCB = 0;
     g_u32CurrentTCBIndex = 0;
 
-    NVIC_SetPriority(PendSV_IRQn, 0xFFu);
-    NVIC_SetPriority(SysTick_IRQn, 0xFEu);
-    NVIC_SetPriority(SVCall_IRQn, 0xFDu);
+    NVIC_SetPriority(PendSV_IRQn, 15u);
+    NVIC_SetPriority(SysTick_IRQn, 14u);
+    NVIC_SetPriority(SVCall_IRQn, 13u);
 
     for (uint32_t i = 0; i < RTOS_TOTAL_TASK_COUNT; i++) {
         g_asTaskList[i].eTaskState = TaskState_Ready;
@@ -64,7 +64,9 @@ void Scheduler_SwitchContext() {
         Kernel_Panic();
     }
 
-    g_psCurrentTCB->eTaskState = TaskState_Ready;
+    if (g_psCurrentTCB->eTaskState == TaskState_Running) {
+        g_psCurrentTCB->eTaskState = TaskState_Ready;
+    }
 
     uint32_t u32Next = Scheduler_PeekNextIndex();
 
@@ -85,9 +87,10 @@ void Scheduler_RequestContextSwitch() {
         return;
     }
 
-    SCB->ICSR = SCB_ICSR_PENDSVSET_Msk; // System Control Block -> Interupt Control and State Register
-    __DSB(); // Data synchronization barrier
-    __ISB(); // Instruction synchronization barrier
+    SCB->ICSR =
+        SCB_ICSR_PENDSVSET_Msk; // System Control Block -> Interupt Control and State Register
+    __DSB();                    // Data synchronization barrier
+    __ISB();                    // Instruction synchronization barrier
 }
 
 void Kernel_Panic(void) {

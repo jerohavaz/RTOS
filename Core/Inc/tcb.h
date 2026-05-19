@@ -18,13 +18,13 @@ typedef struct {
      * MUST be first.
      * Assembly assumes offset 0.
      */
-     uint32_t *pu32TaskSP;
-     
-     uint8_t u8TaskId;
-     uint8_t u8TaskPrio;
-     TCB_eTastStates_t eTaskState;
-     
-     uint32_t au32TaskStack[RTOS_TASK_STACK_SIZE];
+    uint32_t *pu32TaskSP;
+
+    uint8_t u8TaskId;
+    uint8_t u8TaskPrio;
+    TCB_eTastStates_t eTaskState;
+
+    uint32_t au32TaskStack[RTOS_TASK_STACK_SIZE];
 } TCB_sctTCB_t;
 
 #endif
