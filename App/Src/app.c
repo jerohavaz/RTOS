@@ -1,8 +1,8 @@
 #include "app.h"
 #include "app_tasks.h"
-#include "task.h"
+#include "os_task.h"
 
-void APP_Init(void) {
-    RTOS_TaskCreate(App_Task1, 2u);
-    RTOS_TaskCreate(App_Task2, 2u);
+void app_init(void) {
+    os_task_create(app_task1, 2u);
+    os_task_create(app_task2, 2u);
 }

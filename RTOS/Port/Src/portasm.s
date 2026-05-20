@@ -2,10 +2,10 @@
 .cpu cortex-m4
 .thumb
 
-.extern g_psCurrentTCB
+.extern g_current_tcb
 
-.extern Scheduler_OnFirstTaskStart
-.extern Scheduler_SwitchContext
+.extern k_sched_first_task_started
+.extern k_sched_switch
 
 .global Port_StartFirstTaskAsm
 .thumb_func
@@ -27,14 +27,14 @@ Port_StartFirstTaskAsm:
 SVC_Handler:
     cpsid i
 
-    bl Scheduler_OnFirstTaskStart
+    bl k_sched_first_task_started
 
     /* Load current TCB stack pointer */
-    ldr r0, =g_psCurrentTCB
+    ldr r0, =g_current_tcb
     ldr r0, [r0]
     cbz r0, SVC_Fault
 
-    /* Load currentTCB->pu32TaskSP */
+    /* Load currentTCB->sp */
     ldr r0, [r0]
     cbz r0, SVC_Fault
 
@@ -71,22 +71,22 @@ PendSV_Handler:
     stmdb r0!, {r4-r11}
 
     /* Load current TCB */
-    ldr r1, =g_psCurrentTCB
+    ldr r1, =g_current_tcb
     ldr r1, [r1]
     cbz r1, PendSV_Fault
 
-    /* currentTCB->pu32TaskSP = updated PSP */
+    /* currentTCB->sp = updated PSP */
     str r0, [r1]
 
     /* Select next task */
-    bl Scheduler_SwitchContext
+    bl k_sched_switch
 
     /* Load incoming TCB */
-    ldr r0, =g_psCurrentTCB
+    ldr r0, =g_current_tcb
     ldr r0, [r0]
     cbz r0, PendSV_Fault
 
-    /* Load incoming currentTCB->pu32TaskSP */
+    /* Load incoming currentTCB->sp */
     ldr r0, [r0]
     cbz r0, PendSV_Fault
 

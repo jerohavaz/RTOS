@@ -1,7 +1,7 @@
 #ifndef APP_TASKS_H_
 #define APP_TASKS_H_
 
-void App_Task1(void);
-void App_Task2(void);
+void app_task1(void);
+void app_task2(void);
 
 #endif

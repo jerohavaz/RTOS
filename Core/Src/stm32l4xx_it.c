@@ -22,7 +22,7 @@
 #include "stm32l4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "scheduler.h"
+#include "k_sched.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -152,7 +152,8 @@ void SysTick_Handler(void) {
     /* USER CODE END SysTick_IRQn 0 */
     HAL_IncTick();
     /* USER CODE BEGIN SysTick_IRQn 1 */
-    Scheduler_RequestContextSwitch();
+
+    k_sched_request_switch();
 
     /* USER CODE END SysTick_IRQn 1 */
 }

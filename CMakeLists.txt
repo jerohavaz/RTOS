@@ -47,11 +47,15 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     App/Src/app_tasks.c
     App/Src/app.c
-    RTOS/Src/scheduler.c
-    RTOS/Src/portasm.s
-    RTOS/Src/task.c
-    RTOS/Src/idle.c
-    RTOS/Src/rtos.c
+    RTOS/Internal/Src/prio_waitq.c
+    RTOS/Internal/Src/task_list.c
+    RTOS/Kernel/Src/k_idle.c
+    RTOS/Kernel/Src/k_panic.c
+    RTOS/Kernel/Src/k_sched.c
+    RTOS/Kernel/Src/k_task.c
+    RTOS/Kernel/Src/os.c
+    RTOS/Port/Src/port.c
+    RTOS/Port/Src/portasm.s
 )
 
 # Add include paths
@@ -59,7 +63,10 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     Core/Inc
     App/Inc
-    RTOS/Inc
+    RTOS/Public
+    RTOS/Kernel/Inc
+    RTOS/Port/Inc
+    RTOS/Internal/Inc
 )
 
 # Add project symbols (macros)

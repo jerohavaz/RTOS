@@ -2,5 +2,5 @@
 
 ## Format
 ```bash
-clang-format -i Core/Src/*.c Core/Inc/*.h RTOS/Src/*.c RTOS/Inc/*.h App/Src/*.c App/Inc/*.h
+find Core RTOS App -type f \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 clang-format -i
 ```
