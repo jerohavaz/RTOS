@@ -88,7 +88,7 @@ int main(void) {
     /* Initialize all configured peripherals */
     MX_GPIO_Init();
     /* USER CODE BEGIN 2 */
-    port_enter_critical();
+    port_disable_interrupts();
 
     os_init();
     app_init();

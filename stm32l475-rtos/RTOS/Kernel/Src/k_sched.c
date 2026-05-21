@@ -63,6 +63,7 @@ void k_sched_first_task_started(void) {
 }
 
 void k_sched_switch(void) {
+    uint32_t irq = port_enter_critical();
     if (g_current_tcb == 0) {
         k_panic();
     }
@@ -78,6 +79,7 @@ void k_sched_switch(void) {
     }
 
     g_current_tcb->state = TASK_STATE_RUNNING;
+    port_exit_critical(irq);
 }
 
 void k_sched_request_switch(void) {
@@ -87,7 +89,7 @@ void k_sched_request_switch(void) {
 
     tcb_t *candidate = prio_waitq_peek_highest(&g_ready_queue);
 
-    if (candidate != 0 && candidate->prio > g_current_tcb->prio) {
+    if (candidate != 0 && candidate->prio >= g_current_tcb->prio) {
         port_request_context_switch();
     }
 }

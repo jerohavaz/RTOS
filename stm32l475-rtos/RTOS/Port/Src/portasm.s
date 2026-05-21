@@ -23,10 +23,8 @@ Port_StartFirstTaskAsm:
 .global SVC_Handler
 .thumb_func
 .type SVC_Handler, %function
-// Check if SVC is executed by anything else and number it correctly
-SVC_Handler:
-    cpsid i
 
+SVC_Handler:
     bl k_sched_first_task_started
 
     /* Load current TCB stack pointer */
@@ -49,8 +47,6 @@ SVC_Handler:
 
     /* Exception-return into first task */
     ldr lr, =0xFFFFFFFD
-
-    cpsie i
     bx lr
 
 
@@ -59,11 +55,6 @@ SVC_Handler:
 .type PendSV_Handler, %function
 
 PendSV_Handler:
-    cpsid i
-    
-    /* Preserve EXC_RETURN across C call */
-    push {r3, lr}
-
     /* Save outgoing task context */
     mrs r0, psp
     cbz r0, PendSV_Fault
@@ -78,8 +69,10 @@ PendSV_Handler:
     /* currentTCB->sp = updated PSP */
     str r0, [r1]
 
-    /* Select next task */
+    /* Preserve EXC_RETURN and keep 8-byte stack alignment for the C call. */
+    push {r3, lr}
     bl k_sched_switch
+    pop {r3, lr}
 
     /* Load incoming TCB */
     ldr r0, =g_current_tcb
@@ -95,10 +88,6 @@ PendSV_Handler:
     msr psp, r0
     isb
 
-    /* Restore EXC_RETURN and return to selected task */
-    pop {r3, lr}
-    
-    cpsie i
     bx lr
 
 
