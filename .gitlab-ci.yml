@@ -4,6 +4,7 @@ stages:
   - configure
   - build
   - analyze
+  - pages
 
 variables:
   BUILD_DIR: build
@@ -76,3 +77,15 @@ cppcheck:
     - configure
   script:
     - find Core RTOS App -type f \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 cppcheck --enable=warning,style,performance,portability --error-exitcode=1 --suppress=preprocessorErrorDirective
+
+pages:
+  stage: pages
+  image: nakatt/doxygen:1.11
+  script:
+    - doxygen Doxyfile
+    - rm -rf public
+    - cp -r docs/html public
+    - test -f public/index.html
+  artifacts:
+    paths:
+      - public

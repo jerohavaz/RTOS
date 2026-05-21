@@ -39,3 +39,6 @@ Thumbs.db
 
 # ===== Toolchain-specific =====
 *.launch
+
+# ===== Documentation =====
+docs
