@@ -13,6 +13,7 @@
  */
 
 #include "task_list.h"
+#include "tcb.h"
 
 /**
  * @brief Initialize a task list.
@@ -133,6 +134,24 @@ tcb_t *task_list_pop_front(task_list_t *list) {
     tcb_t *task = list->head;
     task_list_remove(list, task);
     return task;
+}
+
+/**
+ * @brief Return the front task without removing it.
+ *
+ * Returns the current head of the list. The list is not modified.
+ *
+ * @param list List to inspect.
+ *
+ * @return Front task control block.
+ * @retval 0 List was empty.
+ */
+tcb_t *task_list_peek_front(task_list_t *list) {
+    if (list->head == 0) {
+        return 0;
+    }
+
+    return list->head;
 }
 
 /**

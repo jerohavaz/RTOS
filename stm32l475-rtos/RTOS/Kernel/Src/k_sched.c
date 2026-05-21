@@ -85,7 +85,11 @@ void k_sched_request_switch(void) {
         return;
     }
 
-    port_request_context_switch();
+    tcb_t *candidate = prio_waitq_peek_highest(&g_ready_queue);
+
+    if (candidate != 0 && candidate->prio > g_current_tcb->prio) {
+        port_request_context_switch();
+    }
 }
 
 tcb_t *k_sched_current(void) {

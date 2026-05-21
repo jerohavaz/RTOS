@@ -14,6 +14,7 @@ void prio_waitq_init(prio_waitq_t *q, task_node_fn_t get_node);
 
 void prio_waitq_push(prio_waitq_t *q, tcb_t *task);
 tcb_t *prio_waitq_pop_highest(prio_waitq_t *q);
+tcb_t *prio_waitq_peek_highest(prio_waitq_t *q);
 void prio_waitq_remove(prio_waitq_t *q, tcb_t *task);
 
 uint8_t prio_waitq_is_empty(const prio_waitq_t *q);
