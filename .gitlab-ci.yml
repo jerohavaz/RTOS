@@ -80,7 +80,9 @@ cppcheck:
 
 pages:
   stage: pages
-  image: nakatt/doxygen:1.11
+  image:
+    name: nakatt/doxygen:1.11
+    entrypoint: [""]
   script:
     - doxygen Doxyfile
     - rm -rf public
