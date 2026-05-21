@@ -1,0 +1,5 @@
+r
+loadfile build/Debug/rtos.elf
+r
+g
+qc
