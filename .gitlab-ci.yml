@@ -42,9 +42,6 @@ build_image:
 
 format:
   stage: format
-  needs:
-    - job: build_image
-      optional: true
   script:
     - cd "$FIRMWARE_DIR"
     - find Core RTOS App -type f \( -name '*.c' -o -name '*.h' \) -print0 |
@@ -52,9 +49,6 @@ format:
 
 configure:
   stage: configure
-  needs:
-    - job: build_image
-      optional: true
   script:
     - cd "$FIRMWARE_DIR"
     - cmake --preset Debug
@@ -98,7 +92,6 @@ pages:
   image:
     name: nakatt/doxygen:1.11
     entrypoint: [""]
-  needs: []
   script:
     - cd "$FIRMWARE_DIR"
     - doxygen Doxyfile
