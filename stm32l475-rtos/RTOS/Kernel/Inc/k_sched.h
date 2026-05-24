@@ -6,10 +6,14 @@
 void k_sched_init(void);
 void k_sched_start(void);
 void k_sched_first_task_started(void);
-void k_sched_switch(void);
-void k_sched_request_switch(void);
 
 void k_sched_make_ready(tcb_t *task);
+void k_sched_block(tcb_t *task);
+void k_sched_unblock(tcb_t *task);
+
+void k_sched_switch(void);
+
+void k_sched_request_switch(void);
 tcb_t *k_sched_current(void);
 
 #endif

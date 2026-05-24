@@ -7,7 +7,7 @@
 #include "tcb.h"
 
 static uint8_t g_sched_started = 0u;
-volatile tcb_t *g_current_tcb = 0;
+tcb_t *g_current_tcb = 0;
 
 static prio_waitq_t g_ready_queue;
 
@@ -26,11 +26,6 @@ void k_sched_init(void) {
     NVIC_SetPriority(SVCall_IRQn, 13u);
 }
 
-void k_sched_make_ready(tcb_t *task) {
-    task->state = TASK_STATE_READY;
-    prio_waitq_push(&g_ready_queue, task);
-}
-
 void k_sched_start(void) {
     uint32_t task_count = k_task_count();
 
@@ -43,13 +38,11 @@ void k_sched_start(void) {
     }
 
     g_current_tcb = prio_waitq_pop_highest(&g_ready_queue);
-
     if (g_current_tcb == 0) {
         k_panic();
     }
 
     port_start_first_task();
-
     k_panic();
 }
 
@@ -59,21 +52,49 @@ void k_sched_first_task_started(void) {
     }
 
     g_current_tcb->state = TASK_STATE_RUNNING;
+
     g_sched_started = 1u;
+}
+
+void k_sched_make_ready(tcb_t *task) {
+    task->state = TASK_STATE_READY;
+    prio_waitq_push(&g_ready_queue, task);
+}
+
+void k_sched_block(tcb_t *task) {
+    // if (port_is_irq_enabled()) {
+    //     k_panic();
+    // }
+
+    if (task != g_current_tcb) {
+        k_panic();
+    }
+
+    task->state = TASK_STATE_BLOCKED;
+    k_sched_request_switch();
+}
+
+void k_sched_unblock(tcb_t *task) {
+    if (task->state != TASK_STATE_BLOCKED) {
+        return;
+    }
+
+    k_sched_make_ready(task);
+    k_sched_request_switch();
 }
 
 void k_sched_switch(void) {
     uint32_t irq = port_enter_critical();
+
     if (g_current_tcb == 0) {
         k_panic();
     }
 
     if (g_current_tcb->state == TASK_STATE_RUNNING) {
-        k_sched_make_ready((tcb_t *)g_current_tcb);
+        k_sched_make_ready(g_current_tcb);
     }
 
     g_current_tcb = prio_waitq_pop_highest(&g_ready_queue);
-
     if (g_current_tcb == 0) {
         k_panic();
     }
@@ -88,12 +109,13 @@ void k_sched_request_switch(void) {
     }
 
     tcb_t *candidate = prio_waitq_peek_highest(&g_ready_queue);
-
-    if (candidate != 0 && candidate->prio >= g_current_tcb->prio) {
-        port_request_context_switch();
+    if (!candidate) {
+        return;
     }
+
+    port_request_context_switch();
 }
 
 tcb_t *k_sched_current(void) {
-    return (tcb_t *)g_current_tcb;
+    return g_current_tcb;
 }
