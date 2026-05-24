@@ -146,7 +146,7 @@ tcb_t *task_list_pop_front(task_list_t *list) {
  * @return Front task control block.
  * @retval 0 List was empty.
  */
-tcb_t *task_list_peek_front(task_list_t *list) {
+tcb_t *task_list_peek_front(const task_list_t *list) {
     if (list->head == 0) {
         return 0;
     }

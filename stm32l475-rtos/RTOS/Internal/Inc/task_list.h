@@ -18,7 +18,7 @@ uint8_t task_list_is_empty(const task_list_t *list);
 void task_list_push_back(task_list_t *list, tcb_t *task);
 void task_list_insert_before(task_list_t *list, tcb_t *existing, tcb_t *task);
 tcb_t *task_list_pop_front(task_list_t *list);
-tcb_t *task_list_peek_front(task_list_t *list);
+tcb_t *task_list_peek_front(const task_list_t *list);
 void task_list_remove(task_list_t *list, tcb_t *task);
 
 #endif
