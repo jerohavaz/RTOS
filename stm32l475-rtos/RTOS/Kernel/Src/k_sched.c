@@ -1,10 +1,13 @@
 #include "k_sched.h"
 #include "k_task.h"
 #include "k_panic.h"
+#include "os_config.h"
 #include "port.h"
 #include "prio_waitq.h"
 #include "stm32l475xx.h"
 #include "tcb.h"
+#include "trace.h"
+#include <stdint.h>
 
 static uint8_t g_sched_started = 0u;
 tcb_t *g_current_tcb = 0;
@@ -33,7 +36,7 @@ void k_sched_start(void) {
         tcb_t *task = k_task_get(i);
 
         if ((task != 0) && (task->state == TASK_STATE_CREATED)) {
-            k_sched_make_ready(task);
+            k_sched_task_ready(task);
         }
     }
 
@@ -52,34 +55,30 @@ void k_sched_first_task_started(void) {
     }
 
     g_current_tcb->state = TASK_STATE_RUNNING;
+    trace_task_run(g_current_tcb);
 
     g_sched_started = 1u;
 }
 
-void k_sched_make_ready(tcb_t *task) {
+void k_sched_task_ready(tcb_t *task) {
     task->state = TASK_STATE_READY;
     prio_waitq_push(&g_ready_queue, task);
+    trace_task_ready(task);
 }
 
-void k_sched_block(tcb_t *task) {
-    // if (port_is_irq_enabled()) {
-    //     k_panic();
-    // }
-
-    if (task != g_current_tcb) {
-        k_panic();
-    }
-
+void k_sched_task_block(tcb_t *task) {
     task->state = TASK_STATE_BLOCKED;
+    prio_waitq_remove(&g_ready_queue, task);
+    trace_task_block(task);
     k_sched_request_switch();
 }
 
-void k_sched_unblock(tcb_t *task) {
+void k_sched_task_unblock(tcb_t *task) {
     if (task->state != TASK_STATE_BLOCKED) {
         return;
     }
 
-    k_sched_make_ready(task);
+    k_sched_task_ready(task);
     k_sched_request_switch();
 }
 
@@ -91,7 +90,7 @@ void k_sched_switch(void) {
     }
 
     if (g_current_tcb->state == TASK_STATE_RUNNING) {
-        k_sched_make_ready(g_current_tcb);
+        k_sched_task_ready(g_current_tcb);
     }
 
     g_current_tcb = prio_waitq_pop_highest(&g_ready_queue);
@@ -100,20 +99,22 @@ void k_sched_switch(void) {
     }
 
     g_current_tcb->state = TASK_STATE_RUNNING;
+    trace_task_run(g_current_tcb);
     port_exit_critical(irq);
 }
 
-void k_sched_request_switch(void) {
+uint8_t k_sched_request_switch(void) {
     if (g_sched_started == 0u) {
-        return;
+        return 0;
     }
 
     tcb_t *candidate = prio_waitq_peek_highest(&g_ready_queue);
     if (!candidate) {
-        return;
+        return 0;
     }
 
     port_request_context_switch();
+    return 1;
 }
 
 tcb_t *k_sched_current(void) {

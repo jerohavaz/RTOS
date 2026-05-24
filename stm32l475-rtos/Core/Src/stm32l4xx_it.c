@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "k_sched.h"
+#include "trace.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -148,12 +149,17 @@ void DebugMon_Handler(void) {
  */
 void SysTick_Handler(void) {
     /* USER CODE BEGIN SysTick_IRQn 0 */
-
+    trace_isr_enter();
     /* USER CODE END SysTick_IRQn 0 */
     HAL_IncTick();
     /* USER CODE BEGIN SysTick_IRQn 1 */
 
-    k_sched_request_switch();
+    if (k_sched_request_switch()) {
+        trace_isr_exit_to_scheduler();
+        return;
+    }
+
+    trace_isr_exit();
 
     /* USER CODE END SysTick_IRQn 1 */
 }

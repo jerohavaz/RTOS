@@ -85,3 +85,7 @@ void port_halt(void) {
 void port_wait_for_interrupt(void) {
     __WFI();
 }
+
+uint32_t port_get_active_exception_id(void) {
+    return __get_IPSR();
+}

@@ -2,8 +2,10 @@
 #include "k_task.h"
 #include "k_sched.h"
 #include "k_idle.h"
+#include "trace.h"
 
 void os_init(void) {
+    trace_init();
     k_task_init();
     k_sched_init();
     k_idle_create();

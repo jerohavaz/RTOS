@@ -49,6 +49,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/app.c
     RTOS/Internal/Src/prio_waitq.c
     RTOS/Internal/Src/task_list.c
+    RTOS/Internal/Src/trace.c
     RTOS/Kernel/Src/k_idle.c
     RTOS/Kernel/Src/k_panic.c
     RTOS/Kernel/Src/k_sched.c
@@ -56,6 +57,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     RTOS/Kernel/Src/os.c
     RTOS/Port/Src/port.c
     RTOS/Port/Src/portasm.s
+
+    # SEGGER
+    Libs/SEGGER/RTT/RTT/SEGGER_RTT_ASM_ARMv7M.S
+    Libs/SEGGER/RTT/RTT/SEGGER_RTT_printf.c
+    Libs/SEGGER/RTT/RTT/SEGGER_RTT.c
+    # Libs/SEGGER/RTT/Syscalls/SEGGER_RTT_Syscalls_GCC.c
+    Libs/SEGGER/SystemView/SYSVIEW/SEGGER_SYSVIEW.c
+    Libs/SEGGER/SystemView/Config/SEGGER_SYSVIEW_Config_NoOS.c
 )
 
 # Add include paths
@@ -67,6 +76,13 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     RTOS/Kernel/Inc
     RTOS/Port/Inc
     RTOS/Internal/Inc
+
+    # SEGGER
+    Libs/SEGGER/SystemView/Config
+    Libs/SEGGER/SystemView/SEGGER
+    Libs/SEGGER/SystemView/SYSVIEW
+    Libs/SEGGER/RTT/Config
+    Libs/SEGGER/RTT/RTT
 )
 
 # Add project symbols (macros)

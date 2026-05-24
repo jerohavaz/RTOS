@@ -3,6 +3,7 @@
 #include "os_task.h"
 #include "os_types.h"
 #include "tcb.h"
+#include "trace.h"
 #include <stdint.h>
 
 static tcb_t g_tasks[OS_MAX_TASKS];
@@ -84,6 +85,7 @@ os_status_t k_task_create_internal(os_task_func_t task_func, uint8_t prio) {
     task_init_stack(task, task_func);
 
     g_task_count++;
+    trace_task_create(task);
 
     return OS_OK;
 }

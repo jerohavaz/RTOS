@@ -135,7 +135,13 @@ The STM32Cube extension is not required for building or debugging this project.
 ```json
 {
   "cmake.sourceDirectory": "${workspaceFolder}/stm32l475-rtos",
-  "cmake.useCMakePresets": "always"
+  "cmake.useCMakePresets": "always",
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/stm32l475-rtos/build/Debug",
+    "--query-driver=/usr/bin/arm-none-eabi-gcc,/usr/bin/arm-none-eabi-g++",
+    "--background-index"
+  ],
+  "C_Cpp.intelliSenseEngine": "disabled"
 }
 ```
 
