@@ -85,21 +85,24 @@ void k_sched_task_unblock(tcb_t *task) {
 void k_sched_switch(void) {
     uint32_t irq = port_enter_critical();
 
-    if (g_current_tcb == 0) {
+    tcb_t *old = g_current_tcb;
+    if (old == 0) {
         k_panic();
     }
 
-    if (g_current_tcb->state == TASK_STATE_RUNNING) {
-        k_sched_task_ready(g_current_tcb);
+    if (old->state == TASK_STATE_RUNNING) {
+        k_sched_task_ready(old);
     }
 
-    g_current_tcb = prio_waitq_pop_highest(&g_ready_queue);
-    if (g_current_tcb == 0) {
+    tcb_t *next = prio_waitq_pop_highest(&g_ready_queue);
+    if (next == 0) {
         k_panic();
     }
 
-    g_current_tcb->state = TASK_STATE_RUNNING;
-    trace_task_run(g_current_tcb);
+    next->state = TASK_STATE_RUNNING;
+    g_current_tcb = next;
+    trace_task_run(next);
+    
     port_exit_critical(irq);
 }
 
@@ -109,7 +112,7 @@ uint8_t k_sched_request_switch(void) {
     }
 
     tcb_t *candidate = prio_waitq_peek_highest(&g_ready_queue);
-    if (!candidate) {
+    if (candidate == 0) {
         return 0;
     }
 
