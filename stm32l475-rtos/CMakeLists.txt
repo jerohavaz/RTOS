@@ -47,14 +47,20 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     App/Src/app_tasks.c
     App/Src/app.c
+
     RTOS/Internal/Src/prio_waitq.c
     RTOS/Internal/Src/task_list.c
+    RTOS/Internal/Src/timeout_list.c
     RTOS/Internal/Src/trace.c
+
     RTOS/Kernel/Src/k_idle.c
     RTOS/Kernel/Src/k_panic.c
     RTOS/Kernel/Src/k_sched.c
     RTOS/Kernel/Src/k_task.c
+    RTOS/Kernel/Src/k_timeout.c
+    RTOS/Kernel/Src/os_delay.c
     RTOS/Kernel/Src/os.c
+    
     RTOS/Port/Src/port.c
     RTOS/Port/Src/portasm.s
 

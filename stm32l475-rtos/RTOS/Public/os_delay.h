@@ -1,0 +1,9 @@
+#ifndef K_DELAY_H_
+#define K_DELAY_H_
+
+#include "os_types.h"
+#include <stdint.h>
+
+os_status_t os_delay(uint32_t delay_ticks);
+
+#endif

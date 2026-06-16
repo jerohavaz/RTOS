@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "k_sched.h"
 #include "trace.h"
+#include "k_timeout.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -153,6 +154,8 @@ void SysTick_Handler(void) {
     /* USER CODE END SysTick_IRQn 0 */
     HAL_IncTick();
     /* USER CODE BEGIN SysTick_IRQn 1 */
+    k_tick_inc();
+    k_timeout_process_tick();
 
     if (k_sched_request_switch()) {
         trace_isr_exit_to_scheduler();

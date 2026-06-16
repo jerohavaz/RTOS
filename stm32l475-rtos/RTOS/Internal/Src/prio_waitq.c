@@ -1,4 +1,5 @@
 #include "prio_waitq.h"
+#include "kernel_task.h"
 #include "task_list.h"
 #include "tcb.h"
 
@@ -30,21 +31,21 @@ uint8_t prio_waitq_is_empty(const prio_waitq_t *q) {
     return q->bitmap == 0u;
 }
 
-void prio_waitq_push(prio_waitq_t *q, tcb_t *task) {
-    uint32_t p = task->prio;
+void prio_waitq_push(prio_waitq_t *q, kernel_task_t *task) {
+    uint32_t p = task->tcb.u8TaskPrio;
 
     task_list_push_back(&q->prio[p], task);
     q->bitmap |= (1u << p);
 }
 
-tcb_t *prio_waitq_pop_highest(prio_waitq_t *q) {
+kernel_task_t *prio_waitq_pop_highest(prio_waitq_t *q) {
     if (q->bitmap == 0u) {
         return 0;
     }
 
     uint32_t p = highest_prio_from_bitmap(q->bitmap);
 
-    tcb_t *task = task_list_pop_front(&q->prio[p]);
+    kernel_task_t *task = task_list_pop_front(&q->prio[p]);
 
     if (task_list_is_empty(&q->prio[p])) {
         q->bitmap &= ~(1u << p);
@@ -53,7 +54,7 @@ tcb_t *prio_waitq_pop_highest(prio_waitq_t *q) {
     return task;
 }
 
-tcb_t *prio_waitq_peek_highest(prio_waitq_t *q) {
+kernel_task_t *prio_waitq_peek_highest(prio_waitq_t *q) {
     if (q->bitmap == 0u) {
         return 0;
     }
@@ -63,8 +64,8 @@ tcb_t *prio_waitq_peek_highest(prio_waitq_t *q) {
     return task_list_peek_front(&q->prio[p]);
 }
 
-void prio_waitq_remove(prio_waitq_t *q, tcb_t *task) {
-    uint32_t p = task->prio;
+void prio_waitq_remove(prio_waitq_t *q, kernel_task_t *task) {
+    uint32_t p = task->tcb.u8TaskPrio;
 
     task_list_remove(&q->prio[p], task);
 

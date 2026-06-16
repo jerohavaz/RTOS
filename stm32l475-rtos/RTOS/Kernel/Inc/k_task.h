@@ -3,7 +3,7 @@
 
 #include "os_types.h"
 #include "os_task.h"
-#include "tcb.h"
+#include "kernel_task.h"
 #include <stdint.h>
 
 void k_task_init(void);
@@ -11,7 +11,7 @@ void k_task_lock_creation(void);
 
 os_status_t k_task_create_internal(os_task_func_t task_func, uint8_t prio);
 
-tcb_t *k_task_get(uint32_t index);
+kernel_task_t *k_task_get(uint32_t index);
 uint32_t k_task_count(void);
 
 #endif

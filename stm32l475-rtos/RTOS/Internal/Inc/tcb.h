@@ -1,34 +1,37 @@
-#ifndef TCB_H_
-#define TCB_H_
+/*
+ * tcb.h
+ *  Task control block
+ *  Created on: Mar 31, 2025
+ *      Author: David
+ */
+
+#ifndef DOS_INC_TCB_H_
+#define DOS_INC_TCB_H_
 
 #include "os_config.h"
 #include <stdint.h>
 
+/// Task state.
 typedef enum {
-    TASK_STATE_CREATED = 0u,
-    TASK_STATE_READY,
-    TASK_STATE_RUNNING,
-    TASK_STATE_BLOCKED,
-    TASK_STATE_DELETED,
-} task_state_t;
+    TaskState_Created = 0U, ///< Task has been created.
 
-typedef struct tcb tcb_t;
+    // Normal scheduler states.
+    TaskState_Ready,   ///< Ready to be scheduled.
+    TaskState_Running, ///< Currently executing.
+    TaskState_Blocked, ///< Waiting; not schedulable.
 
+    TaskState_Deleted,   ///< [FUTURE] Deleted; will not run again.
+    TaskState_MAX_STATE, ///< Number of states / validity limit.
+} TCB_eTastStates_t;
+
+/// Task control block.
 typedef struct {
-    tcb_t *next;
-    tcb_t *prev;
-} tcb_list_node_t;
+    uint32_t *pu32TaskSP;         ///< Saved stack pointer. Must stay first; asm assumes offset 0.
+    uint8_t u8TaskId;             ///< Task ID.
+    uint8_t u8TaskPrio;           ///< Task priority.
+    TCB_eTastStates_t eTaskState; ///< Current task state.
 
-struct tcb {
-    uint32_t *sp; /* MUST stay first: assembly assumes offset 0 */
+    uint32_t au32TaskStack[OS_TASK_STACK_SIZE]; ///< Task stack; stores software-saved context.
+} TCB_sctTCB_t;
 
-    uint8_t id;
-    uint8_t prio;
-    task_state_t state;
-
-    tcb_list_node_t sched_node;
-
-    uint32_t stack[OS_TASK_STACK_SIZE];
-};
-
-#endif
+#endif /* DOS_INC_TCB_H_ */

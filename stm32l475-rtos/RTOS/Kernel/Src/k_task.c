@@ -1,3 +1,4 @@
+#include "kernel_task.h"
 #include "os_config.h"
 #include "k_task.h"
 #include "os_task.h"
@@ -6,7 +7,7 @@
 #include "trace.h"
 #include <stdint.h>
 
-static tcb_t g_tasks[OS_MAX_TASKS];
+static kernel_task_t g_tasks[OS_MAX_TASKS];
 static uint32_t g_task_count = 0u;
 static uint8_t g_task_creation_locked = 0u;
 
@@ -15,10 +16,11 @@ static void task_exit_error(void) {
     }
 }
 
-static void task_init_stack(tcb_t *task, os_task_func_t task_func) {
+// TODO: Maybe put this inside of Port since its architecture specific
+static void task_init_stack(TCB_sctTCB_t *task, os_task_func_t task_func) {
     uint32_t *sp;
 
-    sp = &task->stack[OS_TASK_STACK_SIZE];
+    sp = &task->au32TaskStack[OS_TASK_STACK_SIZE];
 
     *(--sp) = 0x01000000u;               /* xPSR */
     *(--sp) = (uint32_t)task_func;       /* PC */
@@ -38,7 +40,7 @@ static void task_init_stack(tcb_t *task, os_task_func_t task_func) {
     *(--sp) = 0x05050505u; /* R5 */
     *(--sp) = 0x04040404u; /* R4 */
 
-    task->sp = sp;
+    task->pu32TaskSP = sp;
 }
 
 void k_task_init(void) {
@@ -46,17 +48,23 @@ void k_task_init(void) {
     g_task_creation_locked = 0u;
 
     for (uint32_t i = 0u; i < OS_MAX_TASKS; i++) {
-        g_tasks[i].sp = 0;
-        g_tasks[i].id = 0u;
-        g_tasks[i].prio = 0u;
-        g_tasks[i].state = TASK_STATE_DELETED;
+        g_tasks[i].tcb.pu32TaskSP = 0;
+        g_tasks[i].tcb.u8TaskId = 0u;
+        g_tasks[i].tcb.u8TaskPrio = 0u;
+        g_tasks[i].tcb.eTaskState = TaskState_MAX_STATE;
         g_tasks[i].sched_node.next = 0;
         g_tasks[i].sched_node.prev = 0;
+        g_tasks[i].timeout_node.next = 0;
+        g_tasks[i].timeout_node.prev = 0;
+        g_tasks[i].wake_tick = 0u;
+        g_tasks[i].wait_object = 0;
+        g_tasks[i].wait_result = OS_OK;
     }
 }
 
 os_status_t k_task_create_internal(os_task_func_t task_func, uint8_t prio) {
-    tcb_t *task;
+    kernel_task_t *task;
+    TCB_sctTCB_t *tcb;
 
     if (task_func == 0) {
         return OS_ERR_NULL;
@@ -75,17 +83,24 @@ os_status_t k_task_create_internal(os_task_func_t task_func, uint8_t prio) {
     }
 
     task = &g_tasks[g_task_count];
+    tcb = &task->tcb;
 
-    task->id = (uint8_t)g_task_count;
-    task->prio = prio;
-    task->state = TASK_STATE_CREATED;
+    tcb->u8TaskId = (uint8_t)g_task_count;
+    tcb->u8TaskPrio = prio;
+    tcb->eTaskState = TaskState_Created;
+
     task->sched_node.next = 0;
     task->sched_node.prev = 0;
+    task->timeout_node.next = 0;
+    task->timeout_node.prev = 0;
+    task->wake_tick = 0u;
+    task->wait_object = 0;
+    task->wait_result = OS_OK;
 
-    task_init_stack(task, task_func);
+    task_init_stack(tcb, task_func);
 
     g_task_count++;
-    trace_task_create(task);
+    trace_task_create(tcb);
 
     return OS_OK;
 }
@@ -98,7 +113,7 @@ os_status_t os_task_create(os_task_func_t task_func, uint8_t prio) {
     return k_task_create_internal(task_func, prio);
 }
 
-tcb_t *k_task_get(uint32_t index) {
+kernel_task_t *k_task_get(uint32_t index) {
     if (index >= g_task_count) {
         return 0;
     }
