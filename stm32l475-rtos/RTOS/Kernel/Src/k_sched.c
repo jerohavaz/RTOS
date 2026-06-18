@@ -5,7 +5,6 @@
 #include "os_config.h"
 #include "port.h"
 #include "prio_waitq.h"
-#include "stm32l475xx.h"
 #include "tcb.h"
 #include "trace.h"
 #include <stdint.h>
@@ -205,9 +204,7 @@ void k_sched_init(void) {
 
     prio_waitq_init(&g_ready_queue, sched_node);
 
-    NVIC_SetPriority(PendSV_IRQn, 15u);
-    NVIC_SetPriority(SysTick_IRQn, 14u);
-    NVIC_SetPriority(SVCall_IRQn, 13u);
+    port_init_scheduler_interrupts();
 }
 
 void k_sched_set_idle_task(kernel_task_t *task) {
@@ -254,7 +251,7 @@ void k_sched_start(void) {
     k_panic();
 }
 
-uint32_t *k_sched_start_first_context(void) {
+port_stack_t *k_sched_start_first_context(void) {
     if (g_current_task == 0) {
         k_panic();
     }
@@ -319,7 +316,7 @@ uint8_t k_sched_request_yield(void) {
     return requested;
 }
 
-uint32_t *k_sched_switch_context(uint32_t *outgoing_sp) {
+port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
     if (outgoing_sp == 0) {
         k_panic();
     }

@@ -3,6 +3,7 @@
 #include "k_task.h"
 #include "os_task.h"
 #include "os_types.h"
+#include "port.h"
 #include "tcb.h"
 #include "trace.h"
 #include <stdint.h>
@@ -14,36 +15,6 @@ static uint8_t g_task_creation_locked = 0u;
 static void task_exit_error(void) {
     while (1) {
     }
-}
-
-// TODO: Maybe put this inside of Port since its architecture specific
-static void task_init_stack(TCB_sctTCB_t *task, os_task_func_t task_func) {
-    uint32_t *sp;
-
-    sp = &task->au32TaskStack[OS_TASK_STACK_SIZE];
-
-    // Cortex-M exception frames require 8-byte stack alignment.
-    sp = (uint32_t *)((uint32_t)sp & ~0x7u);
-
-    *(--sp) = 0x01000000u;               /* xPSR */
-    *(--sp) = (uint32_t)task_func;       /* PC */
-    *(--sp) = (uint32_t)task_exit_error; /* LR */
-    *(--sp) = 0x12121212u;               /* R12 */
-    *(--sp) = 0x03030303u;               /* R3 */
-    *(--sp) = 0x02020202u;               /* R2 */
-    *(--sp) = 0x01010101u;               /* R1 */
-    *(--sp) = 0x00000000u;               /* R0 */
-
-    *(--sp) = 0x11111111u; /* R11 */
-    *(--sp) = 0x10101010u; /* R10 */
-    *(--sp) = 0x09090909u; /* R9 */
-    *(--sp) = 0x08080808u; /* R8 */
-    *(--sp) = 0x07070707u; /* R7 */
-    *(--sp) = 0x06060606u; /* R6 */
-    *(--sp) = 0x05050505u; /* R5 */
-    *(--sp) = 0x04040404u; /* R4 */
-
-    task->pu32TaskSP = sp;
 }
 
 void k_task_init(void) {
@@ -110,7 +81,12 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
     task->wait_object = 0;
     task->wait_result = OS_OK;
 
-    task_init_stack(tcb, task_func);
+    tcb->pu32TaskSP =
+        port_init_task_stack(tcb->au32TaskStack, OS_TASK_STACK_SIZE, task_func, task_exit_error);
+
+    if (tcb->pu32TaskSP == 0) {
+        return OS_ERR_INVALID_STATE;
+    }
 
     g_task_count++;
 

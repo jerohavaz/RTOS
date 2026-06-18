@@ -1,7 +1,8 @@
-#ifndef K_SCHED_H
-#define K_SCHED_H
+#ifndef K_SCHED_H_
+#define K_SCHED_H_
 
 #include "kernel_task.h"
+#include "port.h"
 #include <stdint.h>
 
 void k_sched_init(void);
@@ -9,8 +10,8 @@ void k_sched_start(void);
 
 void k_sched_set_idle_task(kernel_task_t *task);
 
-uint32_t *k_sched_start_first_context(void);
-uint32_t *k_sched_switch_context(uint32_t *outgoing_sp);
+port_stack_t *k_sched_start_first_context(void);
+port_stack_t *k_sched_switch_context(uint32_t *outgoing_sp);
 
 void k_sched_task_ready(kernel_task_t *task);
 void k_sched_task_block(kernel_task_t *task);

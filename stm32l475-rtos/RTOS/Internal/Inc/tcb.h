@@ -35,3 +35,35 @@ typedef struct {
 } TCB_sctTCB_t;
 
 #endif /* DOS_INC_TCB_H_ */
+
+/*
+
+#ifndef TCB_H_
+#define TCB_H_
+
+#include "os_config.h"
+#include "port.h"
+
+#include <stdint.h>
+
+typedef enum {
+    TASK_STATE_CREATED = 0u,
+    TASK_STATE_READY,
+    TASK_STATE_RUNNING,
+    TASK_STATE_BLOCKED,
+    TASK_STATE_DELETED,
+    TASK_STATE_COUNT
+} task_state_t;
+
+typedef struct {
+    uint8_t id;
+    uint8_t priority;
+    task_state_t state;
+
+    port_stack_t stack[OS_TASK_STACK_SIZE];
+    port_stack_t *stack_ptr;
+} tcb_t;
+
+#endif
+
+*/
