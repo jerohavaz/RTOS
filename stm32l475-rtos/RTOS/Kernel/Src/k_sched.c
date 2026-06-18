@@ -57,9 +57,7 @@ static void sched_trace_selected(kernel_task_t *task) {
 }
 
 static void sched_task_ready(kernel_task_t *task) {
-    if (task == 0) {
-        k_panic();
-    }
+    K_REQUIRE(task != 0);
 
     /*
      * Idle is never queue-managed.
@@ -78,13 +76,8 @@ static void sched_task_ready(kernel_task_t *task) {
 }
 
 static void sched_task_block(kernel_task_t *task) {
-    if (task == 0) {
-        k_panic();
-    }
-
-    if (sched_is_idle(task)) {
-        k_panic();
-    }
+    K_REQUIRE(task != 0);
+    K_REQUIRE(!sched_is_idle(task));
 
     task->tcb.eTaskState = TaskState_Blocked;
     sched_trace_blocked(task);
@@ -97,9 +90,7 @@ static kernel_task_t *sched_pick_next(void) {
         return next;
     }
 
-    if (g_idle_task == 0) {
-        k_panic();
-    }
+    K_REQUIRE(g_idle_task != 0);
 
     return g_idle_task;
 }
@@ -115,9 +106,7 @@ static kernel_task_t *sched_peek_next(void) {
 }
 
 static void sched_select_running(kernel_task_t *task) {
-    if (task == 0) {
-        k_panic();
-    }
+    K_REQUIRE(task != 0);
 
     task->tcb.eTaskState = TaskState_Running;
     g_current_task = task;
@@ -208,21 +197,14 @@ void k_sched_init(void) {
 }
 
 void k_sched_set_idle_task(kernel_task_t *task) {
-    if (task == 0) {
-        k_panic();
-    }
-
-    if (g_idle_task != 0) {
-        k_panic();
-    }
+    K_REQUIRE(task != 0);
+    K_REQUIRE(g_idle_task == 0);
 
     g_idle_task = task;
 }
 
 void k_sched_start(void) {
-    if (g_idle_task == 0) {
-        k_panic();
-    }
+    K_REQUIRE(g_idle_task != 0);
 
     k_task_lock_creation();
 
@@ -231,9 +213,7 @@ void k_sched_start(void) {
     for (uint32_t i = 0u; i < task_count; i++) {
         kernel_task_t *task = k_task_get(i);
 
-        if (task == 0) {
-            k_panic();
-        }
+        K_REQUIRE(task != 0);
 
         if (sched_is_idle(task)) {
             continue;
@@ -248,17 +228,12 @@ void k_sched_start(void) {
 
     port_start_first_task();
 
-    k_panic();
+    K_PANIC();
 }
 
 port_stack_t *k_sched_start_first_context(void) {
-    if (g_current_task == 0) {
-        k_panic();
-    }
-
-    if (g_current_task->tcb.pu32TaskSP == 0) {
-        k_panic();
-    }
+    K_REQUIRE(g_current_task != 0);
+    K_REQUIRE(g_current_task->tcb.pu32TaskSP != 0);
 
     g_current_task->tcb.eTaskState = TaskState_Running;
 
@@ -317,9 +292,7 @@ uint8_t k_sched_request_yield(void) {
 }
 
 port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
-    if (outgoing_sp == 0) {
-        k_panic();
-    }
+    K_REQUIRE(outgoing_sp != 0);
 
     uint32_t key = port_enter_critical();
 
@@ -327,7 +300,7 @@ port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
 
     if (old == 0) {
         port_exit_critical(key);
-        k_panic();
+        K_PANIC();
     }
 
     /*
@@ -348,13 +321,16 @@ port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
     }
 
     kernel_task_t *next = sched_pick_next();
+
+    K_REQUIRE(next != 0);
+
     sched_select_running(next);
 
-    uint32_t *incoming_sp = next->tcb.pu32TaskSP;
+    port_stack_t *incoming_sp = next->tcb.pu32TaskSP;
 
     if (incoming_sp == 0) {
         port_exit_critical(key);
-        k_panic();
+        K_PANIC();
     }
 
     port_exit_critical(key);

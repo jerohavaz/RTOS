@@ -11,7 +11,7 @@ void k_sched_start(void);
 void k_sched_set_idle_task(kernel_task_t *task);
 
 port_stack_t *k_sched_start_first_context(void);
-port_stack_t *k_sched_switch_context(uint32_t *outgoing_sp);
+port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp);
 
 void k_sched_task_ready(kernel_task_t *task);
 void k_sched_task_block(kernel_task_t *task);

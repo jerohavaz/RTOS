@@ -11,9 +11,8 @@ void k_idle_create(void) {
 
     status = k_task_create_internal(k_idle_task, OS_TASK_PRIORITY_LOWEST, &idle);
 
-    if (status != OS_OK) {
-        k_panic();
-    }
+    K_REQUIRE(status == OS_OK);
+    K_REQUIRE(idle != 0);
 
     k_sched_set_idle_task(idle);
 }
