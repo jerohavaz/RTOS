@@ -12,7 +12,11 @@
 #define K_UNREACHABLE() __assume(0)
 #else
 #define K_NORETURN
-#define K_UNREACHABLE() do { for (;;) { } } while (0)
+#define K_UNREACHABLE() \
+    do {                \
+        for (;;) {      \
+        }               \
+    } while (0)
 #endif
 
 K_NORETURN void k_panic(void);
@@ -23,11 +27,11 @@ K_NORETURN void k_panic(void);
         K_UNREACHABLE(); \
     } while (0)
 
-#define K_REQUIRE(cond)  \
-    do {                 \
-        if (!(cond)) {   \
-            K_PANIC();   \
-        }                \
+#define K_REQUIRE(cond) \
+    do {                \
+        if (!(cond)) {  \
+            K_PANIC();  \
+        }               \
     } while (0)
 
 #endif /* K_PANIC_H_ */
