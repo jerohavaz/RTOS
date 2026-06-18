@@ -26,12 +26,12 @@ typedef enum {
 
 /// Task control block.
 typedef struct {
-    uint32_t *pu32TaskSP;         ///< Saved stack pointer. Must stay first; asm assumes offset 0.
     uint8_t u8TaskId;             ///< Task ID.
     uint8_t u8TaskPrio;           ///< Task priority.
     TCB_eTastStates_t eTaskState; ///< Current task state.
 
     uint32_t au32TaskStack[OS_TASK_STACK_SIZE]; ///< Task stack; stores software-saved context.
+    uint32_t *pu32TaskSP;                       ///< Saved stack pointer.
 } TCB_sctTCB_t;
 
 #endif /* DOS_INC_TCB_H_ */

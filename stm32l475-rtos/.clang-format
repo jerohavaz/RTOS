@@ -18,7 +18,7 @@ PointerAlignment: Right
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: None
 AlignConsecutiveDeclarations: None
-AlignConsecutiveMacros: AcrossEmptyLines
+AlignConsecutiveMacros: Consecutive
 AlignEscapedNewlines: Left
 AlignOperands: Align
 
@@ -48,3 +48,4 @@ KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 1
 
 Cpp11BracedListStyle: false
+PenaltyReturnTypeOnItsOwnLine: 1000

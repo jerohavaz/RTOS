@@ -1,12 +1,9 @@
 #pragma once
 
 #include "tcb.h"
+#include "os_config.h"
 
-#ifndef TRACE_ENABLED
-#define TRACE_ENABLED 0
-#endif
-
-#if TRACE_ENABLED
+#if OS_TRACE_ENABLED
 
 void trace_init(void);
 void trace_task_create(TCB_sctTCB_t *task);
@@ -14,7 +11,7 @@ void trace_task_ready(TCB_sctTCB_t *task);
 void trace_task_run(TCB_sctTCB_t *task);
 void trace_task_stop_run(void);
 void trace_task_block(TCB_sctTCB_t *task);
-void trace_idle(void); // TODO: TRACE IDLE?
+void trace_idle(void);
 void trace_isr_enter(void);
 void trace_isr_exit(void);
 void trace_isr_exit_to_scheduler(void);

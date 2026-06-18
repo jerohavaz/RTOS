@@ -40,8 +40,9 @@ kernel_task_t *timeout_list_pop_expired(timeout_list_t *timeout_list, uint32_t n
         return 0;
     }
 
-    kernel_task_t *task = timeout_list->list.head;
+    const kernel_task_t *task = timeout_list->list.head;
 
+    // Wrap-safe for delays smaller than 2^31 ticks.
     if ((int32_t)(now - task->wake_tick) < 0) {
         return 0;
     }
