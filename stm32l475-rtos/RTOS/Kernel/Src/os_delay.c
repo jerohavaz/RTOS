@@ -9,7 +9,7 @@ os_status_t os_delay(uint32_t delay_ticks) {
     kernel_task_t *task;
 
     if (delay_ticks == 0u) {
-        k_sched_request_switch();
+        k_sched_request_yield();
         return OS_OK;
     }
 
@@ -19,7 +19,7 @@ os_status_t os_delay(uint32_t delay_ticks) {
         return OS_ERR_INVALID_STATE;
     }
 
-    uint32_t irq = port_enter_critical();
+    uint32_t key = port_enter_critical();
 
     // TODO: dont delay idle
     task->wait_object = 0;
@@ -29,7 +29,7 @@ os_status_t os_delay(uint32_t delay_ticks) {
     k_timeout_add(task, delay_ticks);
 
     k_sched_request_switch();
-    port_exit_critical(irq);
+    port_exit_critical(key);
 
     /*
      * When this task runs again, timeout processing should have set

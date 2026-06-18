@@ -1,19 +1,21 @@
 #include "trace.h"
 #include "port.h"
 
-#if TRACE_ENABLED
+#if OS_TRACE_ENABLED
 
 #include "SEGGER_RTT.h"
 #include "SEGGER_SYSVIEW.h"
-#include "stm32l4xx.h"
 
 void trace_init(void) {
+    SEGGER_RTT_Init();
     SEGGER_SYSVIEW_Conf();
+    SEGGER_SYSVIEW_Start();
     SEGGER_SYSVIEW_Print("SYSVIEW started");
+    SEGGER_RTT_WriteString(0, "RTT started\n");
 }
 
 static U32 sv_task_id(TCB_sctTCB_t *task) {
-    return (U32)(uintptr_t)task;
+    return (U32)task->u8TaskId;
 }
 
 void trace_task_create(TCB_sctTCB_t *task) {
@@ -34,6 +36,10 @@ void trace_task_stop_run(void) {
 
 void trace_task_block(TCB_sctTCB_t *task) {
     SEGGER_SYSVIEW_OnTaskStopReady(sv_task_id(task), 0);
+}
+
+void trace_idle(void) {
+    SEGGER_SYSVIEW_OnIdle();
 }
 
 void trace_isr_enter(void) {

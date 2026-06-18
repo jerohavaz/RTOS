@@ -3,6 +3,10 @@
 #include "stm32l475xx.h"
 #include "cmsis_gcc.h"
 
+#define PORT_KERNEL_INTERRUPT_PRIORITY 13u
+
+#define PORT_BASEPRI_VALUE (PORT_KERNEL_INTERRUPT_PRIORITY << (8u - __NVIC_PRIO_BITS))
+
 /**
  * @brief Architecture-specific assembly entry for starting the first task.
  *
@@ -46,9 +50,9 @@ void port_disable_interrupts(void) {
 }
 
 uint32_t port_enter_critical(void) {
-    uint32_t primask = __get_PRIMASK();
+    uint32_t previous_basepri = __get_BASEPRI();
 
-    __disable_irq();
+    __asm volatile("msr BASEPRI_MAX, %0" : : "r"(PORT_BASEPRI_VALUE) : "memory");
 
     /*
      * Prevent memory/instruction reordering across the critical-section
@@ -57,17 +61,18 @@ uint32_t port_enter_critical(void) {
     __DSB();
     __ISB();
 
-    return primask;
+    return previous_basepri;
 }
 
-void port_exit_critical(uint32_t primask) {
+void port_exit_critical(uint32_t previous_basepri) {
+    __set_BASEPRI(previous_basepri);
+
     /*
      * Ensure memory operations inside the critical section complete before
      * restoring the previous interrupt state.
      */
-    __DMB();
-
-    __set_PRIMASK(primask);
+    __DSB();
+    __ISB();
 }
 
 void port_breakpoint(void) {
@@ -84,6 +89,10 @@ void port_halt(void) {
 
 void port_wait_for_interrupt(void) {
     __WFI();
+}
+
+void port_no_operation(void) {
+    __NOP();
 }
 
 uint32_t port_get_active_exception_id(void) {

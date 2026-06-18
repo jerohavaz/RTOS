@@ -68,7 +68,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Libs/SEGGER/RTT/RTT/SEGGER_RTT_ASM_ARMv7M.S
     Libs/SEGGER/RTT/RTT/SEGGER_RTT_printf.c
     Libs/SEGGER/RTT/RTT/SEGGER_RTT.c
-    # Libs/SEGGER/RTT/Syscalls/SEGGER_RTT_Syscalls_GCC.c
+    Libs/SEGGER/RTT/Syscalls/SEGGER_RTT_Syscalls_GCC.c
     Libs/SEGGER/SystemView/SYSVIEW/SEGGER_SYSVIEW.c
     Libs/SEGGER/SystemView/Config/SEGGER_SYSVIEW_Config_NoOS.c
 )

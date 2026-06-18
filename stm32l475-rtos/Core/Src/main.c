@@ -24,7 +24,6 @@
 #include "app.h"
 #include "os.h"
 #include "port.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

@@ -1,5 +1,3 @@
-#include <stdint.h>
-
 #include "app_tasks.h"
 #include "os_delay.h"
 #include "stm32l4xx_hal.h"
