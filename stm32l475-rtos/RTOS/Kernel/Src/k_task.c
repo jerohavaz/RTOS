@@ -1,4 +1,5 @@
 #include "kernel_task.h"
+#include "kernel_panic.h"
 #include "os_config.h"
 #include "k_task.h"
 #include "os_task.h"
@@ -7,6 +8,14 @@
 #include "tcb.h"
 #include "trace.h"
 #include <stdint.h>
+
+#if (OS_MAX_TASKS == 0u)
+#error "OS_MAX_TASKS must be greater than 0"
+#endif
+
+#if (OS_MAX_TASKS > 255u)
+#error "OS_MAX_TASKS must fit in uint8_t task IDs"
+#endif
 
 static kernel_task_t g_tasks[OS_MAX_TASKS];
 static uint32_t g_task_count = 0u;
@@ -17,31 +26,38 @@ static void task_exit_error(void) {
     }
 }
 
+static void task_clear(kernel_task_t *task) {
+    KERNEL_REQUIRE(task != 0);
+
+    task->tcb.pu32TaskSP = 0;
+    task->tcb.u8TaskId = 0u;
+    task->tcb.u8TaskPrio = 0u;
+    task->tcb.eTaskState = TaskState_MAX_STATE;
+
+    task->sched_node.next = 0;
+    task->sched_node.prev = 0;
+
+    task->timeout_node.next = 0;
+    task->timeout_node.prev = 0;
+
+    task->wake_tick = 0u;
+    task->wait_type = K_WAIT_NONE;
+    task->wait_object = 0;
+    task->wait_result = OS_OK;
+}
+
 void k_task_init(void) {
     g_task_count = 0u;
     g_task_creation_locked = 0u;
 
     for (uint32_t i = 0u; i < OS_MAX_TASKS; i++) {
-        g_tasks[i].tcb.pu32TaskSP = 0;
-        g_tasks[i].tcb.u8TaskId = 0u;
-        g_tasks[i].tcb.u8TaskPrio = 0u;
-        g_tasks[i].tcb.eTaskState = TaskState_MAX_STATE;
-        g_tasks[i].sched_node.next = 0;
-        g_tasks[i].sched_node.prev = 0;
-        g_tasks[i].timeout_node.next = 0;
-        g_tasks[i].timeout_node.prev = 0;
-        g_tasks[i].wake_tick = 0u;
-        g_tasks[i].wait_object = 0;
-        g_tasks[i].wait_result = OS_OK;
+        task_clear(&g_tasks[i]);
     }
 }
 
 os_status_t k_task_create_internal(os_task_func_t task_func,
                                    uint8_t prio,
                                    kernel_task_t **out_task) {
-    kernel_task_t *task;
-    TCB_sctTCB_t *tcb;
-
     if (out_task == 0) {
         return OS_ERR_NULL;
     }
@@ -64,27 +80,31 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
         return OS_ERR_FULL;
     }
 
-    task = &g_tasks[g_task_count];
-    tcb = &task->tcb;
+    KERNEL_REQUIRE(g_task_count < OS_MAX_TASKS);
+
+    kernel_task_t *task = &g_tasks[g_task_count];
+    TCB_sctTCB_t *tcb = &task->tcb;
+
+    KERNEL_REQUIRE(task != 0);
+
+    KERNEL_REQUIRE(task->tcb.pu32TaskSP == 0);
+    KERNEL_REQUIRE(task->tcb.eTaskState == TaskState_MAX_STATE);
+
+    KERNEL_REQUIRE(task->sched_node.next == 0);
+    KERNEL_REQUIRE(task->sched_node.prev == 0);
+
+    KERNEL_REQUIRE(task->timeout_node.next == 0);
+    KERNEL_REQUIRE(task->timeout_node.prev == 0);
 
     tcb->u8TaskId = (uint8_t)g_task_count;
     tcb->u8TaskPrio = prio;
     tcb->eTaskState = TaskState_Created;
 
-    task->sched_node.next = 0;
-    task->sched_node.prev = 0;
-
-    task->timeout_node.next = 0;
-    task->timeout_node.prev = 0;
-
-    task->wake_tick = 0u;
-    task->wait_object = 0;
-    task->wait_result = OS_OK;
-
     tcb->pu32TaskSP =
         port_init_task_stack(tcb->au32TaskStack, OS_TASK_STACK_SIZE, task_func, task_exit_error);
 
     if (tcb->pu32TaskSP == 0) {
+        task_clear(task);
         return OS_ERR_INVALID_STATE;
     }
 
@@ -98,7 +118,8 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
 }
 
 os_status_t os_task_create(os_task_func_t task_func, uint8_t prio) {
-    kernel_task_t *task;
+    kernel_task_t *task = 0;
+
     return k_task_create_internal(task_func, prio, &task);
 }
 
@@ -115,5 +136,7 @@ uint32_t k_task_count(void) {
 }
 
 void k_task_lock_creation(void) {
+    KERNEL_REQUIRE(g_task_creation_locked == 0u);
+
     g_task_creation_locked = 1u;
 }

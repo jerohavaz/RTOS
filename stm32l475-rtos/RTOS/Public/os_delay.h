@@ -1,5 +1,5 @@
-#ifndef K_DELAY_H_
-#define K_DELAY_H_
+#ifndef OS_DELAY_H_
+#define OS_DELAY_H_
 
 #include "os_types.h"
 #include <stdint.h>

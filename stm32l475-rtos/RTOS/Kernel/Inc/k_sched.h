@@ -9,6 +9,7 @@ void k_sched_init(void);
 void k_sched_start(void);
 
 void k_sched_set_idle_task(kernel_task_t *task);
+uint8_t k_sched_is_idle(const kernel_task_t *task);
 
 port_stack_t *k_sched_start_first_context(void);
 port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp);

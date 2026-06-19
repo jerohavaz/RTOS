@@ -22,9 +22,7 @@
 #include "stm32l4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "k_sched.h"
-#include "k_timeout.h"
-#include "trace.h"
+#include "os.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -149,27 +147,12 @@ void DebugMon_Handler(void) {
  */
 void SysTick_Handler(void) {
     /* USER CODE BEGIN SysTick_IRQn 0 */
-    const uint8_t sched_started = k_sched_started();
-
-    if (sched_started != 0u) {
-        trace_isr_enter();
-    }
+    os_isr_enter();
     /* USER CODE END SysTick_IRQn 0 */
     HAL_IncTick();
     /* USER CODE BEGIN SysTick_IRQn 1 */
-    if (sched_started == 0u) {
-        return;
-    }
-
-    k_tick_inc();
-    k_timeout_process_tick();
-
-    if (k_sched_request_yield() != 0u) {
-        trace_isr_exit_to_scheduler();
-        return;
-    }
-
-    trace_isr_exit();
+    os_systick_tick();
+    os_isr_exit();
     /* USER CODE END SysTick_IRQn 1 */
 }
 

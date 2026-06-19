@@ -25,6 +25,7 @@ static inline void trace_task_ready(TCB_sctTCB_t *task) {}
 static inline void trace_task_run(TCB_sctTCB_t *task) {}
 static inline void trace_task_stop_run(void) {}
 static inline void trace_task_block(TCB_sctTCB_t *task) {}
+static inline void trace_idle(void) {}
 static inline void trace_isr_enter(void) {}
 static inline void trace_isr_exit(void) {}
 static inline void trace_isr_exit_to_scheduler(void) {}

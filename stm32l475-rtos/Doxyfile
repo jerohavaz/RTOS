@@ -11,7 +11,7 @@ OUTPUT_LANGUAGE        = English
 # Change INPUT if your folders differ.
 # Add excludes for generated/vendor noise if docs get messy.
 # -----------------------------------------------------------------------------
-INPUT                  = Core RTOS App
+INPUT                  = App Config Core Libs Port RTOS
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.c *.h *.s
 EXTENSION_MAPPING      =
@@ -41,11 +41,11 @@ SKIP_FUNCTION_MACROS   = YES
 # -----------------------------------------------------------------------------
 # Extraction / visibility
 # EXTRACT_ALL = YES makes early docs easy but hides missing-doc warnings.
-# For stricter docs, use EXTRACT_ALL = NO once comments are mature.
+# TODO: For stricter docs, use EXTRACT_ALL = NO once comments are mature.
 # -----------------------------------------------------------------------------
 EXTRACT_ALL            = YES
-EXTRACT_PRIVATE        = NO
-EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
 EXTRACT_LOCAL_CLASSES  = YES
 INTERNAL_DOCS          = NO
 HIDE_UNDOC_MEMBERS     = NO

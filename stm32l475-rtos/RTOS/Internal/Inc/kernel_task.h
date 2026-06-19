@@ -5,6 +5,15 @@
 #include "tcb.h"
 #include <stdint.h>
 
+typedef enum {
+    K_WAIT_NONE = 0,
+    K_WAIT_DELAY,
+    K_WAIT_SEM,
+    K_WAIT_MUTEX,
+    K_WAIT_QUEUE_SEND,
+    K_WAIT_QUEUE_RECV
+} kernel_wait_type_t;
+
 typedef struct kernel_task kernel_task_t;
 
 typedef struct {
@@ -19,6 +28,7 @@ struct kernel_task {
     kernel_task_list_node_t timeout_node;
 
     uint32_t wake_tick;
+    kernel_wait_type_t wait_type;
     void *wait_object;
     os_status_t wait_result;
 };

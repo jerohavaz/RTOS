@@ -6,6 +6,7 @@
 #include "trace.h"
 
 void os_init(void) {
+    port_disable_interrupts();
     trace_init();
     k_timeout_init();
     k_task_init();

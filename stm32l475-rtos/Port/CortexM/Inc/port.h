@@ -127,6 +127,17 @@ void port_exit_critical(uint32_t previous_basepri);
  */
 uint32_t port_get_active_exception_id(void);
 
+/**
+ * @brief Check whether the CPU is currently running in exception context.
+ *
+ * On Cortex-M this is true for SysTick, PendSV, SVC, fault handlers, and
+ * external interrupt handlers. It is false in normal thread mode.
+ *
+ * @retval 1 CPU is running inside an exception handler.
+ * @retval 0 CPU is running in thread mode.
+ */
+uint8_t port_in_exception(void);
+
 /* -------------------------------------------------------------------------- */
 /* Idle / debug                                                                */
 /* -------------------------------------------------------------------------- */

@@ -1,8 +1,5 @@
 #include "port.h"
-
 #include "os_config.h"
-
-#include "cmsis_gcc.h"
 #include "stm32l475xx.h"
 
 #if (OS_KERNEL_INTERRUPT_PRIORITY >= (1u << __NVIC_PRIO_BITS))
@@ -161,6 +158,10 @@ void port_exit_critical(uint32_t previous_basepri) {
 
 uint32_t port_get_active_exception_id(void) {
     return __get_IPSR();
+}
+
+uint8_t port_in_exception(void) {
+    return (port_get_active_exception_id() != 0u);
 }
 
 /* -------------------------------------------------------------------------- */

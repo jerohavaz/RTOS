@@ -1,4 +1,5 @@
 #include "trace.h"
+#include "kernel_panic.h"
 #include "port.h"
 
 #if OS_TRACE_ENABLED
@@ -15,6 +16,7 @@ void trace_init(void) {
 }
 
 static U32 sv_task_id(TCB_sctTCB_t *task) {
+    KERNEL_REQUIRE(task != 0);
     return (U32)task->u8TaskId;
 }
 

@@ -1,5 +1,5 @@
 #include "k_sched.h"
-#include "k_panic.h"
+#include "kernel_panic.h"
 #include "k_task.h"
 #include "kernel_task.h"
 #include "os_config.h"
@@ -20,67 +20,49 @@ static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
 
-static uint8_t sched_is_idle(const kernel_task_t *task) {
-    return (task != 0) && (task == g_idle_task);
-}
+static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
+    KERNEL_REQUIRE(task != 0);
 
-static void sched_trace_ready(kernel_task_t *task) {
-#if OS_TRACE_ENABLED
-    if (!sched_is_idle(task)) {
-        trace_task_ready(&task->tcb);
+    switch (state) {
+        case TaskState_Ready:
+            task->tcb.eTaskState = TaskState_Ready;
+
+            /*
+             * Idle is never queue-managed.
+             *
+             * The ready queue contains real runnable work only.
+             * Idle is selected only when the ready queue is empty.
+             */
+            if (k_sched_is_idle(task)) {
+                return;
+            }
+
+            prio_waitq_push(&g_ready_queue, task);
+            trace_task_ready(&task->tcb);
+            break;
+
+        case TaskState_Blocked:
+            KERNEL_REQUIRE(!k_sched_is_idle(task));
+
+            task->tcb.eTaskState = TaskState_Blocked;
+            trace_task_block(&task->tcb);
+            break;
+
+        case TaskState_Running:
+            task->tcb.eTaskState = TaskState_Running;
+            g_current_task = task;
+
+            if (k_sched_is_idle(task)) {
+                trace_idle();
+            } else {
+                trace_task_run(&task->tcb);
+            }
+            break;
+
+        default:
+            KERNEL_PANIC();
+            break;
     }
-#else
-    (void)task;
-#endif
-}
-
-static void sched_trace_blocked(kernel_task_t *task) {
-#if OS_TRACE_ENABLED
-    if (!sched_is_idle(task)) {
-        trace_task_block(&task->tcb);
-    }
-#else
-    (void)task;
-#endif
-}
-
-static void sched_trace_selected(kernel_task_t *task) {
-#if OS_TRACE_ENABLED
-    if (sched_is_idle(task)) {
-        trace_idle();
-    } else {
-        trace_task_run(&task->tcb);
-    }
-#else
-    (void)task;
-#endif
-}
-
-static void sched_task_ready(kernel_task_t *task) {
-    K_REQUIRE(task != 0);
-
-    /*
-     * Idle is never queue-managed.
-     *
-     * The ready queue contains real runnable work only.
-     * Idle is selected only when the ready queue is empty.
-     */
-    if (sched_is_idle(task)) {
-        return;
-    }
-
-    task->tcb.eTaskState = TaskState_Ready;
-    prio_waitq_push(&g_ready_queue, task);
-
-    sched_trace_ready(task);
-}
-
-static void sched_task_block(kernel_task_t *task) {
-    K_REQUIRE(task != 0);
-    K_REQUIRE(!sched_is_idle(task));
-
-    task->tcb.eTaskState = TaskState_Blocked;
-    sched_trace_blocked(task);
 }
 
 static kernel_task_t *sched_pick_next(void) {
@@ -90,7 +72,7 @@ static kernel_task_t *sched_pick_next(void) {
         return next;
     }
 
-    K_REQUIRE(g_idle_task != 0);
+    KERNEL_REQUIRE(g_idle_task != 0);
 
     return g_idle_task;
 }
@@ -103,15 +85,6 @@ static kernel_task_t *sched_peek_next(void) {
     }
 
     return g_idle_task;
-}
-
-static void sched_select_running(kernel_task_t *task) {
-    K_REQUIRE(task != 0);
-
-    task->tcb.eTaskState = TaskState_Running;
-    g_current_task = task;
-
-    sched_trace_selected(task);
 }
 
 static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
@@ -133,8 +106,8 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
     /*
      * Idle must yield to any real ready task.
      */
-    if (sched_is_idle(current)) {
-        if (!sched_is_idle(next)) {
+    if (k_sched_is_idle(current)) {
+        if (!k_sched_is_idle(next)) {
             return 1u;
         }
 
@@ -144,7 +117,7 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
     /*
      * A real running task must not be replaced by idle.
      */
-    if (sched_is_idle(next)) {
+    if (k_sched_is_idle(next)) {
         return 0u;
     }
 
@@ -197,30 +170,28 @@ void k_sched_init(void) {
 }
 
 void k_sched_set_idle_task(kernel_task_t *task) {
-    K_REQUIRE(task != 0);
-    K_REQUIRE(g_idle_task == 0);
+    KERNEL_REQUIRE(task != 0);
+    KERNEL_REQUIRE(g_idle_task == 0);
 
     g_idle_task = task;
 }
 
-void k_sched_start(void) {
-    K_REQUIRE(g_idle_task != 0);
+uint8_t k_sched_is_idle(const kernel_task_t *task) {
+    return (task != 0) && (task == g_idle_task);
+}
 
-    k_task_lock_creation();
+void k_sched_start(void) {
+    KERNEL_REQUIRE(g_idle_task != 0);
 
     uint32_t task_count = k_task_count();
 
     for (uint32_t i = 0u; i < task_count; i++) {
         kernel_task_t *task = k_task_get(i);
 
-        K_REQUIRE(task != 0);
-
-        if (sched_is_idle(task)) {
-            continue;
-        }
+        KERNEL_REQUIRE(task != 0);
 
         if (task->tcb.eTaskState == TaskState_Created) {
-            sched_task_ready(task);
+            sched_task_set_state(task, TaskState_Ready);
         }
     }
 
@@ -228,16 +199,14 @@ void k_sched_start(void) {
 
     port_start_first_task();
 
-    K_PANIC();
+    KERNEL_PANIC();
 }
 
 port_stack_t *k_sched_start_first_context(void) {
-    K_REQUIRE(g_current_task != 0);
-    K_REQUIRE(g_current_task->tcb.pu32TaskSP != 0);
+    KERNEL_REQUIRE(g_current_task != 0);
+    KERNEL_REQUIRE(g_current_task->tcb.pu32TaskSP != 0);
 
-    g_current_task->tcb.eTaskState = TaskState_Running;
-
-    sched_trace_selected(g_current_task);
+    sched_task_set_state(g_current_task, TaskState_Running);
 
     g_sched_started = 1u;
 
@@ -247,7 +216,7 @@ port_stack_t *k_sched_start_first_context(void) {
 void k_sched_task_ready(kernel_task_t *task) {
     uint32_t key = port_enter_critical();
 
-    sched_task_ready(task);
+    sched_task_set_state(task, TaskState_Ready);
 
     port_exit_critical(key);
 }
@@ -255,7 +224,7 @@ void k_sched_task_ready(kernel_task_t *task) {
 void k_sched_task_block(kernel_task_t *task) {
     uint32_t key = port_enter_critical();
 
-    sched_task_block(task);
+    sched_task_set_state(task, TaskState_Blocked);
 
     port_exit_critical(key);
 }
@@ -292,7 +261,7 @@ uint8_t k_sched_request_yield(void) {
 }
 
 port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
-    K_REQUIRE(outgoing_sp != 0);
+    KERNEL_REQUIRE(outgoing_sp != 0);
 
     uint32_t key = port_enter_critical();
 
@@ -300,7 +269,7 @@ port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
 
     if (old == 0) {
         port_exit_critical(key);
-        K_PANIC();
+        KERNEL_PANIC();
     }
 
     /*
@@ -313,24 +282,22 @@ port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
      * If old is still Running, it was preempted or time-sliced and becomes
      * Ready again. If it blocked before PendSV, its state is already Blocked
      * and it must not be reinserted.
-     *
-     * Idle is never queue-managed.
      */
-    if ((old->tcb.eTaskState == TaskState_Running) && !sched_is_idle(old)) {
-        sched_task_ready(old);
+    if (old->tcb.eTaskState == TaskState_Running) {
+        sched_task_set_state(old, TaskState_Ready);
     }
 
     kernel_task_t *next = sched_pick_next();
 
-    K_REQUIRE(next != 0);
+    KERNEL_REQUIRE(next != 0);
 
-    sched_select_running(next);
+    sched_task_set_state(next, TaskState_Running);
 
     port_stack_t *incoming_sp = next->tcb.pu32TaskSP;
 
     if (incoming_sp == 0) {
         port_exit_critical(key);
-        K_PANIC();
+        KERNEL_PANIC();
     }
 
     port_exit_critical(key);

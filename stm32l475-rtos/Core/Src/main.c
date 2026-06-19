@@ -23,7 +23,6 @@
 /* USER CODE BEGIN Includes */
 #include "app.h"
 #include "os.h"
-#include "port.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -87,8 +86,6 @@ int main(void) {
     /* Initialize all configured peripherals */
     MX_GPIO_Init();
     /* USER CODE BEGIN 2 */
-    port_disable_interrupts();
-
     os_init();
     app_init();
     os_start();
