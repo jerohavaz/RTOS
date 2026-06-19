@@ -113,7 +113,7 @@ gdb-multiarch build/Debug/rtos.elf \
 Format project-owned C and header files:
 
 ```bash
-find Core RTOS App -type f \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 clang-format -i
+find Core RTOS App Config Port -type f \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 clang-format -i
 ```
 
 ## VS Code Setup
