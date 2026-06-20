@@ -1,41 +1,5 @@
-# ===== Build directories =====
-build/
-cmake-build-*/
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-compile_commands.json
-
-# ===== Generated binaries =====
-*.elf
-*.bin
-*.hex
-*.map
-*.list
-
-# ===== Object / dependency files =====
-*.o
-*.obj
-*.d
-
-# ===== Debug / flashing artifacts =====
-*.svd
-*.log
-
 # ===== IDE junk =====
 .vscode/
 .idea/
 .settings
 *.code-workspace
-
-# ===== OS junk =====
-.DS_Store
-Thumbs.db
-
-# ===== STM32CubeMX temporary =====
-*.tmp
-*.bak
-
-# ===== Toolchain-specific =====
-*.launch

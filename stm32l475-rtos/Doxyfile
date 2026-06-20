@@ -1,0 +1,154 @@
+# -------------------------------------------------
+# Project Metadata
+# -------------------------------------------------
+PROJECT_NAME           = "RTOS"
+PROJECT_NUMBER         =
+PROJECT_BRIEF          = "Preemptive RTOS for STM32L475 IoT01A2 using priority-based round-robin scheduling."
+OUTPUT_LANGUAGE        = English
+
+# -----------------------------------------------------------------------------
+# Input files
+# Change INPUT if your folders differ.
+# Add excludes for generated/vendor noise if docs get messy.
+# -----------------------------------------------------------------------------
+INPUT                  = App Config Core Libs Port RTOS
+INPUT_ENCODING         = UTF-8
+FILE_PATTERNS          = *.c *.h *.s
+EXTENSION_MAPPING      =
+RECURSIVE              = YES
+EXCLUDE                =
+EXCLUDE_PATTERNS       =
+EXCLUDE_SYMBOLS        =
+USE_MDFILE_AS_MAINPAGE =
+
+# -----------------------------------------------------------------------------
+# C / firmware parsing behavior
+# -----------------------------------------------------------------------------
+OPTIMIZE_OUTPUT_FOR_C  = YES
+MARKDOWN_SUPPORT       = YES
+TOC_INCLUDE_HEADINGS   = 5
+AUTOLINK_SUPPORT       = YES
+TYPEDEF_HIDES_STRUCT   = NO
+INLINE_SIMPLE_STRUCTS  = NO
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = NO
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           =
+PREDEFINED             =
+SKIP_FUNCTION_MACROS   = YES
+
+# -----------------------------------------------------------------------------
+# Extraction / visibility
+# EXTRACT_ALL = YES makes early docs easy but hides missing-doc warnings.
+# TODO: For stricter docs, use EXTRACT_ALL = NO once comments are mature.
+# -----------------------------------------------------------------------------
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+INTERNAL_DOCS          = NO
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+SHOW_HEADERFILE        = YES
+SHOW_INCLUDE_FILES     = YES
+SHOW_FILES             = YES
+SHOW_NAMESPACES        = YES
+
+# -----------------------------------------------------------------------------
+# Sorting / generated lists
+# -----------------------------------------------------------------------------
+BRIEF_MEMBER_DESC      = YES
+REPEAT_BRIEF           = YES
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = NO
+GENERATE_TODOLIST      = YES
+GENERATE_TESTLIST      = YES
+GENERATE_BUGLIST       = YES
+GENERATE_DEPRECATEDLIST= YES
+
+# -----------------------------------------------------------------------------
+# Warnings
+# Consider WARN_AS_ERROR = FAIL_ON_WARNINGS for CI once docs are stable.
+# -----------------------------------------------------------------------------
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_NO_PARAMDOC       = NO
+WARN_IF_UNDOC_ENUM_VAL = NO
+WARN_AS_ERROR          = NO
+WARN_FORMAT            = "$file:$line: $text"
+WARN_LOGFILE           =
+
+# -----------------------------------------------------------------------------
+# Source browser
+# -----------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = YES
+STRIP_CODE_COMMENTS    = YES
+REFERENCES_LINK_SOURCE = YES
+SOURCE_TOOLTIPS        = YES
+VERBATIM_HEADERS       = YES
+
+# -----------------------------------------------------------------------------
+# HTML output / GitLab Pages
+# -----------------------------------------------------------------------------
+OUTPUT_DIRECTORY       = docs
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_EXTRA_STYLESHEET  =
+HTML_EXTRA_FILES       =
+HTML_COLORSTYLE        = TOGGLE
+HTML_COLORSTYLE_HUE    = 220
+HTML_COLORSTYLE_SAT    = 100
+HTML_COLORSTYLE_GAMMA  = 80
+HTML_DYNAMIC_MENUS     = YES
+HTML_DYNAMIC_SECTIONS  = NO
+HTML_CODE_FOLDING      = YES
+HTML_INDEX_NUM_ENTRIES = 100
+DISABLE_INDEX          = NO
+GENERATE_TREEVIEW      = NO
+FULL_SIDEBAR           = NO
+SEARCHENGINE           = YES
+
+# -----------------------------------------------------------------------------
+# Disable unused output formats
+# -----------------------------------------------------------------------------
+GENERATE_LATEX         = NO
+GENERATE_RTF           = NO
+GENERATE_MAN           = NO
+GENERATE_XML           = NO
+GENERATE_DOCBOOK       = NO
+GENERATE_AUTOGEN_DEF   = NO
+GENERATE_SQLITE3       = NO
+GENERATE_PERLMOD       = NO
+GENERATE_DOCSET        = NO
+GENERATE_HTMLHELP      = NO
+GENERATE_QHP           = NO
+GENERATE_ECLIPSEHELP   = NO
+
+# -----------------------------------------------------------------------------
+# Graphviz / diagrams
+# Disable CALL_GRAPH/CALLER_GRAPH if docs build too slowly or get noisy.
+# -----------------------------------------------------------------------------
+HAVE_DOT               = YES
+DOT_NUM_THREADS        = 0
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+GROUP_GRAPHS           = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+GRAPHICAL_HIERARCHY    = YES
+DIRECTORY_GRAPH        = YES
+DIR_GRAPH_MAX_DEPTH    = 1
+DOT_IMAGE_FORMAT       = png
+DOT_GRAPH_MAX_NODES    = 50
+MAX_DOT_GRAPH_DEPTH    = 0
+INTERACTIVE_SVG        = NO
+GENERATE_LEGEND        = YES
+DOT_CLEANUP            = YES
