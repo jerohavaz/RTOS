@@ -18,7 +18,7 @@ typedef enum {
     OS_ERR_EMPTY, /* queue empty, optional if using WOULD_BLOCK */
 
     /* Ownership / permissions */
-    OS_ERR_NOT_OWNER,  /* mutex unlock by non-owner */
+    OS_ERR_NOT_OWNER, /* mutex unlock by non-owner */
 
     /* Scheduler / task */
     OS_ERR_INVALID_PRIO, /* invalid priority */
