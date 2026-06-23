@@ -83,7 +83,7 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
     k_sched_task_block(current);
     port_exit_critical(key);
 
-    k_sched_request_yield();
+    k_sched_request_switch();
 
     return current->wait_result;
 }

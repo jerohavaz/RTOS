@@ -43,7 +43,7 @@ os_status_t os_delay(uint32_t delay_ticks) {
     k_sched_task_block(task);
     port_exit_critical(key);
 
-    k_sched_request_yield();
+    k_sched_request_switch();
 
     return task->wait_result;
 }
