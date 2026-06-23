@@ -18,6 +18,7 @@ void timeout_list_init(timeout_list_t *timeout_list) {
 void timeout_list_add(timeout_list_t *timeout_list, kernel_task_t *task, uint32_t wake_tick) {
     KERNEL_REQUIRE(timeout_list != 0);
     KERNEL_REQUIRE(task != 0);
+    KERNEL_REQUIRE(task->wake_tick == 0u);
 
     task->wake_tick = wake_tick;
 
@@ -56,13 +57,20 @@ void timeout_list_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
 
     task_list_remove(&timeout_list->list, task);
+    task->wake_tick = 0;
 }
 
 uint8_t timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
     KERNEL_REQUIRE(timeout_list != 0);
     KERNEL_REQUIRE(task != 0);
 
-    return task_list_try_remove(&timeout_list->list, task);
+    uint8_t removed = task_list_try_remove(&timeout_list->list, task);
+
+    if (removed != 0u) {
+        task->wake_tick = 0u;
+    }
+
+    return removed;
 }
 
 kernel_task_t *timeout_list_pop_expired(timeout_list_t *timeout_list, uint32_t now) {
@@ -74,7 +82,7 @@ kernel_task_t *timeout_list_pop_expired(timeout_list_t *timeout_list, uint32_t n
 
     KERNEL_REQUIRE(timeout_list->list.head != 0);
 
-    const kernel_task_t *task = timeout_list->list.head;
+    kernel_task_t *task = timeout_list->list.head;
 
     /*
      * Wrap-safe for delays smaller than 2^31 ticks.
@@ -83,5 +91,10 @@ kernel_task_t *timeout_list_pop_expired(timeout_list_t *timeout_list, uint32_t n
         return 0;
     }
 
-    return task_list_pop_front(&timeout_list->list);
+    task = task_list_pop_front(&timeout_list->list);
+    KERNEL_REQUIRE(task != 0);
+
+    task->wake_tick = 0u;
+
+    return task;
 }

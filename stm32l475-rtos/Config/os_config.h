@@ -2,7 +2,7 @@
 #define OS_CONFIG_H_
 
 // Tasks
-#define OS_MAX_TASKS       (3u)
+#define OS_MAX_TASKS       (3u) // TODO: make this independent of idle
 #define OS_TASK_STACK_SIZE (512u)
 
 // Priorities

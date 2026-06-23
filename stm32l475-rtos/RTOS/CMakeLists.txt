@@ -13,6 +13,7 @@ target_sources(rtos_kernel PRIVATE
     Kernel/Src/k_timeout.c
     Kernel/Src/os_delay.c
     Kernel/Src/os_isr.c
+    Kernel/Src/os_sem.c
     Kernel/Src/os.c
 
     ../Libs/SEGGER/RTT/RTT/SEGGER_RTT_ASM_ARMv7M.S
@@ -26,10 +27,10 @@ target_sources(rtos_kernel PRIVATE
 target_include_directories(rtos_kernel
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/Public
+        ${CMAKE_CURRENT_LIST_DIR}/Internal/Inc
 
     PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/Kernel/Inc
-        ${CMAKE_CURRENT_LIST_DIR}/Internal/Inc
 
         ${CMAKE_CURRENT_LIST_DIR}/../Libs/SEGGER/SystemView/Config
         ${CMAKE_CURRENT_LIST_DIR}/../Libs/SEGGER/SystemView/SEGGER
