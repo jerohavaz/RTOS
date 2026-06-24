@@ -1,5 +1,6 @@
 #include "k_timeout.h"
 #include "k_delay.h"
+#include "k_mutex.h"
 #include "k_sem.h"
 #include "kernel_panic.h"
 #include "k_sched.h"
@@ -67,13 +68,7 @@ void k_timeout_process_tick(void) {
                 break;
 
             case K_WAIT_MUTEX:
-                /*
-                 * k_mutex_timeout_cleanup((k_mutex_t *)object, task);
-                 */
-                KERNEL_REQUIRE(object != 0);
-                task->wait_result = OS_ERR_TIMEOUT;
-                task->wait_object = 0;
-                task->wait_type = K_WAIT_NONE;
+                k_mutex_timeout_cleanup((os_mutex_t *)object, task);
                 break;
 
             case K_WAIT_QUEUE_SEND:

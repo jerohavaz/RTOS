@@ -4,5 +4,5 @@
 #include "os_sem.h"
 
 void app_init(void) {
-    sem_test_init();
+    mutex_test_init();
 }
