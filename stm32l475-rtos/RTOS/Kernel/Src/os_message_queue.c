@@ -5,6 +5,7 @@
 #include "k_timeout.h"
 #include "k_sched.h"
 #include "kernel_task.h"
+#include "prio_waitq.h"
 
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
@@ -44,6 +45,18 @@ void Queue_Send(QCB_sctQCB_t *qcb, void *payload, uint32_t TimeoutTicks, kernel_
             return;
         }
 
+        //Block forever
+        else if(TimeoutTicks == WAIT_FOREVER){
+            k_sched_task_block(currentTask);
+            prio_waitq_push(&qcb->send_queue, currentTask);
+
+            k_sched_request_switch();
+            port_exit_critical(key);
+
+            return;
+
+        }
+
         //Block with Timeout
         else if (TimeoutTicks > 0) {
             k_sched_task_block(currentTask);
@@ -61,25 +74,21 @@ void Queue_Send(QCB_sctQCB_t *qcb, void *payload, uint32_t TimeoutTicks, kernel_
             return;
         }
 
-        //Block forever
-        else if(TimeoutTicks == WAIT_FOREVER){
-            k_sched_task_block(currentTask);
-            prio_waitq_push(&qcb->send_queue, currentTask);
-
-            k_sched_request_switch();
-            port_exit_critical(key);
-
-            return;
-
-        }
     }
 
     //Senden
     uint8_t *slot = qcb->pBuffer + (qcb->uWriteIndex * qcb->u8MessageLength);
-    memcpy(slot, &payload, qcb->u8MessageLength);
+    memcpy(slot, payload, qcb->u8MessageLength);
 
     qcb->uWriteIndex = (qcb->uWriteIndex + 1) % qcb->u8QLength; 
     qcb->uMessageCount++;
+
+    //Wartenden Empfangstask aufwecken? 
+    if(!prio_waitq_is_empty(&qcb->receive_queue)){  //Ist ein Empfänger in der q?
+        kernel_task_t *waitingReceive = prio_waitq_pop_highest(&qcb->receive_queue);
+        k_timeout_remove(waitingReceive); //Task von Timeout List entfernen, sofern existent
+        k_sched_task_ready(waitingReceive);
+    }
 
     k_sched_request_switch();
 
@@ -100,7 +109,19 @@ void Queue_Receive(QCB_sctQCB_t *qcb, void *ReceivePuffer, uint32_t TimeoutTicks
             port_exit_critical(key);
             return;
         }
+        
+        //Block Forever
+        if(TimeoutTicks == WAIT_FOREVER){
 
+            k_sched_task_block(currentTask);
+            prio_waitq_push(&qcb->receive_queue, currentTask);
+
+            k_sched_request_switch();
+            port_exit_critical(key);
+
+            return;
+        }
+        
         //Block with Timeout
         if(TimeoutTicks > 0){
             k_sched_task_block(currentTask);
@@ -120,17 +141,6 @@ void Queue_Receive(QCB_sctQCB_t *qcb, void *ReceivePuffer, uint32_t TimeoutTicks
 
         }
 
-        //Block Forever
-        if(TimeoutTicks == WAIT_FOREVER){
-
-            k_sched_task_block(currentTask);
-            prio_waitq_push(&qcb->receive_queue, currentTask);
-
-            k_sched_request_switch();
-            port_exit_critical(key);
-
-            return;
-        }
     }
 
 
@@ -140,6 +150,13 @@ void Queue_Receive(QCB_sctQCB_t *qcb, void *ReceivePuffer, uint32_t TimeoutTicks
 
     qcb->uReadIndex = (qcb->uReadIndex + 1) % qcb->u8QLength;
     qcb->uMessageCount--;
+
+    //Sendertask aufwecken?
+    if(!prio_waitq_is_empty(&qcb->send_queue)){  //Ist ein Sender in der q?
+        kernel_task_t *waitingSender = prio_waitq_pop_highest(&qcb->send_queue);
+        k_timeout_remove(waitingSender); //Task von Timeout List entfernen, sofern existent
+        k_sched_task_ready(waitingSender);
+    }
 
     k_sched_request_switch();
 
