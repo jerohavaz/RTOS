@@ -24,7 +24,7 @@ static void burn_cycles(void) {
     volatile uint32_t i;
 
     for (i = 0u; i < 200u; i++) {
-        __asm volatile ("nop");
+        __asm volatile("nop");
     }
 }
 
