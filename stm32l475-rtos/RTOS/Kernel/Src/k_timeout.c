@@ -1,4 +1,7 @@
 #include "k_timeout.h"
+#include "k_delay.h"
+#include "k_mutex.h"
+#include "k_sem.h"
 #include "kernel_panic.h"
 #include "k_sched.h"
 #include "port.h"
@@ -46,48 +49,46 @@ void k_timeout_process_tick(void) {
     kernel_task_t *task;
 
     uint32_t key = port_enter_critical();
+    uint32_t now = k_tick_get();
 
-    while ((task = timeout_list_pop_expired(&g_timeout_list, k_tick_get())) != 0) {
+    while ((task = timeout_list_pop_expired(&g_timeout_list, now)) != 0) {
         KERNEL_REQUIRE(task->tcb.eTaskState == TaskState_Blocked);
 
         const void *object = task->wait_object;
 
+        // TODO: Consider moving task related cleanup into their own functions, e.g.
+        // k_sem_timeout_cleanup(), k_mutex_timeout_cleanup(), etc.
         switch (task->wait_type) {
             case K_WAIT_DELAY:
-                KERNEL_REQUIRE(object == 0);
-                task->wait_result = OS_OK;
+                k_delay_timeout_cleanup(task);
                 break;
 
             case K_WAIT_SEM:
-                KERNEL_REQUIRE(object != 0);
-                /*
-                 * k_sem_timeout_cleanup((os_sem_t *)object, task);
-                 */
-                task->wait_result = OS_ERR_TIMEOUT;
+                k_sem_timeout_cleanup((os_sem_t *)object, task);
                 break;
 
             case K_WAIT_MUTEX:
-                KERNEL_REQUIRE(object != 0);
-                /*
-                 * k_mutex_timeout_cleanup((k_mutex_t *)object, task);
-                 */
-                task->wait_result = OS_ERR_TIMEOUT;
+                k_mutex_timeout_cleanup((os_mutex_t *)object, task);
                 break;
 
             case K_WAIT_QUEUE_SEND:
-                KERNEL_REQUIRE(object != 0);
                 /*
                  * k_queue_send_timeout_cleanup((k_queue_t *)object, task);
                  */
+                KERNEL_REQUIRE(object != 0);
                 task->wait_result = OS_ERR_TIMEOUT;
+                task->wait_object = 0;
+                task->wait_type = K_WAIT_NONE;
                 break;
 
             case K_WAIT_QUEUE_RECV:
-                KERNEL_REQUIRE(object != 0);
                 /*
                  * k_queue_recv_timeout_cleanup((k_queue_t *)object, task);
                  */
+                KERNEL_REQUIRE(object != 0);
                 task->wait_result = OS_ERR_TIMEOUT;
+                task->wait_object = 0;
+                task->wait_type = K_WAIT_NONE;
                 break;
 
             case K_WAIT_NONE:
@@ -96,8 +97,8 @@ void k_timeout_process_tick(void) {
                 break;
         }
 
-        task->wait_object = 0;
-        task->wait_type = K_WAIT_NONE;
+        KERNEL_REQUIRE(task->wait_type == K_WAIT_NONE);
+        KERNEL_REQUIRE(task->wait_object == 0);
 
         k_sched_task_ready(task);
 

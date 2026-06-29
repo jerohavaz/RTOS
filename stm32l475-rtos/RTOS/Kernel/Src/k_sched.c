@@ -89,11 +89,8 @@ static kernel_task_t *sched_peek_next(void) {
 
 static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
     kernel_task_t *current = g_current_task;
-    kernel_task_t *next = sched_peek_next();
-
-    if ((current == 0) || (next == 0)) {
-        return 0u;
-    }
+    KERNEL_REQUIRE(current != 0);
+    KERNEL_REQUIRE(g_idle_task != 0);
 
     /*
      * Current blocked/exited itself.
@@ -103,15 +100,15 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
         return 1u;
     }
 
+    kernel_task_t *next = sched_peek_next();
+    KERNEL_REQUIRE(next != 0);
+
     /*
      * Idle must yield to any real ready task.
+     * If next is also idle, no real work exists.
      */
     if (k_sched_is_idle(current)) {
-        if (!k_sched_is_idle(next)) {
-            return 1u;
-        }
-
-        return 0u;
+        return !k_sched_is_idle(next);
     }
 
     /*
@@ -122,14 +119,14 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
     }
 
     /*
-     * Defensive: current should not normally be in the ready queue.
+     * From here, both current and next are real tasks.
+     * Current should not normally be in the ready queue.
      */
-    if (current == next) {
-        return 0u;
-    }
+    KERNEL_REQUIRE(current != next);
 
     /*
      * Higher-priority ready task always preempts.
+     * This assumes larger u8TaskPrio means higher priority.
      */
     if (next->tcb.u8TaskPrio > current->tcb.u8TaskPrio) {
         return 1u;

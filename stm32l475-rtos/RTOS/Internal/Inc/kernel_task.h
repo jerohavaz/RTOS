@@ -28,6 +28,7 @@ struct kernel_task {
     kernel_task_list_node_t timeout_node;
 
     uint32_t wake_tick;
+
     kernel_wait_type_t wait_type;
     void *wait_object;
     os_status_t wait_result;
