@@ -7,7 +7,7 @@
 #include "kernel_panic.h"
 
 static uint8_t task_list_node_is_linked(const kernel_task_list_node_t *node) {
-    return (node != 0) && ((node->next != 0) || (node->prev != 0));
+    return (node != 0) && (node->next != 0) && (node->prev != 0);
 }
 
 static void task_list_require_valid(const task_list_t *list) {

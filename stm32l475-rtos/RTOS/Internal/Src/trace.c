@@ -10,7 +10,7 @@
 void trace_init(void) {
     SEGGER_RTT_Init();
     SEGGER_SYSVIEW_Conf();
-    SEGGER_SYSVIEW_Start();
+    // SEGGER_SYSVIEW_Start();
     SEGGER_SYSVIEW_Print("SYSVIEW started");
     SEGGER_RTT_WriteString(0, "RTT started\n");
 }
