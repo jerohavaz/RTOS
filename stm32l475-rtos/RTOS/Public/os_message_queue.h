@@ -1,27 +1,30 @@
 #include <stdint.h>
-#include "/home/martin/Dokumente/Programmierung/Echtzeitsystem Git/RTOS/stm32l475-rtos/RTOS/Internal/Inc/tcb.h"
-#include "/home/martin/Dokumente/Programmierung/Echtzeitsystem Git/RTOS/stm32l475-rtos/RTOS/Internal/Inc/prio_waitq.h"
-#include "/home/martin/Dokumente/Programmierung/Echtzeitsystem Git/RTOS/stm32l475-rtos/Port/CortexM/Inc/port.h"
-#include "/home/martin/Dokumente/Programmierung/Echtzeitsystem Git/RTOS/stm32l475-rtos/RTOS/Kernel/Inc/k_sched.h"
-#define WAIT_FOREVER 0xFFFFFFFF
+#include "tcb.h"
+#include "prio_waitq.h"
+#include "os_types.h"
+#include "ringbuffer.h"
 
-
-typedef struct{
-    char *sQName;
-    uint8_t u8QID;
-    uint8_t u8QLength;
-    uint8_t u8MessageLength;
-
-    //Ringspeicher
-    uint8_t *pBuffer;
-    uint8_t uReadIndex;
-    uint8_t uWriteIndex;
-    uint8_t uMessageCount;
-
-    prio_waitq_t send_queue;
-    prio_waitq_t receive_queue;
+typedef struct {
+    char *name;
+    uint8_t id;
+    ringbuffer_t ring_buf;
+    prio_waitq_t send_waitq;
+    prio_waitq_t receive_waitq;
 } QCB_sctQCB_t;
 
-void Queue_Create(QCB_sctQCB_t *qcb, const char *QName, uint8_t QID, uint8_t QLength, uint8_t MLength, kernel_task_t *currentTask);
-void Queue_Send(QCB_sctQCB_t *qcb, void *payload, uint32_t TimeoutTicks, kernel_task_t *currentTask);
-void Queue_Receive(QCB_sctQCB_t *qcb, void *ReceivePuffer, uint32_t TimeoutTicks, kernel_task_t *currentTask);
+void os_queue_create(QCB_sctQCB_t *qcb,
+                     const char *name,
+                     uint8_t id,
+                     void *buffer,
+                     uint32_t msg_len,
+                     uint32_t q_length);
+os_status_t os_queue_send(QCB_sctQCB_t *qcb,
+                            const void *payload,
+                            uint32_t timeout_ticks);
+os_status_t os_queue_receive(QCB_sctQCB_t *qcb,
+                               void *receive_buffer,
+                               uint32_t timeout_ticks);
+
+// Cleanup Prototypen
+void k_queue_send_timeout_cleanup(QCB_sctQCB_t *qcb, kernel_task_t *task);
+void k_queue_recv_timeout_cleanup(QCB_sctQCB_t *qcb, kernel_task_t *task);

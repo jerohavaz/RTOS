@@ -1,167 +1,227 @@
 #include "os_message_queue.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include "k_timeout.h"
 #include "k_sched.h"
 #include "kernel_task.h"
+#include "os_types.h"
+#include "port.h"
 #include "prio_waitq.h"
+#include "timeout_list.h"
 
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
 
- void Queue_Create(QCB_sctQCB_t *qcb, const char *QName, uint8_t QID, uint8_t QLength, uint8_t MLength, kernel_task_t *currentTask){
+void os_queue_create(QCB_sctQCB_t *qcb, const char *name, uint8_t id, void *buffer, uint32_t msg_len, uint32_t q_length) {
+    // String Kopieren
+    strncpy(qcb->name, name, sizeof(qcb->name) - 1);
+    qcb->name[sizeof(qcb->name) - 1] = '\0'; // Terminatorsymbol als Ende des STrings
+
+    qcb->id = id;
     
-    //String Kopieren
-    strncpy(qcb->sQName, QName, sizeof(qcb->sQName) -1);
-    qcb->sQName[sizeof(qcb->sQName) -1] = '\0';    //Terminatorsymbol als Ende des STrings
+    ringbuffer_init(&qcb->ring_buf, buffer, msg_len, q_length);
 
-    qcb->u8QID = QID;
-    qcb->u8QLength = QLength;
-    qcb->u8MessageLength = MLength;
-
-    qcb->uReadIndex = 0;
-    qcb->uWriteIndex = 0;
-    qcb->uMessageCount = 0;
-
-    qcb->pBuffer = malloc((size_t)QLength * MLength);
-    prio_waitq_init(&(qcb->send_queue), sched_node);
-    prio_waitq_init(&(qcb->receive_queue), sched_node);
-
+    prio_waitq_init(&(qcb->send_waitq), sched_node);
+    prio_waitq_init(&(qcb->receive_waitq), sched_node);
 
     return;
 }
-
+// TODO: Kernel Require(cond) am ANfang send und receive für po task
+// Fehlererkennung
 /*----------------------Senden----------------------------*/
-void Queue_Send(QCB_sctQCB_t *qcb, void *payload, uint32_t TimeoutTicks, kernel_task_t *currentTask){
+os_status_t os_queue_send(QCB_sctQCB_t *qcb,
+                            const void *payload,
+                            uint32_t timeout_ticks) {
     uint32_t key = port_enter_critical();
 
-    if(qcb->uMessageCount == qcb->u8QLength){
+    kernel_task_t *current_task = k_sched_current();
 
-        //Non Blocking
-        if(TimeoutTicks == 0){
-            port_exit_critical(key);
-            return;
-        }
+    //1. Wenn receive_waitq nicht leer -> Direkte übergabe
+    if(!prio_waitq_is_empty(&qcb->receive_waitq) && ringbuffer_is_empty(&qcb->ring_buf)){
+        
+        kernel_task_t *receive_node = prio_waitq_pop_highest(&qcb->receive_waitq);
+        k_timeout_remove(receive_node);
+        
+        receive_node->wait_object = 0;
+        receive_node->wait_type = K_WAIT_NONE;
+        receive_node->wake_tick = 0;
+        receive_node->wait_result = OS_OK;
+        
+        //Direkte Übergabe
+        memcpy(receive_node->wait_data, payload,  qcb->ring_buf.content_size);
+        
+        k_sched_task_ready(receive_node);
+        k_sched_request_switch();
 
-        //Block forever
-        else if(TimeoutTicks == WAIT_FOREVER){
-            k_sched_task_block(currentTask);
-            prio_waitq_push(&qcb->send_queue, currentTask);
 
-            k_sched_request_switch();
-            port_exit_critical(key);
+        port_exit_critical(key);
 
-            return;
-
-        }
-
-        //Block with Timeout
-        else if (TimeoutTicks > 0) {
-            k_sched_task_block(currentTask);
-            prio_waitq_push(&(qcb->send_queue), currentTask);
-                    
-            //Wait Objekt wird übergeben
-            currentTask->wait_type = K_WAIT_QUEUE_SEND;
-            currentTask->wait_object = qcb;
-            //Timeout Node zuweisung
-            k_timeout_add(currentTask, TimeoutTicks);
-            
-            k_sched_request_switch();
-            port_exit_critical(key);
-
-            return;
-        }
-
+        return OS_OK;
     }
 
-    //Senden
-    uint8_t *slot = qcb->pBuffer + (qcb->uWriteIndex * qcb->u8MessageLength);
-    memcpy(slot, payload, qcb->u8MessageLength);
 
-    qcb->uWriteIndex = (qcb->uWriteIndex + 1) % qcb->u8QLength; 
-    qcb->uMessageCount++;
+    //2. Wenn receive_wait leer und msgq voll
+    if(ringbuffer_is_full(&qcb->ring_buf)){
+        // Non Blocking
+        if (timeout_ticks == 0) {
+            port_exit_critical(key);
+            return OS_ERR_FULL;
+        }
 
-    //Wartenden Empfangstask aufwecken? 
-    if(!prio_waitq_is_empty(&qcb->receive_queue)){  //Ist ein Empfänger in der q?
-        kernel_task_t *waitingReceive = prio_waitq_pop_highest(&qcb->receive_queue);
-        k_timeout_remove(waitingReceive); //Task von Timeout List entfernen, sofern existent
-        k_sched_task_ready(waitingReceive);
-    }
+        // Block forever
+        else if (timeout_ticks == OS_WAIT_FOREVER) {
+            k_sched_task_block(current_task);
+            prio_waitq_push(&qcb->send_waitq, current_task);
 
-    k_sched_request_switch();
+            current_task->wait_object = qcb;
+            current_task->wait_type = K_WAIT_QUEUE_SEND;
+            current_task->wait_data = (void*) payload;
+
+        }
+
+        // Block with Timeout
+        else if (timeout_ticks != OS_WAIT_FOREVER && timeout_ticks > 0) {
+            k_sched_task_block(current_task);
+            prio_waitq_push(&(qcb->send_waitq), current_task);
+
+            // Wait Objekt wird übergeben
+            current_task->wait_type = K_WAIT_QUEUE_SEND;
+            current_task->wait_object = qcb;
+            current_task->wait_data = (void*) payload;
+            // Timeout Node zuweisung
+            k_timeout_add(current_task, timeout_ticks);
+        }
+        k_sched_request_switch();
+
+        
+        port_exit_critical(key);
+
+        // In os_queue_send nach dem k_sched_request_switch():
+        if (current_task->wait_result == OS_ERR_TIMEOUT) {
+            //prio_waitq_remove(&qcb->send_waitq, current_task); // <-- Unbedingt austragen!
+            port_exit_critical(key);
+            return OS_ERR_TIMEOUT; // Oder OS_ERR_TIMEOUT, je nach API-Definition
+        }
+        //Daten übertragen
+
+        return OS_OK;
+    }   
+    //3. Wenn Queue platz hat und kein Empfänger  wartet Senden
+    ringbuffer_write(&qcb->ring_buf, payload);
 
     port_exit_critical(key);
-
-    return;
+    return OS_OK;
 }
-
 
 /*-----------------------------------Empfangen-----------------------*/
-void Queue_Receive(QCB_sctQCB_t *qcb, void *ReceivePuffer, uint32_t TimeoutTicks, kernel_task_t *currentTask){
+os_status_t os_queue_receive(QCB_sctQCB_t *qcb,
+                               void *receive_buffer,
+                               uint32_t timeout_ticks) {
     uint32_t key = port_enter_critical();
 
-    if(qcb->uMessageCount == 0){
+    kernel_task_t *current_task = k_sched_current();
 
-        //Non-Blocking
-        if(TimeoutTicks == 0){
-            port_exit_critical(key);
-            return;
-        }
+    //1. Wenn send_waitq nicht leer -> Direkte übergabe
+    if(!prio_waitq_is_empty(&qcb->send_waitq) && ringbuffer_is_empty(&qcb->ring_buf)){
         
-        //Block Forever
-        if(TimeoutTicks == WAIT_FOREVER){
-
-            k_sched_task_block(currentTask);
-            prio_waitq_push(&qcb->receive_queue, currentTask);
-
-            k_sched_request_switch();
-            port_exit_critical(key);
-
-            return;
-        }
+        kernel_task_t *send_node = prio_waitq_pop_highest(&qcb->send_waitq);
+        k_timeout_remove(send_node);
         
-        //Block with Timeout
-        if(TimeoutTicks > 0){
-            k_sched_task_block(currentTask);
-            prio_waitq_push(&(qcb->receive_queue), currentTask);
-            
-            //Wait Objekt wird übergeben
-            currentTask->wait_type = K_WAIT_QUEUE_RECV;
-            currentTask->wait_object = qcb;
+        send_node->wait_object = 0;
+        send_node->wait_type = K_WAIT_NONE;
+        send_node->wake_tick = 0;
+        send_node->wait_result = OS_OK;
+        
+        //Direkte Übergabe
+        memcpy(receive_buffer, send_node->wait_data, qcb->ring_buf.content_size);
+        
+        k_sched_task_ready(send_node);
+        k_sched_request_switch();
 
-            //Timeout
-            k_timeout_add(currentTask, TimeoutTicks);
-            
-            k_sched_request_switch();
-            port_exit_critical(key);
-            
-            return;
+        port_exit_critical(key);
 
-        }
-
+        return OS_OK;
     }
 
+    //2. Wenn send_wait leer und msgq leer
+    if(ringbuffer_is_empty(&qcb->ring_buf)){
+        // Non Blocking
+        if (timeout_ticks == 0) {
+            port_exit_critical(key);
+            return OS_ERR_EMPTY;
+        }
 
-    //Empfangen
-    uint8_t *slot = qcb->pBuffer + (qcb->uReadIndex * qcb->u8MessageLength);
-    memcpy(ReceivePuffer, slot, qcb->u8MessageLength);
+        // Block forever
+        else if (timeout_ticks == OS_WAIT_FOREVER) {
+            k_sched_task_block(current_task);
+            prio_waitq_push(&qcb->receive_waitq, current_task);
 
-    qcb->uReadIndex = (qcb->uReadIndex + 1) % qcb->u8QLength;
-    qcb->uMessageCount--;
+            current_task->wait_object = qcb;
+            current_task->wait_type = K_WAIT_QUEUE_RECV;
+            current_task->wait_data = receive_buffer;
 
-    //Sendertask aufwecken?
-    if(!prio_waitq_is_empty(&qcb->send_queue)){  //Ist ein Sender in der q?
-        kernel_task_t *waitingSender = prio_waitq_pop_highest(&qcb->send_queue);
-        k_timeout_remove(waitingSender); //Task von Timeout List entfernen, sofern existent
-        k_sched_task_ready(waitingSender);
+        }
+
+        // Block with Timeout
+        else if (timeout_ticks != OS_WAIT_FOREVER && timeout_ticks > 0) {
+            k_sched_task_block(current_task);
+            prio_waitq_push(&(qcb->receive_waitq), current_task); 
+
+            // Wait Objekt wird übergeben
+            current_task->wait_type = K_WAIT_QUEUE_RECV;
+            current_task->wait_object = qcb;
+            current_task->wait_data = receive_buffer;
+            // Timeout Node zuweisung
+            k_timeout_add(current_task, timeout_ticks);
+        }
+
+        k_sched_request_switch();
+        
+        port_exit_critical(key);
+        
+        if(current_task->wait_result == OS_ERR_TIMEOUT){
+            //prio_waitq_remove(&qcb->receive_waitq, current_task);
+            port_exit_critical(key);
+            return OS_ERR_TIMEOUT;
+        }
+
+        //Empfang erfolgreich
+        return OS_OK;
+    }   
+    //3. Wenn Queue platz hat und kein Empfänger  wartet Senden (Funktioniert)
+    ringbuffer_read(&qcb->ring_buf, receive_buffer);
+
+    port_exit_critical(key); 
+    return OS_OK;
+}
+
+/*------------------ Timeout Cleanup Funktionen ------------------*/
+void k_queue_send_timeout_cleanup(QCB_sctQCB_t *qcb, kernel_task_t *task) {
+    if (qcb == NULL || task == NULL) {
+        return;
     }
 
-    k_sched_request_switch();
+    prio_waitq_remove(&qcb->send_waitq, task);
 
-    port_exit_critical(key);
+    task->wait_object = 0;
+    task->wait_type = K_WAIT_NONE;
+    task->wake_tick = 0;
+    task->wait_result = OS_ERR_TIMEOUT;
+}
 
-    return;
+void k_queue_recv_timeout_cleanup(QCB_sctQCB_t *qcb, kernel_task_t *task) {
+    if (qcb == NULL || task == NULL) {
+        return;
+    }
 
+    prio_waitq_remove(&qcb->receive_waitq, task);
+
+
+    task->wait_object = 0;
+    task->wait_type = K_WAIT_NONE;
+    task->wake_tick = 0;
+    task->wait_result = OS_ERR_TIMEOUT;
 }
