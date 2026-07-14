@@ -5,17 +5,17 @@
 #include "os_types.h"
 #include "stm32l4xx_hal.h"
 
-#define QUEUE_DEPTH                 8u
-#define PRODUCER_COUNT              2u
-#define CONSUMER_COUNT              2u
-#define MESSAGES_PER_PRODUCER       1000u
-#define TIMEOUT_TICKS               5u
+#define QUEUE_DEPTH           8u
+#define PRODUCER_COUNT        2u
+#define CONSUMER_COUNT        2u
+#define MESSAGES_PER_PRODUCER 1000u
+#define TIMEOUT_TICKS         5u
 
-#define TEST_MSG_RECV_HANDOFF       0x11111111u
-#define TEST_MSG_BLOCKED_SEND_OLD   0x22222222u
-#define TEST_MSG_BLOCKED_SEND_NEW   0x33333333u
-#define TEST_MSG_PRIO_FIRST         0x44444444u
-#define TEST_MSG_PRIO_SECOND        0x55555555u
+#define TEST_MSG_RECV_HANDOFF     0x11111111u
+#define TEST_MSG_BLOCKED_SEND_OLD 0x22222222u
+#define TEST_MSG_BLOCKED_SEND_NEW 0x33333333u
+#define TEST_MSG_PRIO_FIRST       0x44444444u
+#define TEST_MSG_PRIO_SECOND      0x55555555u
 
 typedef struct {
     uint32_t producer_id;

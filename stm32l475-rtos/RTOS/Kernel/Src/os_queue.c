@@ -12,7 +12,6 @@ static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
 
-
 // TODO: AUSLAGERNNNN
 static os_status_t queue_check_timeout_arg(uint32_t timeout_ticks) {
     /*
