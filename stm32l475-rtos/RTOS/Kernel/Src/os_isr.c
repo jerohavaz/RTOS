@@ -25,7 +25,7 @@ void os_isr_exit(void) {
     }
 
     if (k_sched_request_yield() != 0u) {
-        trace_isr_exit_to_scheduler();
+        trace_isr_exit_to_scheduler(); // TODO CHECK SYSVIEW
         return;
     }
 

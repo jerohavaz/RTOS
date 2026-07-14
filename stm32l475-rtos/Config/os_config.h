@@ -2,7 +2,7 @@
 #define OS_CONFIG_H_
 
 // Tasks
-#define OS_MAX_TASKS       (4u)
+#define OS_MAX_TASKS       (13u)
 #define OS_TASK_STACK_SIZE (512u)
 
 // Priorities
