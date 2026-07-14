@@ -13,11 +13,10 @@ target_sources(rtos_kernel PRIVATE
     Kernel/Src/k_sched.c
     Kernel/Src/k_task.c
     Kernel/Src/k_timeout.c
-    Kernel/Src/os_queue.c
-    Kernel/Src/os_queue.c
     Kernel/Src/os_delay.c
     Kernel/Src/os_isr.c
     Kernel/Src/os_mutex.c
+    Kernel/Src/os_queue.c
     Kernel/Src/os_sem.c
     Kernel/Src/os.c
 

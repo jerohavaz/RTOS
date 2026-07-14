@@ -1,14 +1,13 @@
 #include "k_timeout.h"
 #include "k_delay.h"
 #include "k_mutex.h"
+#include "k_queue.h"
 #include "k_sem.h"
 #include "kernel_panic.h"
 #include "k_sched.h"
 #include "port.h"
 #include "timeout_list.h"
 #include "os_types.h"
-#include "k_queue.h"
-#include "os_queue.h"
 
 static volatile uint32_t g_tick = 0u;
 static timeout_list_t g_timeout_list;
@@ -58,8 +57,6 @@ void k_timeout_process_tick(void) {
 
         const void *object = task->wait_object;
 
-        // TODO: Consider moving task related cleanup into their own functions, e.g.
-        // k_sem_timeout_cleanup(), k_mutex_timeout_cleanup(), etc.
         switch (task->wait_type) {
             case K_WAIT_DELAY:
                 k_delay_timeout_cleanup(task);
@@ -89,6 +86,7 @@ void k_timeout_process_tick(void) {
 
         KERNEL_REQUIRE(task->wait_type == K_WAIT_NONE);
         KERNEL_REQUIRE(task->wait_object == 0);
+        KERNEL_REQUIRE(task->wait_data == 0);
 
         k_sched_task_ready(task);
 

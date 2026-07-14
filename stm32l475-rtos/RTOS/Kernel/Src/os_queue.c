@@ -1,4 +1,5 @@
 #include "os_queue.h"
+#include "k_queue.h"
 #include "k_sched.h"
 #include "k_timeout.h"
 #include "kernel_panic.h"
@@ -326,5 +327,3 @@ void k_queue_recv_timeout_cleanup(os_queue_t *queue, kernel_task_t *task) {
     task->wait_object = 0;
     task->wait_result = OS_ERR_TIMEOUT;
 }
-
-
