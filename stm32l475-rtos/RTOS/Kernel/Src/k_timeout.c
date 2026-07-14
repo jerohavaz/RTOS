@@ -7,7 +7,8 @@
 #include "port.h"
 #include "timeout_list.h"
 #include "os_types.h"
-#include "os_message_queue.h"
+#include "k_queue.h"
+#include "os_queue.h"
 
 static volatile uint32_t g_tick = 0u;
 static timeout_list_t g_timeout_list;
@@ -73,11 +74,11 @@ void k_timeout_process_tick(void) {
                 break;
 
             case K_WAIT_QUEUE_SEND:
-                k_queue_send_timeout_cleanup((QCB_sctQCB_t *)object, task);
+                k_queue_send_timeout_cleanup((os_queue_t *)object, task);
                 break;
 
             case K_WAIT_QUEUE_RECV:
-                k_queue_recv_timeout_cleanup((QCB_sctQCB_t *)object, task);
+                k_queue_recv_timeout_cleanup((os_queue_t *)object, task);
                 break;
 
             case K_WAIT_NONE:
