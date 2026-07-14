@@ -1,3 +1,6 @@
+in task_create_id: Events[Int]
+in task_create_prio: Events[Int]
+
 in state_id: Events[Int]
 in state_old: Events[Int]
 in state_new: Events[Int]
@@ -58,12 +61,34 @@ def valid_state_transition :=
 def violation_invalid_state_transition :=
   filter(state_id, valid_state_transition == false)
 
+def invalid_state_transition_check_marker :=
+  if state_id >= 0 then 1
+  else 0
+
+def FAIL_invalid_state_transition :=
+  filter(invalid_state_transition_check_marker, valid_state_transition == false)
+
+def PASS_invalid_state_transition :=
+  filter(invalid_state_transition_check_marker, valid_state_transition == false == false)
+
+
 
 def running_id_out_of_range :=
   running_id < 0 || running_id >= 3
 
 def violation_running_id_out_of_range :=
   filter(running_id, running_id_out_of_range)
+
+def running_id_out_of_range_check_marker :=
+  if running_id >= 0 then 1
+  else 0
+
+def FAIL_running_id_out_of_range :=
+  filter(running_id_out_of_range_check_marker, running_id_out_of_range)
+
+def PASS_running_id_out_of_range :=
+  filter(running_id_out_of_range_check_marker, running_id_out_of_range == false)
+
 
 
 def ready_event_inconsistent :=
@@ -90,6 +115,39 @@ def violation_running_event_inconsistent :=
 def violation_blocked_event_inconsistent :=
   filter(blocked_id, blocked_event_inconsistent)
 
+def ready_event_inconsistent_check_marker :=
+  if ready_id >= 0 then 1
+  else 0
+
+def FAIL_ready_event_inconsistent :=
+  filter(ready_event_inconsistent_check_marker, ready_event_inconsistent)
+
+def PASS_ready_event_inconsistent :=
+  filter(ready_event_inconsistent_check_marker, ready_event_inconsistent == false)
+
+
+def running_event_inconsistent_check_marker :=
+  if running_id >= 0 then 1
+  else 0
+
+def FAIL_running_event_inconsistent :=
+  filter(running_event_inconsistent_check_marker, running_event_inconsistent)
+
+def PASS_running_event_inconsistent :=
+  filter(running_event_inconsistent_check_marker, running_event_inconsistent == false)
+
+
+def blocked_event_inconsistent_check_marker :=
+  if blocked_id >= 0 then 1
+  else 0
+
+def FAIL_blocked_event_inconsistent :=
+  filter(blocked_event_inconsistent_check_marker, blocked_event_inconsistent)
+
+def PASS_blocked_event_inconsistent :=
+  filter(blocked_event_inconsistent_check_marker, blocked_event_inconsistent == false)
+
+
 
 def blocked_task_running :=
   (running_id == 0 && last(task_state_0, running_id) == 3) ||
@@ -98,6 +156,17 @@ def blocked_task_running :=
 
 def violation_blocked_running :=
   filter(running_id, blocked_task_running)
+
+def blocked_running_check_marker :=
+  if running_id >= 0 then 1
+  else 0
+
+def FAIL_blocked_running :=
+  filter(blocked_running_check_marker, blocked_task_running)
+
+def PASS_blocked_running :=
+  filter(blocked_running_check_marker, blocked_task_running == false)
+
 
 
 def any_task_ready_at_idle :=
@@ -111,6 +180,17 @@ def idle_bad :=
 def violation_idle_while_ready :=
   filter(idle, idle_bad)
 
+def idle_while_ready_check_marker :=
+  if idle then 1
+  else 0
+
+def FAIL_idle_while_ready :=
+  filter(idle_while_ready_check_marker, idle_bad)
+
+def PASS_idle_while_ready :=
+  filter(idle_while_ready_check_marker, idle_bad == false)
+
+
 
 def higher_priority_task_ready :=
   (running_id == 0 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
@@ -122,6 +202,17 @@ def higher_priority_task_ready :=
 
 def violation_priority :=
   filter(running_id, higher_priority_task_ready)
+
+def priority_check_marker :=
+  if running_id >= 0 then 1
+  else 0
+
+def FAIL_priority :=
+  filter(priority_check_marker, higher_priority_task_ready)
+
+def PASS_priority :=
+  filter(priority_check_marker, higher_priority_task_ready == false)
+
 
 
 def multiple_states_bad :=
@@ -135,6 +226,26 @@ def violation_multiple_states :=
 
 def violation_ready_and_blocked :=
   filter(state_id, ready_and_blocked_bad)
+
+def multiple_states_check_marker :=
+  if state_id >= 0 then 1
+  else 0
+
+def ready_and_blocked_check_marker :=
+  if state_id >= 0 then 1
+  else 0
+
+def FAIL_multiple_states :=
+  filter(multiple_states_check_marker, multiple_states_bad)
+
+def PASS_multiple_states :=
+  filter(multiple_states_check_marker, multiple_states_bad == false)
+
+def FAIL_ready_and_blocked :=
+  filter(ready_and_blocked_check_marker, ready_and_blocked_bad)
+
+def PASS_ready_and_blocked :=
+  filter(ready_and_blocked_check_marker, ready_and_blocked_bad == false)
 
 
 def current_running: Events[Int] =
@@ -203,6 +314,28 @@ def violation_quantum :=
 def violation_round_robin :=
   filter(running_id, rr_bad)
 
+def quantum_check_marker :=
+  if running_id >= 0 then 1
+  else 0
+
+def FAIL_quantum :=
+  filter(quantum_check_marker, rr_bad)
+
+def PASS_quantum :=
+  filter(quantum_check_marker, rr_bad == false)
+
+
+def round_robin_check_marker :=
+  if running_id >= 0 then 1
+  else 0
+
+def FAIL_round_robin :=
+  filter(round_robin_check_marker, rr_bad)
+
+def PASS_round_robin :=
+  filter(round_robin_check_marker, rr_bad == false)
+
+
 
 def isr_has_entered: Events[Bool] =
   merge(
@@ -222,17 +355,40 @@ def isr_resume_violation_marker :=
 def violation_isr_resume :=
   filter(isr_resume_violation_marker, isr_exit_without_enter)
 
+def isr_resume_check_marker :=
+  if isr_exit_mode >= 0 then 1
+  else 0
 
-out violation_running_id_out_of_range
-out violation_invalid_state_transition
-out violation_ready_event_inconsistent
-out violation_running_event_inconsistent
-out violation_blocked_event_inconsistent
-out violation_blocked_running
-out violation_idle_while_ready
-out violation_priority
-out violation_multiple_states
-out violation_ready_and_blocked
-out violation_quantum
-out violation_round_robin
-out violation_isr_resume
+def FAIL_isr_resume :=
+  filter(isr_resume_check_marker, isr_exit_without_enter)
+
+def PASS_isr_resume :=
+  filter(isr_resume_check_marker, isr_exit_without_enter == false)
+
+
+out FAIL_running_id_out_of_range
+out PASS_running_id_out_of_range
+out FAIL_invalid_state_transition
+out PASS_invalid_state_transition
+out FAIL_ready_event_inconsistent
+out PASS_ready_event_inconsistent
+out FAIL_running_event_inconsistent
+out PASS_running_event_inconsistent
+out FAIL_blocked_event_inconsistent
+out PASS_blocked_event_inconsistent
+out FAIL_blocked_running
+out PASS_blocked_running
+out FAIL_idle_while_ready
+out PASS_idle_while_ready
+out FAIL_priority
+out PASS_priority
+out FAIL_multiple_states
+out PASS_multiple_states
+out FAIL_ready_and_blocked
+out PASS_ready_and_blocked
+out FAIL_quantum
+out PASS_quantum
+out FAIL_round_robin
+out PASS_round_robin
+out FAIL_isr_resume
+out PASS_isr_resume

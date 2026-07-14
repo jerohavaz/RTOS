@@ -9,8 +9,28 @@ STATE_RUNNING = 2
 STATE_BLOCKED = 3
 
 
+CHECKS = [
+    "running_id_out_of_range",
+    "invalid_state_transition",
+    "ready_event_inconsistent",
+    "running_event_inconsistent",
+    "blocked_event_inconsistent",
+    "blocked_running",
+    "idle_while_ready",
+    "priority",
+    "multiple_states",
+    "ready_and_blocked",
+    "quantum",
+    "round_robin",
+    "isr_resume",
+]
+
+
 def emit_header() -> str:
-    return """in state_id: Events[Int]
+    return """in task_create_id: Events[Int]
+in task_create_prio: Events[Int]
+
+in state_id: Events[Int]
 in state_old: Events[Int]
 in state_new: Events[Int]
 
@@ -38,6 +58,22 @@ def or_terms(terms: list[str]) -> str:
     return " ||\n  ".join(terms)
 
 
+def emit_pass_fail_pair(check_name: str, trigger_expr: str, fail_condition: str) -> str:
+    marker_name = f"{check_name}_check_marker"
+
+    return f"""def {marker_name} :=
+  if {trigger_expr} then 1
+  else 0
+
+def FAIL_{check_name} :=
+  filter({marker_name}, {fail_condition})
+
+def PASS_{check_name} :=
+  filter({marker_name}, {fail_condition} == false)
+
+"""
+
+
 def emit_per_task(task_id: int) -> str:
     return f"""def task_state_{task_id}: Events[Int] =
   merge(filter(state_new, state_id == {task_id}), {STATE_CREATED})
@@ -62,6 +98,7 @@ def emit_valid_state_transition() -> str:
 def violation_invalid_state_transition :=
   filter(state_id, valid_state_transition == false)
 
+{emit_pass_fail_pair("invalid_state_transition", "state_id >= 0", "valid_state_transition == false")}
 """
 
 
@@ -72,6 +109,7 @@ def emit_running_id_bounds(max_tasks: int) -> str:
 def violation_running_id_out_of_range :=
   filter(running_id, running_id_out_of_range)
 
+{emit_pass_fail_pair("running_id_out_of_range", "running_id >= 0", "running_id_out_of_range")}
 """
 
 
@@ -114,6 +152,9 @@ def violation_running_event_inconsistent :=
 def violation_blocked_event_inconsistent :=
   filter(blocked_id, blocked_event_inconsistent)
 
+{emit_pass_fail_pair("ready_event_inconsistent", "ready_id >= 0", "ready_event_inconsistent")}
+{emit_pass_fail_pair("running_event_inconsistent", "running_id >= 0", "running_event_inconsistent")}
+{emit_pass_fail_pair("blocked_event_inconsistent", "blocked_id >= 0", "blocked_event_inconsistent")}
 """
 
 
@@ -132,6 +173,7 @@ def emit_blocked_task_must_not_run(max_tasks: int) -> str:
 def violation_blocked_running :=
   filter(running_id, blocked_task_running)
 
+{emit_pass_fail_pair("blocked_running", "running_id >= 0", "blocked_task_running")}
 """
 
 
@@ -152,6 +194,7 @@ def idle_bad :=
 def violation_idle_while_ready :=
   filter(idle, idle_bad)
 
+{emit_pass_fail_pair("idle_while_ready", "idle", "idle_bad")}
 """
 
 
@@ -163,8 +206,6 @@ def emit_priority_check(max_tasks: int) -> str:
             if running_task == ready_task:
                 continue
 
-            # Project convention:
-            # higher numeric value = higher priority
             terms.append(
                 f"(running_id == {running_task} && "
                 f"last(task_state_{ready_task}, running_id) == {STATE_READY} && "
@@ -177,6 +218,7 @@ def emit_priority_check(max_tasks: int) -> str:
 def violation_priority :=
   filter(running_id, higher_priority_task_ready)
 
+{emit_pass_fail_pair("priority", "running_id >= 0", "higher_priority_task_ready")}
 """
 
 
@@ -192,6 +234,26 @@ def violation_multiple_states :=
 
 def violation_ready_and_blocked :=
   filter(state_id, ready_and_blocked_bad)
+
+def multiple_states_check_marker :=
+  if state_id >= 0 then 1
+  else 0
+
+def ready_and_blocked_check_marker :=
+  if state_id >= 0 then 1
+  else 0
+
+def FAIL_multiple_states :=
+  filter(multiple_states_check_marker, multiple_states_bad)
+
+def PASS_multiple_states :=
+  filter(multiple_states_check_marker, multiple_states_bad == false)
+
+def FAIL_ready_and_blocked :=
+  filter(ready_and_blocked_check_marker, ready_and_blocked_bad)
+
+def PASS_ready_and_blocked :=
+  filter(ready_and_blocked_check_marker, ready_and_blocked_bad == false)
 
 """
 
@@ -274,6 +336,8 @@ def violation_quantum :=
 def violation_round_robin :=
   filter(running_id, rr_bad)
 
+{emit_pass_fail_pair("quantum", "running_id >= 0", "rr_bad")}
+{emit_pass_fail_pair("round_robin", "running_id >= 0", "rr_bad")}
 """
 
 
@@ -296,27 +360,72 @@ def isr_resume_violation_marker :=
 def violation_isr_resume :=
   filter(isr_resume_violation_marker, isr_exit_without_enter)
 
+def isr_resume_check_marker :=
+  if isr_exit_mode >= 0 then 1
+  else 0
+
+def FAIL_isr_resume :=
+  filter(isr_resume_check_marker, isr_exit_without_enter)
+
+def PASS_isr_resume :=
+  filter(isr_resume_check_marker, isr_exit_without_enter == false)
+
 """
 
 
-def emit_outputs() -> str:
-    return """out violation_running_id_out_of_range
-out violation_invalid_state_transition
-out violation_ready_event_inconsistent
-out violation_running_event_inconsistent
-out violation_blocked_event_inconsistent
-out violation_blocked_running
-out violation_idle_while_ready
-out violation_priority
-out violation_multiple_states
-out violation_ready_and_blocked
-out violation_quantum
-out violation_round_robin
-out violation_isr_resume
-"""
+def emit_outputs(mode: str) -> str:
+    lines = []
+
+    if mode == "violations":
+        for check in CHECKS:
+            lines.append(f"out violation_{check}")
+
+    elif mode == "checks":
+        for check in CHECKS:
+            lines.append(f"out FAIL_{check}")
+            lines.append(f"out PASS_{check}")
+
+    elif mode == "both":
+        for check in CHECKS:
+            lines.append(f"out violation_{check}")
+        for check in CHECKS:
+            lines.append(f"out FAIL_{check}")
+            lines.append(f"out PASS_{check}")
+
+    elif mode == "debug":
+        for check in CHECKS:
+            lines.append(f"out violation_{check}")
+            lines.append(f"out FAIL_{check}")
+            lines.append(f"out PASS_{check}")
+
+        lines.extend(
+            [
+                "out current_running",
+                "out current_running_prio",
+                "out running_ticks",
+                "out running_decision_count",
+                "out same_priority_task_ready_at_tick",
+                "out quantum_due",
+                "out rr_due_task",
+                "out rr_due_decision_count",
+                "out rr_bad",
+                "out higher_priority_task_ready",
+                "out blocked_task_running",
+                "out idle_bad",
+                "out ready_event_inconsistent",
+                "out running_event_inconsistent",
+                "out blocked_event_inconsistent",
+                "out isr_exit_without_enter",
+            ]
+        )
+
+    else:
+        raise ValueError(f"invalid mode: {mode}")
+
+    return "\n".join(lines) + "\n"
 
 
-def generate(max_tasks: int, quantum_ticks: int) -> str:
+def generate(max_tasks: int, quantum_ticks: int, mode: str) -> str:
     parts = []
 
     parts.append(emit_header())
@@ -334,7 +443,7 @@ def generate(max_tasks: int, quantum_ticks: int) -> str:
     parts.append(emit_current_running())
     parts.append(emit_quantum_and_round_robin(max_tasks, quantum_ticks))
     parts.append(emit_isr_unmatched_exit())
-    parts.append(emit_outputs())
+    parts.append(emit_outputs(mode))
 
     return "\n".join(parts)
 
@@ -347,6 +456,11 @@ def main() -> None:
     parser.add_argument("--max-tasks", type=int, required=True)
     parser.add_argument("--quantum", type=int, required=True)
     parser.add_argument("-o", "--output", required=True)
+    parser.add_argument(
+        "--mode",
+        choices=["violations", "checks", "both", "debug"],
+        default="violations",
+    )
 
     args = parser.parse_args()
 
@@ -356,7 +470,7 @@ def main() -> None:
     if args.quantum <= 0:
         raise SystemExit("quantum must be > 0")
 
-    spec = generate(args.max_tasks, args.quantum)
+    spec = generate(args.max_tasks, args.quantum, args.mode)
 
     with open(args.output, "w", encoding="utf-8") as file:
         file.write(spec)
