@@ -6,7 +6,6 @@ import sys
 from contextlib import nullcontext
 from typing import Callable, Iterable, TextIO
 
-
 EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "TASK_CREATE": [
         ("task_create_id", int),
@@ -38,9 +37,7 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Convert SEGGER RTT scheduler trace lines to TeSSLa input."
-    )
+    parser = argparse.ArgumentParser(description="Convert SEGGER RTT scheduler trace lines to TeSSLa input.")
 
     parser.add_argument(
         "--host",
@@ -149,9 +146,7 @@ def convert_line(line: str, timestamp: int) -> list[str]:
         except (TypeError, ValueError):
             return []
 
-        output_lines.append(
-            f"{timestamp}: {stream_name} = {format_value(value)}"
-        )
+        output_lines.append(f"{timestamp}: {stream_name} = {format_value(value)}")
 
     return output_lines
 
@@ -184,9 +179,7 @@ def main() -> int:
     timestamp = 0
 
     output_context = (
-        nullcontext(sys.stdout)
-        if args.stdout or args.output is None
-        else open(args.output, "w", encoding="utf-8")
+        nullcontext(sys.stdout) if args.stdout or args.output is None else open(args.output, "w", encoding="utf-8")
     )
 
     try:
@@ -211,8 +204,7 @@ def main() -> int:
 
     except ConnectionRefusedError:
         print(
-            f"Could not connect to RTT server at "
-            f"{args.host}:{args.port}.",
+            f"Could not connect to RTT server at " f"{args.host}:{args.port}.",
             file=sys.stderr,
         )
         return 1

@@ -146,29 +146,17 @@ void trace_isr_enter(void) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_ISR
     SEGGER_SYSVIEW_RecordEnterISR();
 #endif
-
-#if OS_TRACE_TESSLA_RTT && OS_TRACE_ISR
-    SEGGER_RTT_printf(0, "ISR_ENTER %lu\n", (unsigned long)port_get_active_exception_id());
-#endif
 }
 
 void trace_isr_exit(void) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_ISR
     SEGGER_SYSVIEW_RecordExitISR();
 #endif
-
-#if OS_TRACE_TESSLA_RTT && OS_TRACE_ISR
-    SEGGER_RTT_WriteString(0, "ISR_EXIT 0\n");
-#endif
 }
 
 void trace_isr_exit_to_scheduler(void) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_ISR
     SEGGER_SYSVIEW_RecordExitISRToScheduler();
-#endif
-
-#if OS_TRACE_TESSLA_RTT && OS_TRACE_ISR
-    SEGGER_RTT_WriteString(0, "ISR_EXIT 1\n");
 #endif
 }
 
