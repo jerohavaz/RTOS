@@ -5,5 +5,5 @@
 #include "os_queue.h"
 
 void app_init(void) {
-    queue_test_init();
+    app_tasks_init();
 }

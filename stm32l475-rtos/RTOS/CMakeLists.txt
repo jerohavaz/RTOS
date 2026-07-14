@@ -1,6 +1,5 @@
 add_library(rtos_kernel STATIC)
 
-
 target_sources(rtos_kernel PRIVATE
     Internal/Src/kernel_panic.c
     Internal/Src/prio_waitq.c

@@ -730,7 +730,7 @@ static void monitor_task(void) {
     }
 }
 
-void queue_test_init(void) {
+void app_tasks_init(void) {
     basic_queue_tests();
 
     /*
