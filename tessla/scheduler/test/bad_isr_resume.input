@@ -1,0 +1,25 @@
+0: state_id = 1
+0: state_old = 0
+0: state_new = 1
+
+1: state_id = 1
+1: state_old = 1
+1: state_new = 2
+
+2: running_id = 1
+2: running_prio = 1
+
+3: isr_enter_id = 10
+
+4: isr_exit_mode = 0
+
+5: state_id = 2
+5: state_old = 0
+5: state_new = 1
+
+6: state_id = 2
+6: state_old = 1
+6: state_new = 2
+
+7: running_id = 2
+7: running_prio = 1

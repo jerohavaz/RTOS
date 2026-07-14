@@ -1,0 +1,209 @@
+in state_id: Events[Int]
+in state_old: Events[Int]
+in state_new: Events[Int]
+
+in ready_id: Events[Int]
+in ready_prio: Events[Int]
+
+in running_id: Events[Int]
+in running_prio: Events[Int]
+
+in blocked_id: Events[Int]
+
+in idle: Events[Bool]
+
+in tick: Events[Int]
+
+in isr_enter_id: Events[Int]
+in isr_exit_mode: Events[Int]
+
+
+def task_state_0: Events[Int] =
+  merge(filter(state_new, state_id == 0), 0)
+
+def ready_prio_0: Events[Int] =
+  merge(filter(ready_prio, ready_id == 0), -1)
+
+def running_prio_0: Events[Int] =
+  merge(filter(running_prio, running_id == 0), -1)
+
+
+def task_state_1: Events[Int] =
+  merge(filter(state_new, state_id == 1), 0)
+
+def ready_prio_1: Events[Int] =
+  merge(filter(ready_prio, ready_id == 1), -1)
+
+def running_prio_1: Events[Int] =
+  merge(filter(running_prio, running_id == 1), -1)
+
+
+def task_state_2: Events[Int] =
+  merge(filter(state_new, state_id == 2), 0)
+
+def ready_prio_2: Events[Int] =
+  merge(filter(ready_prio, ready_id == 2), -1)
+
+def running_prio_2: Events[Int] =
+  merge(filter(running_prio, running_id == 2), -1)
+
+
+def valid_state_transition :=
+  if state_old == 0 then state_new == 1
+  else if state_old == 1 then state_new == 2 || state_new == 3
+  else if state_old == 2 then state_new == 1 || state_new == 3
+  else if state_old == 3 then state_new == 1
+  else false
+
+def violation_invalid_state_transition :=
+  filter(state_id, valid_state_transition == false)
+
+
+def running_id_out_of_range :=
+  running_id < 0 || running_id >= 3
+
+def violation_running_id_out_of_range :=
+  filter(running_id, running_id_out_of_range)
+
+
+def ready_event_inconsistent :=
+  (ready_id == 0 && last(task_state_0, ready_id) != 1) ||
+  (ready_id == 1 && last(task_state_1, ready_id) != 1) ||
+  (ready_id == 2 && last(task_state_2, ready_id) != 1)
+
+def running_event_inconsistent :=
+  (running_id == 0 && last(task_state_0, running_id) != 2) ||
+  (running_id == 1 && last(task_state_1, running_id) != 2) ||
+  (running_id == 2 && last(task_state_2, running_id) != 2)
+
+def blocked_event_inconsistent :=
+  (blocked_id == 0 && last(task_state_0, blocked_id) != 3) ||
+  (blocked_id == 1 && last(task_state_1, blocked_id) != 3) ||
+  (blocked_id == 2 && last(task_state_2, blocked_id) != 3)
+
+def violation_ready_event_inconsistent :=
+  filter(ready_id, ready_event_inconsistent)
+
+def violation_running_event_inconsistent :=
+  filter(running_id, running_event_inconsistent)
+
+def violation_blocked_event_inconsistent :=
+  filter(blocked_id, blocked_event_inconsistent)
+
+
+def blocked_task_running :=
+  (running_id == 0 && last(task_state_0, running_id) == 3) ||
+  (running_id == 1 && last(task_state_1, running_id) == 3) ||
+  (running_id == 2 && last(task_state_2, running_id) == 3)
+
+def violation_blocked_running :=
+  filter(running_id, blocked_task_running)
+
+
+def any_task_ready_at_idle :=
+  (last(task_state_0, idle) == 1) ||
+  (last(task_state_1, idle) == 1) ||
+  (last(task_state_2, idle) == 1)
+
+def idle_bad :=
+  idle && any_task_ready_at_idle
+
+def violation_idle_while_ready :=
+  filter(idle, idle_bad)
+
+
+def higher_priority_task_ready :=
+  (running_id == 0 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio)
+
+def violation_priority :=
+  filter(running_id, higher_priority_task_ready)
+
+
+def multiple_states_bad :=
+  false
+
+def ready_and_blocked_bad :=
+  false
+
+def violation_multiple_states :=
+  filter(state_id, multiple_states_bad)
+
+def violation_ready_and_blocked :=
+  filter(state_id, ready_and_blocked_bad)
+
+
+def current_running: Events[Int] =
+  merge(running_id, -1)
+
+def current_running_prio: Events[Int] =
+  merge(running_prio, -1)
+
+
+def running_ticks: Events[Int] =
+  merge(
+    if running_id >= 0 then 0
+    else if idle then 0
+    else if tick > 0 then last(running_ticks, tick) + tick
+    else 0,
+    0
+  )
+
+def same_priority_task_ready_at_tick :=
+  (last(current_running, tick) == 0 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick))
+
+def quantum_due :=
+  tick > 0 &&
+  last(current_running, tick) >= 0 &&
+  last(running_ticks, tick) + tick >= 1 &&
+  same_priority_task_ready_at_tick
+
+def rr_bad :=
+  running_id >= 0 &&
+  last(quantum_due, running_id) &&
+  running_id == last(current_running, running_id)
+
+def violation_quantum :=
+  filter(running_id, rr_bad)
+
+def violation_round_robin :=
+  filter(running_id, rr_bad)
+
+
+def isr_seen_enter: Events[Bool] =
+  merge(
+    if isr_enter_id >= 0 then true
+    else false,
+    false
+  )
+
+def isr_exit_without_enter :=
+  isr_exit_mode >= 0 &&
+  last(isr_seen_enter, isr_exit_mode) == false
+
+def violation_isr_resume :=
+  filter(isr_exit_mode, isr_exit_without_enter)
+
+
+out violation_running_id_out_of_range
+out violation_invalid_state_transition
+out violation_ready_event_inconsistent
+out violation_running_event_inconsistent
+out violation_blocked_event_inconsistent
+out violation_blocked_running
+out violation_idle_while_ready
+out violation_priority
+out violation_multiple_states
+out violation_ready_and_blocked
+out violation_quantum
+out violation_round_robin
+out violation_isr_resume
