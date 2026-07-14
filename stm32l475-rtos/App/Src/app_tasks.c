@@ -1,122 +1,236 @@
 #include "app_tasks.h"
-#include "os_mutex.h"
-#include "os_task.h"
+#include "app_test_config.h"
+
 #include "os_delay.h"
-#include "os_types.h"
-#include "stm32l4xx_hal.h"
+#include "os_task.h"
 
-#define WORKER_COUNT        4u
-#define ITERATIONS_PER_TASK 10000u
+/*
+ * If your delay API is declared somewhere else, include that header here.
+ * Example:
+ *   #include "os_delay.h"
+ *   #include "os_time.h"
+ */
 
-static os_mutex_t mutex;
+static volatile uint32_t app_counter_1 = 0;
+static volatile uint32_t app_counter_2 = 0;
+static volatile uint32_t app_counter_3 = 0;
 
-volatile uint32_t test_error_count = 0;
-volatile uint32_t shared_counter = 0;
-volatile uint32_t done_count = 0;
-volatile uint8_t inside_cs = 0u;
-
-static void test_fail(void) {
-    test_error_count++;
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+/*
+ * Prevent the compiler from deleting empty busy loops.
+ */
+static void app_busy_step(volatile uint32_t *counter) {
+    *counter = *counter + 1u;
 }
 
-static void burn_cycles(void) {
-    volatile uint32_t i;
+/* ============================================================
+ * Scenario 1:
+ * Round-Robin + quantum
+ *
+ * Expected:
+ *   task_rr_1 and task_rr_2 have same priority.
+ *   They should alternate after quantum expiry.
+ *
+ * Verifies:
+ *   - same-priority Round-Robin
+ *   - quantum switching
+ *   - no IDLE while tasks are READY
+ * ============================================================ */
 
-    for (i = 0u; i < 200u; i++) {
-        __asm volatile("nop");
-    }
-}
-
-static void worker_task(void) {
-    uint32_t i;
-
-    for (i = 0u; i < ITERATIONS_PER_TASK; i++) {
-        uint32_t before;
-
-        if (os_mutex_lock(&mutex, OS_WAIT_FOREVER) != OS_OK) {
-            test_fail();
-            continue;
-        }
-
-        /*
-         * Detect two tasks entering the critical section at once.
-         */
-        if (inside_cs != 0u) {
-            test_fail();
-        }
-
-        inside_cs = 1u;
-
-        before = shared_counter;
-
-        /*
-         * Widen the race window. If the mutex is broken,
-         * lost updates become much more likely.
-         */
-        burn_cycles();
-
-        shared_counter = before + 1u;
-
-        inside_cs = 0u;
-
-        if (os_mutex_unlock(&mutex) != OS_OK) {
-            test_fail();
-        }
-
-        /*
-         * Encourage same-priority interleaving.
-         * If os_delay(0) means yield in your OS, this is useful.
-         */
-        os_delay(0u);
-    }
-
-    if (os_mutex_lock(&mutex, OS_WAIT_FOREVER) != OS_OK) {
-        test_fail();
-    }
-
-    done_count++;
-
-    if (os_mutex_unlock(&mutex) != OS_OK) {
-        test_fail();
-    }
-
+static void task_rr_1(void) {
     while (1) {
-        os_delay(100u);
+        app_busy_step(&app_counter_1);
     }
 }
 
-static void monitor_task(void) {
-    while (done_count < WORKER_COUNT) {
-        os_delay(10u);
+static void task_rr_2(void) {
+    while (1) {
+        app_busy_step(&app_counter_2);
     }
+}
 
-    if (shared_counter != (WORKER_COUNT * ITERATIONS_PER_TASK)) {
-        test_fail();
+/* ============================================================
+ * Scenario 2:
+ * Priority scheduling
+ *
+ * Priority convention:
+ *   lower number = lower priority
+ *   higher number = higher priority
+ *
+ * Expected:
+ *   task_high_prio should run before task_low_prio whenever both are READY.
+ *
+ * Verifies:
+ *   - higher-priority READY task before lower-priority READY task
+ *
+ * Note:
+ *   Since task_high_prio never blocks, task_low_prio should rarely or never run
+ *   after task_high_prio becomes READY.
+ * ============================================================ */
+
+static void task_low_prio(void) {
+    while (1) {
+        app_busy_step(&app_counter_1);
     }
+}
+
+static void task_high_prio(void) {
+    while (1) {
+        app_busy_step(&app_counter_2);
+    }
+}
+
+/* ============================================================
+ * Scenario 3:
+ * Idle after all tasks block on delay
+ *
+ * Expected:
+ *   both tasks enter BLOCKED because of non-blocking delay.
+ *   scheduler selects IDLE while no real task is READY.
+ *   later, tasks become READY/RUNNING again.
+ *
+ * Verifies:
+ *   - IDLE only when no real task READY
+ *   - BLOCKED tasks do not RUN
+ *   - valid BLOCKED -> READY transition after delay
+ * ============================================================ */
+
+static void task_delay_idle_1(void) {
+    while (1) {
+        app_busy_step(&app_counter_1);
+        os_delay(APP_LONG_DELAY_TICKS);
+    }
+}
+
+static void task_delay_idle_2(void) {
+    while (1) {
+        app_busy_step(&app_counter_2);
+        os_delay(APP_LONG_DELAY_TICKS);
+    }
+}
+
+/* ============================================================
+ * Scenario 4:
+ * Blocked task must not run
+ *
+ * Expected:
+ *   task_blocked_subject repeatedly blocks on delay.
+ *   task_background keeps running while subject is BLOCKED.
+ *
+ * Verifies:
+ *   - BLOCKED task does not RUN
+ *   - READY/BLOCKED/RUNNING state exclusivity
+ * ============================================================ */
+
+static void task_blocked_subject(void) {
+    while (1) {
+        app_busy_step(&app_counter_1);
+        os_delay(APP_SHORT_DELAY_TICKS);
+    }
+}
+
+static void task_background(void) {
+    while (1) {
+        app_busy_step(&app_counter_2);
+    }
+}
+
+/* ============================================================
+ * Scenario 5:
+ * Mixed scheduler scenario
+ *
+ * Expected:
+ *   high_1 and high_2 Round-Robin while both READY.
+ *   low runs only when both high tasks are blocked.
+ *
+ * Verifies combined behavior:
+ *   - priority
+ *   - Round-Robin among same-priority high tasks
+ *   - IDLE should not run while low is READY
+ *   - blocked high tasks stop running during delay
+ * ============================================================ */
+
+static void task_mixed_high_1(void) {
+    while (1) {
+        app_busy_step(&app_counter_1);
+
+        /*
+         * Occasionally block so lower-priority task gets a chance.
+         * Adjust this if trace gets too noisy.
+         */
+        if ((app_counter_1 % 10000u) == 0u) {
+            os_delay(APP_SHORT_DELAY_TICKS);
+        }
+    }
+}
+
+static void task_mixed_high_2(void) {
+    while (1) {
+        app_busy_step(&app_counter_2);
+
+        if ((app_counter_2 % 10000u) == 0u) {
+            os_delay(APP_SHORT_DELAY_TICKS);
+        }
+    }
+}
+
+static void task_mixed_low(void) {
+    while (1) {
+        app_busy_step(&app_counter_3);
+    }
+}
+
+/* ============================================================
+ * Scenario selection
+ * ============================================================ */
+
+void app_tasks_init(void) {
+#if APP_TEST_SCENARIO == APP_TEST_RR
 
     /*
-     * Optional success LED if you have one.
+     * Two tasks, same priority.
+     * This is the cleanest Round-Robin/quantum trace.
      */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
+    os_task_create(task_rr_1, APP_PRIO_MID);
+    os_task_create(task_rr_2, APP_PRIO_MID);
 
-    while (1) {
-        os_delay(100u);
-    }
-}
+#elif APP_TEST_SCENARIO == APP_TEST_PRIORITY
 
-void mutex_test_init(void) {
-    if (os_mutex_init(&mutex) != OS_OK) {
-        test_fail();
-    }
+    /*
+     * Lower numeric means lower priority.
+     * Therefore APP_PRIO_HIGH must run before APP_PRIO_LOW.
+     */
+    os_task_create(task_low_prio, APP_PRIO_LOW);
+    os_task_create(task_high_prio, APP_PRIO_HIGH);
 
-    for (uint32_t i = 0u; i < WORKER_COUNT; i++) {
-        if (os_task_create(worker_task, 2u) != OS_OK) {
-            test_fail();
-        }
-    }
+#elif APP_TEST_SCENARIO == APP_TEST_IDLE_DELAY
 
-    if (os_task_create(monitor_task, 1u) != OS_OK) {
-        test_fail();
-    }
+    /*
+     * Both tasks repeatedly block.
+     * IDLE should appear while both are BLOCKED.
+     */
+    os_task_create(task_delay_idle_1, APP_PRIO_MID);
+    os_task_create(task_delay_idle_2, APP_PRIO_MID);
+
+#elif APP_TEST_SCENARIO == APP_TEST_BLOCKED_DELAY
+
+    /*
+     * One task blocks repeatedly.
+     * The other task should run while it is blocked.
+     */
+    os_task_create(task_blocked_subject, APP_PRIO_HIGH);
+    os_task_create(task_background, APP_PRIO_LOW);
+
+#elif APP_TEST_SCENARIO == APP_TEST_MIXED
+
+    /*
+     * Two high-priority tasks Round-Robin.
+     * Low-priority task only runs when both high tasks are blocked.
+     */
+    os_task_create(task_mixed_low, APP_PRIO_LOW);
+    os_task_create(task_mixed_high_1, APP_PRIO_HIGH);
+    os_task_create(task_mixed_high_2, APP_PRIO_HIGH);
+
+#else
+#error "Invalid APP_TEST_SCENARIO"
+#endif
 }

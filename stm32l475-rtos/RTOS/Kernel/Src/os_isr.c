@@ -13,6 +13,8 @@ void os_systick_tick(void) {
     }
 
     k_tick_inc();
+    trace_tick(1);
+
     k_timeout_process_tick();
 }
 
