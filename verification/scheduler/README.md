@@ -1,6 +1,6 @@
 # Scheduler / Task TeSSLa Verification
 
-This monitor verifies the scheduler and task requirements defined in the project specification using TeSSLa. The provided traces cover both valid execution and dedicated violation scenarios for every implemented verification property.
+This monitor verifies the scheduler and task requirements defined in the project specification using TeSSLa. Verification is based solely on the emitted scheduler and task events and is therefore independent of the kernel object (e.g. delays, mutexes, semaphores or message queues) causing a scheduling decision.
 
 ## Verified Properties
 
@@ -16,28 +16,29 @@ This monitor verifies the scheduler and task requirements defined in the project
 
 * A BLOCKED task must never be scheduled.
 * READY, RUNNING and BLOCKED events must be consistent with the monitored task state.
-* Only valid task state transitions are permitted.
 * Running task identifiers must remain within the configured task range.
 
-The current implementation represents each task by a single state value (`CREATED`, `READY`, `RUNNING` or `BLOCKED`). Therefore, the requirements *"A task may only be in one state"* and *"A task must not be READY and BLOCKED simultaneously"* are guaranteed by the state representation itself.
+Each task is represented by exactly one state (`CREATED`, `READY`, `RUNNING` or `BLOCKED`). Consequently, the requirements *"A task may only be in one state"* and *"A task must not be READY and BLOCKED simultaneously"* are inherently satisfied by the monitored state model.
 
-The ISR requirement is not verified explicitly. Since interrupt handlers always return to the interrupted execution context and all scheduling decisions are validated independently (priority scheduling, Round-Robin, quantum handling and state transitions), this property is implicitly covered by the scheduler verification.
+The ISR requirement is not verified explicitly. Interrupt handlers always return to the interrupted execution context, while all subsequent scheduling decisions are verified through the scheduler properties (priority scheduling, Round-Robin, quantum handling and state transitions).
 
 ## Test Suite
 
-The scheduler test suite contains dedicated traces for:
+The scheduler test suite provides dedicated traces for:
 
 * Valid scheduler execution
 * Valid Round-Robin scheduling
-* Invalid state transitions
-* Invalid running task identifiers
 * Priority scheduling violations
 * Round-Robin / quantum violations
 * Idle execution while READY tasks exist
+* Invalid task state transitions
+* Invalid running task identifiers
 * BLOCKED task execution
 * READY event inconsistencies
 * RUNNING event inconsistencies
 * BLOCKED event inconsistencies
+
+These properties were additionally validated during integration tests of delays, mutexes, binary semaphores and message queues, where no scheduler or task-state violations were detected.
 
 ## State Encoding
 
