@@ -1,5 +1,5 @@
-#ifndef RING_MSGBUF_H
-#define RING_MSGBUF_H
+#ifndef RING_MSGBUF_H_
+#define RING_MSGBUF_H_
 
 #include <stdint.h>
 

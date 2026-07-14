@@ -71,11 +71,11 @@ void k_timeout_process_tick(void) {
                 break;
 
             case K_WAIT_QUEUE_SEND:
-                k_queue_send_timeout_cleanup((os_queue_t *)task->wait_object, task);
+                k_queue_send_timeout_cleanup((os_queue_t *)object, task);
                 break;
 
             case K_WAIT_QUEUE_RECV:
-                k_queue_recv_timeout_cleanup((os_queue_t *)task->wait_object, task);
+                k_queue_recv_timeout_cleanup((os_queue_t *)object, task);
                 break;
 
             case K_WAIT_NONE:
