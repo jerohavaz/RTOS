@@ -153,6 +153,13 @@ def running_ticks: Events[Int] =
     0
   )
 
+def running_decision_count: Events[Int] =
+  merge(
+    if running_id >= 0 then last(running_decision_count, running_id) + 1
+    else 0,
+    0
+  )
+
 def same_priority_task_ready_at_tick :=
   (last(current_running, tick) == 0 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
   (last(current_running, tick) == 0 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
@@ -167,10 +174,28 @@ def quantum_due :=
   last(running_ticks, tick) + tick >= 1 &&
   same_priority_task_ready_at_tick
 
+def rr_due_task: Events[Int] =
+  merge(
+    if quantum_due then last(current_running, tick)
+    else -1,
+    -1
+  )
+
+def rr_due_decision_count: Events[Int] =
+  merge(
+    if quantum_due then last(running_decision_count, tick) + 1
+    else -1,
+    -1
+  )
+
+def current_running_decision_count :=
+  last(running_decision_count, running_id) + 1
+
 def rr_bad :=
   running_id >= 0 &&
-  last(quantum_due, running_id) &&
-  running_id == last(current_running, running_id)
+  last(rr_due_decision_count, running_id) == current_running_decision_count &&
+  last(rr_due_task, running_id) >= 0 &&
+  running_id == last(rr_due_task, running_id)
 
 def violation_quantum :=
   filter(running_id, rr_bad)
@@ -179,7 +204,7 @@ def violation_round_robin :=
   filter(running_id, rr_bad)
 
 
-def isr_seen_enter: Events[Bool] =
+def isr_has_entered: Events[Bool] =
   merge(
     if isr_enter_id >= 0 then true
     else false,
@@ -188,10 +213,14 @@ def isr_seen_enter: Events[Bool] =
 
 def isr_exit_without_enter :=
   isr_exit_mode >= 0 &&
-  last(isr_seen_enter, isr_exit_mode) == false
+  last(isr_has_entered, isr_exit_mode) != true
+
+def isr_resume_violation_marker :=
+  if isr_exit_without_enter then 1
+  else 0
 
 def violation_isr_resume :=
-  filter(isr_exit_mode, isr_exit_without_enter)
+  filter(isr_resume_violation_marker, isr_exit_without_enter)
 
 
 out violation_running_id_out_of_range

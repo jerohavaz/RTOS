@@ -229,6 +229,13 @@ def emit_quantum_and_round_robin(max_tasks: int, quantum_ticks: int) -> str:
     0
   )
 
+def running_decision_count: Events[Int] =
+  merge(
+    if running_id >= 0 then last(running_decision_count, running_id) + 1
+    else 0,
+    0
+  )
+
 def same_priority_task_ready_at_tick :=
   {or_terms(same_prio_ready_terms)}
 
@@ -238,10 +245,28 @@ def quantum_due :=
   last(running_ticks, tick) + tick >= {quantum_ticks} &&
   same_priority_task_ready_at_tick
 
+def rr_due_task: Events[Int] =
+  merge(
+    if quantum_due then last(current_running, tick)
+    else -1,
+    -1
+  )
+
+def rr_due_decision_count: Events[Int] =
+  merge(
+    if quantum_due then last(running_decision_count, tick) + 1
+    else -1,
+    -1
+  )
+
+def current_running_decision_count :=
+  last(running_decision_count, running_id) + 1
+
 def rr_bad :=
   running_id >= 0 &&
-  last(quantum_due, running_id) &&
-  running_id == last(current_running, running_id)
+  last(rr_due_decision_count, running_id) == current_running_decision_count &&
+  last(rr_due_task, running_id) >= 0 &&
+  running_id == last(rr_due_task, running_id)
 
 def violation_quantum :=
   filter(running_id, rr_bad)
@@ -252,8 +277,8 @@ def violation_round_robin :=
 """
 
 
-def emit_isr_resume_check() -> str:
-    return """def isr_seen_enter: Events[Bool] =
+def emit_isr_unmatched_exit() -> str:
+    return """def isr_has_entered: Events[Bool] =
   merge(
     if isr_enter_id >= 0 then true
     else false,
@@ -262,10 +287,14 @@ def emit_isr_resume_check() -> str:
 
 def isr_exit_without_enter :=
   isr_exit_mode >= 0 &&
-  last(isr_seen_enter, isr_exit_mode) == false
+  last(isr_has_entered, isr_exit_mode) != true
+
+def isr_resume_violation_marker :=
+  if isr_exit_without_enter then 1
+  else 0
 
 def violation_isr_resume :=
-  filter(isr_exit_mode, isr_exit_without_enter)
+  filter(isr_resume_violation_marker, isr_exit_without_enter)
 
 """
 
@@ -304,7 +333,7 @@ def generate(max_tasks: int, quantum_ticks: int) -> str:
     parts.append(emit_single_state_check())
     parts.append(emit_current_running())
     parts.append(emit_quantum_and_round_robin(max_tasks, quantum_ticks))
-    parts.append(emit_isr_resume_check())
+    parts.append(emit_isr_unmatched_exit())
     parts.append(emit_outputs())
 
     return "\n".join(parts)
