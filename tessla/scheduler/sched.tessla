@@ -51,6 +51,106 @@ def running_prio_2: Events[Int] =
   merge(filter(running_prio, running_id == 2), -1)
 
 
+def task_state_3: Events[Int] =
+  merge(filter(state_new, state_id == 3), 0)
+
+def ready_prio_3: Events[Int] =
+  merge(filter(ready_prio, ready_id == 3), -1)
+
+def running_prio_3: Events[Int] =
+  merge(filter(running_prio, running_id == 3), -1)
+
+
+def task_state_4: Events[Int] =
+  merge(filter(state_new, state_id == 4), 0)
+
+def ready_prio_4: Events[Int] =
+  merge(filter(ready_prio, ready_id == 4), -1)
+
+def running_prio_4: Events[Int] =
+  merge(filter(running_prio, running_id == 4), -1)
+
+
+def task_state_5: Events[Int] =
+  merge(filter(state_new, state_id == 5), 0)
+
+def ready_prio_5: Events[Int] =
+  merge(filter(ready_prio, ready_id == 5), -1)
+
+def running_prio_5: Events[Int] =
+  merge(filter(running_prio, running_id == 5), -1)
+
+
+def task_state_6: Events[Int] =
+  merge(filter(state_new, state_id == 6), 0)
+
+def ready_prio_6: Events[Int] =
+  merge(filter(ready_prio, ready_id == 6), -1)
+
+def running_prio_6: Events[Int] =
+  merge(filter(running_prio, running_id == 6), -1)
+
+
+def task_state_7: Events[Int] =
+  merge(filter(state_new, state_id == 7), 0)
+
+def ready_prio_7: Events[Int] =
+  merge(filter(ready_prio, ready_id == 7), -1)
+
+def running_prio_7: Events[Int] =
+  merge(filter(running_prio, running_id == 7), -1)
+
+
+def task_state_8: Events[Int] =
+  merge(filter(state_new, state_id == 8), 0)
+
+def ready_prio_8: Events[Int] =
+  merge(filter(ready_prio, ready_id == 8), -1)
+
+def running_prio_8: Events[Int] =
+  merge(filter(running_prio, running_id == 8), -1)
+
+
+def task_state_9: Events[Int] =
+  merge(filter(state_new, state_id == 9), 0)
+
+def ready_prio_9: Events[Int] =
+  merge(filter(ready_prio, ready_id == 9), -1)
+
+def running_prio_9: Events[Int] =
+  merge(filter(running_prio, running_id == 9), -1)
+
+
+def task_state_10: Events[Int] =
+  merge(filter(state_new, state_id == 10), 0)
+
+def ready_prio_10: Events[Int] =
+  merge(filter(ready_prio, ready_id == 10), -1)
+
+def running_prio_10: Events[Int] =
+  merge(filter(running_prio, running_id == 10), -1)
+
+
+def task_state_11: Events[Int] =
+  merge(filter(state_new, state_id == 11), 0)
+
+def ready_prio_11: Events[Int] =
+  merge(filter(ready_prio, ready_id == 11), -1)
+
+def running_prio_11: Events[Int] =
+  merge(filter(running_prio, running_id == 11), -1)
+
+
+def task_state_12: Events[Int] =
+  merge(filter(state_new, state_id == 12), 0)
+
+def ready_prio_12: Events[Int] =
+  merge(filter(ready_prio, ready_id == 12), -1)
+
+def running_prio_12: Events[Int] =
+  merge(filter(running_prio, running_id == 12), -1)
+
+
 def valid_state_transition :=
   if state_old == 0 then state_new == 1
   else if state_old == 1 then state_new == 2 || state_new == 3
@@ -65,16 +165,16 @@ def invalid_state_transition_check_marker :=
   if state_id >= 0 then 1
   else 0
 
-def FAIL_invalid_state_transition :=
+def FAIL_valid_state_transition :=
   filter(invalid_state_transition_check_marker, valid_state_transition == false)
 
-def PASS_invalid_state_transition :=
+def PASS_valid_state_transition :=
   filter(invalid_state_transition_check_marker, valid_state_transition == false == false)
 
 
 
 def running_id_out_of_range :=
-  running_id < 0 || running_id >= 3
+  running_id < 0 || running_id >= 13
 
 def violation_running_id_out_of_range :=
   filter(running_id, running_id_out_of_range)
@@ -83,10 +183,10 @@ def running_id_out_of_range_check_marker :=
   if running_id >= 0 then 1
   else 0
 
-def FAIL_running_id_out_of_range :=
+def FAIL_valid_running_id :=
   filter(running_id_out_of_range_check_marker, running_id_out_of_range)
 
-def PASS_running_id_out_of_range :=
+def PASS_valid_running_id :=
   filter(running_id_out_of_range_check_marker, running_id_out_of_range == false)
 
 
@@ -94,17 +194,47 @@ def PASS_running_id_out_of_range :=
 def ready_event_inconsistent :=
   (ready_id == 0 && last(task_state_0, ready_id) != 1) ||
   (ready_id == 1 && last(task_state_1, ready_id) != 1) ||
-  (ready_id == 2 && last(task_state_2, ready_id) != 1)
+  (ready_id == 2 && last(task_state_2, ready_id) != 1) ||
+  (ready_id == 3 && last(task_state_3, ready_id) != 1) ||
+  (ready_id == 4 && last(task_state_4, ready_id) != 1) ||
+  (ready_id == 5 && last(task_state_5, ready_id) != 1) ||
+  (ready_id == 6 && last(task_state_6, ready_id) != 1) ||
+  (ready_id == 7 && last(task_state_7, ready_id) != 1) ||
+  (ready_id == 8 && last(task_state_8, ready_id) != 1) ||
+  (ready_id == 9 && last(task_state_9, ready_id) != 1) ||
+  (ready_id == 10 && last(task_state_10, ready_id) != 1) ||
+  (ready_id == 11 && last(task_state_11, ready_id) != 1) ||
+  (ready_id == 12 && last(task_state_12, ready_id) != 1)
 
 def running_event_inconsistent :=
   (running_id == 0 && last(task_state_0, running_id) != 2) ||
   (running_id == 1 && last(task_state_1, running_id) != 2) ||
-  (running_id == 2 && last(task_state_2, running_id) != 2)
+  (running_id == 2 && last(task_state_2, running_id) != 2) ||
+  (running_id == 3 && last(task_state_3, running_id) != 2) ||
+  (running_id == 4 && last(task_state_4, running_id) != 2) ||
+  (running_id == 5 && last(task_state_5, running_id) != 2) ||
+  (running_id == 6 && last(task_state_6, running_id) != 2) ||
+  (running_id == 7 && last(task_state_7, running_id) != 2) ||
+  (running_id == 8 && last(task_state_8, running_id) != 2) ||
+  (running_id == 9 && last(task_state_9, running_id) != 2) ||
+  (running_id == 10 && last(task_state_10, running_id) != 2) ||
+  (running_id == 11 && last(task_state_11, running_id) != 2) ||
+  (running_id == 12 && last(task_state_12, running_id) != 2)
 
 def blocked_event_inconsistent :=
   (blocked_id == 0 && last(task_state_0, blocked_id) != 3) ||
   (blocked_id == 1 && last(task_state_1, blocked_id) != 3) ||
-  (blocked_id == 2 && last(task_state_2, blocked_id) != 3)
+  (blocked_id == 2 && last(task_state_2, blocked_id) != 3) ||
+  (blocked_id == 3 && last(task_state_3, blocked_id) != 3) ||
+  (blocked_id == 4 && last(task_state_4, blocked_id) != 3) ||
+  (blocked_id == 5 && last(task_state_5, blocked_id) != 3) ||
+  (blocked_id == 6 && last(task_state_6, blocked_id) != 3) ||
+  (blocked_id == 7 && last(task_state_7, blocked_id) != 3) ||
+  (blocked_id == 8 && last(task_state_8, blocked_id) != 3) ||
+  (blocked_id == 9 && last(task_state_9, blocked_id) != 3) ||
+  (blocked_id == 10 && last(task_state_10, blocked_id) != 3) ||
+  (blocked_id == 11 && last(task_state_11, blocked_id) != 3) ||
+  (blocked_id == 12 && last(task_state_12, blocked_id) != 3)
 
 def violation_ready_event_inconsistent :=
   filter(ready_id, ready_event_inconsistent)
@@ -119,10 +249,10 @@ def ready_event_inconsistent_check_marker :=
   if ready_id >= 0 then 1
   else 0
 
-def FAIL_ready_event_inconsistent :=
+def FAIL_ready_event_matches_state :=
   filter(ready_event_inconsistent_check_marker, ready_event_inconsistent)
 
-def PASS_ready_event_inconsistent :=
+def PASS_ready_event_matches_state :=
   filter(ready_event_inconsistent_check_marker, ready_event_inconsistent == false)
 
 
@@ -130,10 +260,10 @@ def running_event_inconsistent_check_marker :=
   if running_id >= 0 then 1
   else 0
 
-def FAIL_running_event_inconsistent :=
+def FAIL_running_event_matches_state :=
   filter(running_event_inconsistent_check_marker, running_event_inconsistent)
 
-def PASS_running_event_inconsistent :=
+def PASS_running_event_matches_state :=
   filter(running_event_inconsistent_check_marker, running_event_inconsistent == false)
 
 
@@ -141,10 +271,10 @@ def blocked_event_inconsistent_check_marker :=
   if blocked_id >= 0 then 1
   else 0
 
-def FAIL_blocked_event_inconsistent :=
+def FAIL_blocked_event_matches_state :=
   filter(blocked_event_inconsistent_check_marker, blocked_event_inconsistent)
 
-def PASS_blocked_event_inconsistent :=
+def PASS_blocked_event_matches_state :=
   filter(blocked_event_inconsistent_check_marker, blocked_event_inconsistent == false)
 
 
@@ -152,7 +282,17 @@ def PASS_blocked_event_inconsistent :=
 def blocked_task_running :=
   (running_id == 0 && last(task_state_0, running_id) == 3) ||
   (running_id == 1 && last(task_state_1, running_id) == 3) ||
-  (running_id == 2 && last(task_state_2, running_id) == 3)
+  (running_id == 2 && last(task_state_2, running_id) == 3) ||
+  (running_id == 3 && last(task_state_3, running_id) == 3) ||
+  (running_id == 4 && last(task_state_4, running_id) == 3) ||
+  (running_id == 5 && last(task_state_5, running_id) == 3) ||
+  (running_id == 6 && last(task_state_6, running_id) == 3) ||
+  (running_id == 7 && last(task_state_7, running_id) == 3) ||
+  (running_id == 8 && last(task_state_8, running_id) == 3) ||
+  (running_id == 9 && last(task_state_9, running_id) == 3) ||
+  (running_id == 10 && last(task_state_10, running_id) == 3) ||
+  (running_id == 11 && last(task_state_11, running_id) == 3) ||
+  (running_id == 12 && last(task_state_12, running_id) == 3)
 
 def violation_blocked_running :=
   filter(running_id, blocked_task_running)
@@ -161,10 +301,10 @@ def blocked_running_check_marker :=
   if running_id >= 0 then 1
   else 0
 
-def FAIL_blocked_running :=
+def FAIL_blocked_task_not_running :=
   filter(blocked_running_check_marker, blocked_task_running)
 
-def PASS_blocked_running :=
+def PASS_blocked_task_not_running :=
   filter(blocked_running_check_marker, blocked_task_running == false)
 
 
@@ -172,7 +312,17 @@ def PASS_blocked_running :=
 def any_task_ready_at_idle :=
   (last(task_state_0, idle) == 1) ||
   (last(task_state_1, idle) == 1) ||
-  (last(task_state_2, idle) == 1)
+  (last(task_state_2, idle) == 1) ||
+  (last(task_state_3, idle) == 1) ||
+  (last(task_state_4, idle) == 1) ||
+  (last(task_state_5, idle) == 1) ||
+  (last(task_state_6, idle) == 1) ||
+  (last(task_state_7, idle) == 1) ||
+  (last(task_state_8, idle) == 1) ||
+  (last(task_state_9, idle) == 1) ||
+  (last(task_state_10, idle) == 1) ||
+  (last(task_state_11, idle) == 1) ||
+  (last(task_state_12, idle) == 1)
 
 def idle_bad :=
   idle && any_task_ready_at_idle
@@ -184,10 +334,10 @@ def idle_while_ready_check_marker :=
   if idle then 1
   else 0
 
-def FAIL_idle_while_ready :=
+def FAIL_idle_only_when_no_task_ready :=
   filter(idle_while_ready_check_marker, idle_bad)
 
-def PASS_idle_while_ready :=
+def PASS_idle_only_when_no_task_ready :=
   filter(idle_while_ready_check_marker, idle_bad == false)
 
 
@@ -195,10 +345,160 @@ def PASS_idle_while_ready :=
 def higher_priority_task_ready :=
   (running_id == 0 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
   (running_id == 0 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 0 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
   (running_id == 1 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
   (running_id == 1 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 1 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
   (running_id == 2 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
-  (running_id == 2 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio)
+  (running_id == 2 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 2 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 3 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 4 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 5 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 6 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 7 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 8 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 9 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio) ||
+  (running_id == 10 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 11 && last(task_state_12, running_id) == 1 && last(ready_prio_12, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_0, running_id) == 1 && last(ready_prio_0, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_1, running_id) == 1 && last(ready_prio_1, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_2, running_id) == 1 && last(ready_prio_2, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_3, running_id) == 1 && last(ready_prio_3, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_4, running_id) == 1 && last(ready_prio_4, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_5, running_id) == 1 && last(ready_prio_5, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_6, running_id) == 1 && last(ready_prio_6, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_7, running_id) == 1 && last(ready_prio_7, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_8, running_id) == 1 && last(ready_prio_8, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_9, running_id) == 1 && last(ready_prio_9, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_10, running_id) == 1 && last(ready_prio_10, running_id) > running_prio) ||
+  (running_id == 12 && last(task_state_11, running_id) == 1 && last(ready_prio_11, running_id) > running_prio)
 
 def violation_priority :=
   filter(running_id, higher_priority_task_ready)
@@ -207,10 +507,10 @@ def priority_check_marker :=
   if running_id >= 0 then 1
   else 0
 
-def FAIL_priority :=
+def FAIL_highest_priority_runs :=
   filter(priority_check_marker, higher_priority_task_ready)
 
-def PASS_priority :=
+def PASS_highest_priority_runs :=
   filter(priority_check_marker, higher_priority_task_ready == false)
 
 
@@ -235,16 +535,16 @@ def ready_and_blocked_check_marker :=
   if state_id >= 0 then 1
   else 0
 
-def FAIL_multiple_states :=
+def FAIL_task_has_single_state :=
   filter(multiple_states_check_marker, multiple_states_bad)
 
-def PASS_multiple_states :=
+def PASS_task_has_single_state :=
   filter(multiple_states_check_marker, multiple_states_bad == false)
 
-def FAIL_ready_and_blocked :=
+def FAIL_task_not_ready_and_blocked :=
   filter(ready_and_blocked_check_marker, ready_and_blocked_bad)
 
-def PASS_ready_and_blocked :=
+def PASS_task_not_ready_and_blocked :=
   filter(ready_and_blocked_check_marker, ready_and_blocked_bad == false)
 
 
@@ -274,10 +574,160 @@ def running_decision_count: Events[Int] =
 def same_priority_task_ready_at_tick :=
   (last(current_running, tick) == 0 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
   (last(current_running, tick) == 0 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 0 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
   (last(current_running, tick) == 1 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
   (last(current_running, tick) == 1 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 1 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
   (last(current_running, tick) == 2 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
-  (last(current_running, tick) == 2 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick))
+  (last(current_running, tick) == 2 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 2 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 3 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 4 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 5 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 6 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 7 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 8 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 9 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 10 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 11 && last(task_state_12, tick) == 1 && last(ready_prio_12, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_0, tick) == 1 && last(ready_prio_0, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_1, tick) == 1 && last(ready_prio_1, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_2, tick) == 1 && last(ready_prio_2, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_3, tick) == 1 && last(ready_prio_3, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_4, tick) == 1 && last(ready_prio_4, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_5, tick) == 1 && last(ready_prio_5, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_6, tick) == 1 && last(ready_prio_6, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_7, tick) == 1 && last(ready_prio_7, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_8, tick) == 1 && last(ready_prio_8, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_9, tick) == 1 && last(ready_prio_9, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_10, tick) == 1 && last(ready_prio_10, tick) == last(current_running_prio, tick)) ||
+  (last(current_running, tick) == 12 && last(task_state_11, tick) == 1 && last(ready_prio_11, tick) == last(current_running_prio, tick))
 
 def quantum_due :=
   tick > 0 &&
@@ -318,10 +768,10 @@ def quantum_check_marker :=
   if running_id >= 0 then 1
   else 0
 
-def FAIL_quantum :=
+def FAIL_time_quantum_respected :=
   filter(quantum_check_marker, rr_bad)
 
-def PASS_quantum :=
+def PASS_time_quantum_respected :=
   filter(quantum_check_marker, rr_bad == false)
 
 
@@ -329,10 +779,10 @@ def round_robin_check_marker :=
   if running_id >= 0 then 1
   else 0
 
-def FAIL_round_robin :=
+def FAIL_round_robin_respected :=
   filter(round_robin_check_marker, rr_bad)
 
-def PASS_round_robin :=
+def PASS_round_robin_respected :=
   filter(round_robin_check_marker, rr_bad == false)
 
 
@@ -359,36 +809,36 @@ def isr_resume_check_marker :=
   if isr_exit_mode >= 0 then 1
   else 0
 
-def FAIL_isr_resume :=
+def FAIL_isr_enter_exit_matched :=
   filter(isr_resume_check_marker, isr_exit_without_enter)
 
-def PASS_isr_resume :=
+def PASS_isr_enter_exit_matched :=
   filter(isr_resume_check_marker, isr_exit_without_enter == false)
 
 
-out FAIL_running_id_out_of_range
-out PASS_running_id_out_of_range
-out FAIL_invalid_state_transition
-out PASS_invalid_state_transition
-out FAIL_ready_event_inconsistent
-out PASS_ready_event_inconsistent
-out FAIL_running_event_inconsistent
-out PASS_running_event_inconsistent
-out FAIL_blocked_event_inconsistent
-out PASS_blocked_event_inconsistent
-out FAIL_blocked_running
-out PASS_blocked_running
-out FAIL_idle_while_ready
-out PASS_idle_while_ready
-out FAIL_priority
-out PASS_priority
-out FAIL_multiple_states
-out PASS_multiple_states
-out FAIL_ready_and_blocked
-out PASS_ready_and_blocked
-out FAIL_quantum
-out PASS_quantum
-out FAIL_round_robin
-out PASS_round_robin
-out FAIL_isr_resume
-out PASS_isr_resume
+out FAIL_valid_running_id
+out PASS_valid_running_id
+out FAIL_valid_state_transition
+out PASS_valid_state_transition
+out FAIL_ready_event_matches_state
+out PASS_ready_event_matches_state
+out FAIL_running_event_matches_state
+out PASS_running_event_matches_state
+out FAIL_blocked_event_matches_state
+out PASS_blocked_event_matches_state
+out FAIL_blocked_task_not_running
+out PASS_blocked_task_not_running
+out FAIL_idle_only_when_no_task_ready
+out PASS_idle_only_when_no_task_ready
+out FAIL_highest_priority_runs
+out PASS_highest_priority_runs
+out FAIL_task_has_single_state
+out PASS_task_has_single_state
+out FAIL_task_not_ready_and_blocked
+out PASS_task_not_ready_and_blocked
+out FAIL_time_quantum_respected
+out PASS_time_quantum_respected
+out FAIL_round_robin_respected
+out PASS_round_robin_respected
+out FAIL_isr_enter_exit_matched
+out PASS_isr_enter_exit_matched

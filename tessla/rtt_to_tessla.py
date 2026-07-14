@@ -3,6 +3,7 @@
 import argparse
 import socket
 import sys
+from contextlib import nullcontext
 from typing import Callable, Iterable, TextIO
 
 
@@ -33,12 +34,6 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "TICK": [
         ("tick", int),
     ],
-    "ISR_ENTER": [
-        ("isr_enter_id", int),
-    ],
-    "ISR_EXIT": [
-        ("isr_exit_mode", int),
-    ],
 }
 
 
@@ -63,14 +58,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--stdin",
         action="store_true",
-        help="Read from stdin instead of RTT socket.",
+        help="Read trace lines from stdin instead of the RTT socket.",
     )
 
-    parser.add_argument(
+    output_group = parser.add_mutually_exclusive_group()
+
+    output_group.add_argument(
         "-o",
         "--output",
-        default=None,
-        help="Output file. Default: stdout.",
+        metavar="FILE",
+        help="Write converted TeSSLa input to FILE.",
+    )
+
+    output_group.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Write converted TeSSLa input to stdout.",
     )
 
     return parser.parse_args()
@@ -101,6 +104,7 @@ def clean_line(line: str) -> str | None:
         return None
 
     parts = line.split()
+
     if not parts:
         return None
 
@@ -122,17 +126,17 @@ def format_value(value: object) -> str:
 def convert_line(line: str, timestamp: int) -> list[str]:
     parts = line.split()
     event = parts[0]
-
     mapping = EVENTS[event]
 
     if event == "IDLE":
         if len(parts) != 1:
             return []
+
         return [f"{timestamp}: idle = true"]
 
-    expected_len = 1 + len(mapping)
+    expected_length = 1 + len(mapping)
 
-    if len(parts) != expected_len:
+    if len(parts) != expected_length:
         return []
 
     output_lines: list[str] = []
@@ -142,7 +146,7 @@ def convert_line(line: str, timestamp: int) -> list[str]:
 
         try:
             value = converter(raw_value)
-        except ValueError:
+        except (TypeError, ValueError):
             return []
 
         output_lines.append(
@@ -155,13 +159,11 @@ def convert_line(line: str, timestamp: int) -> list[str]:
 def read_from_socket(host: str, port: int) -> Iterable[str]:
     with socket.create_connection((host, port)) as sock:
         with sock.makefile("r", encoding="utf-8", errors="ignore") as stream:
-            for line in stream:
-                yield line
+            yield from stream
 
 
 def read_from_stdin() -> Iterable[str]:
-    for line in sys.stdin:
-        yield line
+    yield from sys.stdin
 
 
 def open_output(path: str | None) -> TextIO:
@@ -174,31 +176,50 @@ def open_output(path: str | None) -> TextIO:
 def main() -> int:
     args = parse_args()
 
-    source = read_from_stdin() if args.stdin else read_from_socket(
-        args.host,
-        args.port,
-    )
+    if args.stdin:
+        source = read_from_stdin()
+    else:
+        source = read_from_socket(args.host, args.port)
 
     timestamp = 0
 
-    with open_output(args.output) as out:
-        for raw_line in source:
-            line = clean_line(raw_line)
+    output_context = (
+        nullcontext(sys.stdout)
+        if args.stdout or args.output is None
+        else open(args.output, "w", encoding="utf-8")
+    )
 
-            if line is None:
-                continue
+    try:
+        with output_context as output_stream:
+            for raw_line in source:
+                line = clean_line(raw_line)
 
-            converted_lines = convert_line(line, timestamp)
+                if line is None:
+                    continue
 
-            if not converted_lines:
-                continue
+                converted_lines = convert_line(line, timestamp)
 
-            for converted in converted_lines:
-                out.write(converted)
-                out.write("\n")
+                if not converted_lines:
+                    continue
 
-            out.flush()
-            timestamp += 1
+                for converted_line in converted_lines:
+                    output_stream.write(converted_line)
+                    output_stream.write("\n")
+
+                output_stream.flush()
+                timestamp += 1
+
+    except ConnectionRefusedError:
+        print(
+            f"Could not connect to RTT server at "
+            f"{args.host}:{args.port}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    except OSError as error:
+        print(f"I/O error: {error}", file=sys.stderr)
+        return 1
 
     return 0
 

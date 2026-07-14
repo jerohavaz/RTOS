@@ -10,19 +10,19 @@ STATE_BLOCKED = 3
 
 
 CHECKS = [
-    "running_id_out_of_range",
-    "invalid_state_transition",
-    "ready_event_inconsistent",
-    "running_event_inconsistent",
-    "blocked_event_inconsistent",
-    "blocked_running",
-    "idle_while_ready",
-    "priority",
-    "multiple_states",
-    "ready_and_blocked",
-    "quantum",
-    "round_robin",
-    "isr_resume",
+    ("valid_running_id", "running_id_out_of_range"),
+    ("valid_state_transition", "invalid_state_transition"),
+    ("ready_event_matches_state", "ready_event_inconsistent"),
+    ("running_event_matches_state", "running_event_inconsistent"),
+    ("blocked_event_matches_state", "blocked_event_inconsistent"),
+    ("blocked_task_not_running", "blocked_running"),
+    ("idle_only_when_no_task_ready", "idle_while_ready"),
+    ("highest_priority_runs", "priority"),
+    ("task_has_single_state", "multiple_states"),
+    ("task_not_ready_and_blocked", "ready_and_blocked"),
+    ("time_quantum_respected", "quantum"),
+    ("round_robin_respected", "round_robin"),
+    ("isr_enter_exit_matched", "isr_resume"),
 ]
 
 
@@ -58,17 +58,22 @@ def or_terms(terms: list[str]) -> str:
     return " ||\n  ".join(terms)
 
 
-def emit_pass_fail_pair(check_name: str, trigger_expr: str, fail_condition: str) -> str:
-    marker_name = f"{check_name}_check_marker"
+def emit_pass_fail_pair(
+    public_name: str,
+    internal_name: str,
+    trigger_expr: str,
+    fail_condition: str,
+) -> str:
+    marker_name = f"{internal_name}_check_marker"
 
     return f"""def {marker_name} :=
   if {trigger_expr} then 1
   else 0
 
-def FAIL_{check_name} :=
+def FAIL_{public_name} :=
   filter({marker_name}, {fail_condition})
 
-def PASS_{check_name} :=
+def PASS_{public_name} :=
   filter({marker_name}, {fail_condition} == false)
 
 """
@@ -98,7 +103,7 @@ def emit_valid_state_transition() -> str:
 def violation_invalid_state_transition :=
   filter(state_id, valid_state_transition == false)
 
-{emit_pass_fail_pair("invalid_state_transition", "state_id >= 0", "valid_state_transition == false")}
+{emit_pass_fail_pair("valid_state_transition", "invalid_state_transition", "state_id >= 0", "valid_state_transition == false")}
 """
 
 
@@ -109,7 +114,7 @@ def emit_running_id_bounds(max_tasks: int) -> str:
 def violation_running_id_out_of_range :=
   filter(running_id, running_id_out_of_range)
 
-{emit_pass_fail_pair("running_id_out_of_range", "running_id >= 0", "running_id_out_of_range")}
+{emit_pass_fail_pair("valid_running_id", "running_id_out_of_range", "running_id >= 0", "running_id_out_of_range")}
 """
 
 
@@ -152,9 +157,9 @@ def violation_running_event_inconsistent :=
 def violation_blocked_event_inconsistent :=
   filter(blocked_id, blocked_event_inconsistent)
 
-{emit_pass_fail_pair("ready_event_inconsistent", "ready_id >= 0", "ready_event_inconsistent")}
-{emit_pass_fail_pair("running_event_inconsistent", "running_id >= 0", "running_event_inconsistent")}
-{emit_pass_fail_pair("blocked_event_inconsistent", "blocked_id >= 0", "blocked_event_inconsistent")}
+{emit_pass_fail_pair("ready_event_matches_state", "ready_event_inconsistent", "ready_id >= 0", "ready_event_inconsistent")}
+{emit_pass_fail_pair("running_event_matches_state", "running_event_inconsistent", "running_id >= 0", "running_event_inconsistent")}
+{emit_pass_fail_pair("blocked_event_matches_state", "blocked_event_inconsistent", "blocked_id >= 0", "blocked_event_inconsistent")}
 """
 
 
@@ -173,7 +178,7 @@ def emit_blocked_task_must_not_run(max_tasks: int) -> str:
 def violation_blocked_running :=
   filter(running_id, blocked_task_running)
 
-{emit_pass_fail_pair("blocked_running", "running_id >= 0", "blocked_task_running")}
+{emit_pass_fail_pair("blocked_task_not_running", "blocked_running", "running_id >= 0", "blocked_task_running")}
 """
 
 
@@ -194,7 +199,7 @@ def idle_bad :=
 def violation_idle_while_ready :=
   filter(idle, idle_bad)
 
-{emit_pass_fail_pair("idle_while_ready", "idle", "idle_bad")}
+{emit_pass_fail_pair("idle_only_when_no_task_ready", "idle_while_ready", "idle", "idle_bad")}
 """
 
 
@@ -218,7 +223,7 @@ def emit_priority_check(max_tasks: int) -> str:
 def violation_priority :=
   filter(running_id, higher_priority_task_ready)
 
-{emit_pass_fail_pair("priority", "running_id >= 0", "higher_priority_task_ready")}
+{emit_pass_fail_pair("highest_priority_runs", "priority", "running_id >= 0", "higher_priority_task_ready")}
 """
 
 
@@ -243,16 +248,16 @@ def ready_and_blocked_check_marker :=
   if state_id >= 0 then 1
   else 0
 
-def FAIL_multiple_states :=
+def FAIL_task_has_single_state :=
   filter(multiple_states_check_marker, multiple_states_bad)
 
-def PASS_multiple_states :=
+def PASS_task_has_single_state :=
   filter(multiple_states_check_marker, multiple_states_bad == false)
 
-def FAIL_ready_and_blocked :=
+def FAIL_task_not_ready_and_blocked :=
   filter(ready_and_blocked_check_marker, ready_and_blocked_bad)
 
-def PASS_ready_and_blocked :=
+def PASS_task_not_ready_and_blocked :=
   filter(ready_and_blocked_check_marker, ready_and_blocked_bad == false)
 
 """
@@ -336,8 +341,8 @@ def violation_quantum :=
 def violation_round_robin :=
   filter(running_id, rr_bad)
 
-{emit_pass_fail_pair("quantum", "running_id >= 0", "rr_bad")}
-{emit_pass_fail_pair("round_robin", "running_id >= 0", "rr_bad")}
+{emit_pass_fail_pair("time_quantum_respected", "quantum", "running_id >= 0", "rr_bad")}
+{emit_pass_fail_pair("round_robin_respected", "round_robin", "running_id >= 0", "rr_bad")}
 """
 
 
@@ -364,10 +369,10 @@ def isr_resume_check_marker :=
   if isr_exit_mode >= 0 then 1
   else 0
 
-def FAIL_isr_resume :=
+def FAIL_isr_enter_exit_matched :=
   filter(isr_resume_check_marker, isr_exit_without_enter)
 
-def PASS_isr_resume :=
+def PASS_isr_enter_exit_matched :=
   filter(isr_resume_check_marker, isr_exit_without_enter == false)
 
 """
@@ -377,47 +382,13 @@ def emit_outputs(mode: str) -> str:
     lines = []
 
     if mode == "violations":
-        for check in CHECKS:
-            lines.append(f"out violation_{check}")
+        for public_name, internal_name in CHECKS:
+            lines.append(f"out violation_{internal_name}")
 
     elif mode == "checks":
-        for check in CHECKS:
-            lines.append(f"out FAIL_{check}")
-            lines.append(f"out PASS_{check}")
-
-    elif mode == "both":
-        for check in CHECKS:
-            lines.append(f"out violation_{check}")
-        for check in CHECKS:
-            lines.append(f"out FAIL_{check}")
-            lines.append(f"out PASS_{check}")
-
-    elif mode == "debug":
-        for check in CHECKS:
-            lines.append(f"out violation_{check}")
-            lines.append(f"out FAIL_{check}")
-            lines.append(f"out PASS_{check}")
-
-        lines.extend(
-            [
-                "out current_running",
-                "out current_running_prio",
-                "out running_ticks",
-                "out running_decision_count",
-                "out same_priority_task_ready_at_tick",
-                "out quantum_due",
-                "out rr_due_task",
-                "out rr_due_decision_count",
-                "out rr_bad",
-                "out higher_priority_task_ready",
-                "out blocked_task_running",
-                "out idle_bad",
-                "out ready_event_inconsistent",
-                "out running_event_inconsistent",
-                "out blocked_event_inconsistent",
-                "out isr_exit_without_enter",
-            ]
-        )
+        for public_name, internal_name in CHECKS:
+            lines.append(f"out FAIL_{public_name}")
+            lines.append(f"out PASS_{public_name}")
 
     else:
         raise ValueError(f"invalid mode: {mode}")
@@ -458,8 +429,12 @@ def main() -> None:
     parser.add_argument("-o", "--output", required=True)
     parser.add_argument(
         "--mode",
-        choices=["violations", "checks", "both", "debug"],
+        choices=["violations", "checks"],
         default="violations",
+        help=(
+            "violations = only violation_* outputs; "
+            "checks = per-event FAIL_* and PASS_* outputs"
+        ),
     )
 
     args = parser.parse_args()
