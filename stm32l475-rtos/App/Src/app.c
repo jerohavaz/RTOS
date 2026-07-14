@@ -2,7 +2,8 @@
 #include "app_tasks.h"
 #include "os_task.h"
 #include "os_sem.h"
+#include "os_queue.h"
 
 void app_init(void) {
-    mutex_test_init();
+    app_tasks_init();
 }
