@@ -50,13 +50,6 @@ void trace_task_create(TCB_sctTCB_t *task) {
 }
 
 void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
-#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_TASKS
-    SEGGER_SYSVIEW_PrintfHost("TASK_STATE task=%u old=%u new=%u",
-                              (unsigned int)task_id,
-                              (unsigned int)old_state,
-                              (unsigned int)new_state);
-#endif
-
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
     SEGGER_RTT_printf(0,
                       "STATE %u %u %u\n",
@@ -129,10 +122,6 @@ void trace_idle(void) {
 }
 
 void trace_tick(uint32_t dt) {
-#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
-    SEGGER_SYSVIEW_PrintfHost("TICK dt=%lu", (unsigned long)dt);
-#endif
-
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     SEGGER_RTT_printf(0, "TICK %lu\n", (unsigned long)dt);
 #endif
