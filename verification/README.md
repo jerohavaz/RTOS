@@ -1,117 +1,101 @@
 # TeSSLa Verification
 
-## RTT → TeSSLa
+## Trace Input
 
-Record RTT output to a TeSSLa trace file:
+Record RTT output:
 
 ```bash
 python3 rtt_to_tessla.py -o trace.input
 ```
 
-Or stream RTT output directly into the TeSSLa interpreter:
+Or stream it directly into a generated monitor:
 
 ```bash
 python3 rtt_to_tessla.py --stdout | \
-java -jar ~/Desktop/tessla.jar interpreter build/scheduler.tessla
+java -jar ~/Desktop/tessla.jar interpreter build/combined.tessla
 ```
-
----
 
 ## Verification CLI
 
-### List Available Modules
+List modules:
 
 ```bash
 python3 verify.py list
 ```
 
-### Generate Specifications
-
-Generate all verification modules:
+Generate every module separately:
 
 ```bash
 python3 verify.py generate
 ```
 
-Generate a specific module:
+Generate one module:
 
 ```bash
 python3 verify.py generate scheduler
+python3 verify.py generate queue
 ```
 
-Available options:
+Generate one specification containing all modules:
+
+```bash
+python3 verify.py generate --combined
+```
+
+Generation options:
 
 ```text
---mode {violations,checks}   Output mode (default: violations)
---max-tasks N                Override configured task count
---quantum N                  Override configured scheduler quantum
+--mode {violations,checks}   Output violations or FAIL/PASS streams
+--max-tasks N                Override task count
+--quantum N                  Override scheduler quantum
+--queue ID:CAPACITY          Override queues; repeat for multiple queues
+--combined                   Combine selected modules into one specification
 ```
 
 Example:
 
 ```bash
-python3 verify.py generate \
-    scheduler \
+python3 verify.py generate --combined \
     --mode checks \
     --max-tasks 13 \
-    --quantum 1
+    --quantum 1 \
+    --queue 1:2 \
+    --queue 5:8
 ```
 
-Generated specifications are written to:
+Generated files are written to `build/`.
 
-```text
-build/
-```
+## Tests
 
-### Run Tests
-
-Run all verification tests:
+Run all tests or one module:
 
 ```bash
 python3 verify.py test
-```
-
-Run a specific module:
-
-```bash
 python3 verify.py test scheduler
+python3 verify.py test queue
 ```
 
-Available options:
+Options:
 
 ```text
---tessla-jar PATH    Path to tessla.jar
---verbose            Print interpreter output for passing tests
+--tessla-jar PATH   Path to tessla.jar
+--verbose           Print output from passing tests
 ```
 
-Test generation parameters (e.g. `max_tasks`, `quantum_ticks`) are taken from each module's `config.py`.
+Tests use the generator options and expected outputs from each module's `config.py`.
 
-### Clean Generated Specifications
+## Manual Verification
+
+```bash
+python3 verify.py generate --combined
+
+java -jar ~/Desktop/tessla.jar interpreter \
+    build/combined.tessla \
+    trace.input
+```
+
+Clean generated specifications:
 
 ```bash
 python3 verify.py clean
 ```
-
----
-
-## Manual Verification
-
-Generate a scheduler specification for the target RTOS configuration:
-
-```bash
-python3 verify.py generate \
-    scheduler \
-    --mode checks \
-    --max-tasks 13 \
-    --quantum 1
-```
-
-Verify a recorded trace:
-
-```bash
-java -jar ~/Desktop/tessla.jar interpreter \
-    build/scheduler.tessla \
-    trace.input
-```
-
-aaaaa

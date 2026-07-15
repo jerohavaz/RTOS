@@ -2,7 +2,7 @@
 #define OS_CONFIG_H_
 
 // Tasks
-#define OS_MAX_TASKS       (13u) // TODO: make this independent of idle
+#define OS_MAX_TASKS       (4u) // TODO: make this independent of idle
 #define OS_TASK_STACK_SIZE (512u)
 
 // Priorities
@@ -14,7 +14,7 @@
 #define OS_TRACE_ENABLED (1u)
 
 // Trace backends
-#define OS_TRACE_SEGGER_SYSVIEW (1u)
+#define OS_TRACE_SEGGER_SYSVIEW (0u)
 #define OS_TRACE_TESSLA_RTT     (1u)
 
 // Trace categories
@@ -23,7 +23,7 @@
 #define OS_TRACE_ISR       (1u)
 #define OS_TRACE_MUTEX     (0u)
 #define OS_TRACE_SEMAPHORE (0u)
-#define OS_TRACE_QUEUE     (0u)
+#define OS_TRACE_QUEUE     (1u)
 #define OS_TRACE_DELAY     (0u)
 
 // Cortex-M interrupt priorities

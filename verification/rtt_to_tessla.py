@@ -33,11 +33,74 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "TICK": [
         ("tick", int),
     ],
+    "QUEUE_CREATE": [
+        ("queue_create_id", int),
+        ("queue_create_capacity", int),
+    ],
+    "QUEUE_SEND_ATTEMPT": [
+        ("queue_send_attempt_queue_id", int),
+        ("queue_send_attempt_task_id", int),
+        ("queue_send_attempt_task_prio", int),
+        ("queue_send_attempt_timeout", int),
+        ("queue_send_attempt_hash", int),
+    ],
+    "QUEUE_SEND_SUCCESS": [
+        ("queue_send_success_queue_id", int),
+        ("queue_send_success_task_id", int),
+        ("queue_send_success_hash", int),
+    ],
+    "QUEUE_SEND_BLOCK": [
+        ("queue_send_block_queue_id", int),
+        ("queue_send_block_task_id", int),
+        ("queue_send_block_task_prio", int),
+    ],
+    "QUEUE_SEND_TIMEOUT": [
+        ("queue_send_timeout_queue_id", int),
+        ("queue_send_timeout_task_id", int),
+    ],
+    "QUEUE_RECV_ATTEMPT": [
+        ("queue_recv_attempt_queue_id", int),
+        ("queue_recv_attempt_task_id", int),
+        ("queue_recv_attempt_task_prio", int),
+        ("queue_recv_attempt_timeout", int),
+    ],
+    "QUEUE_RECV_SUCCESS": [
+        ("queue_recv_success_queue_id", int),
+        ("queue_recv_success_task_id", int),
+        ("queue_recv_success_hash", int),
+    ],
+    "QUEUE_RECV_BLOCK": [
+        ("queue_recv_block_queue_id", int),
+        ("queue_recv_block_task_id", int),
+        ("queue_recv_block_task_prio", int),
+    ],
+    "QUEUE_RECV_TIMEOUT": [
+        ("queue_recv_timeout_queue_id", int),
+        ("queue_recv_timeout_task_id", int),
+    ],
+    "QUEUE_WAKE_SEND": [
+        ("queue_wake_send_queue_id", int),
+        ("queue_wake_send_task_id", int),
+    ],
+    "QUEUE_WAKE_RECV": [
+        ("queue_wake_recv_queue_id", int),
+        ("queue_wake_recv_task_id", int),
+    ],
+    "QUEUE_HANDOFF": [
+        ("queue_handoff_queue_id", int),
+        ("queue_handoff_sender_id", int),
+        ("queue_handoff_receiver_id", int),
+        ("queue_handoff_hash", int),
+    ],
+    "QUEUE_FILL": [
+        ("queue_fill_queue_id", int),
+        ("queue_fill_value", int),
+    ],
 }
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Convert SEGGER RTT scheduler trace lines to TeSSLa input.")
+    parser = argparse.ArgumentParser(description="Convert SEGGER RTT trace lines to TeSSLa input.")
 
     parser.add_argument(
         "--host",
@@ -153,19 +216,16 @@ def convert_line(line: str, timestamp: int) -> list[str]:
 
 def read_from_socket(host: str, port: int) -> Iterable[str]:
     with socket.create_connection((host, port)) as sock:
-        with sock.makefile("r", encoding="utf-8", errors="ignore") as stream:
+        with sock.makefile(
+            "r",
+            encoding="utf-8",
+            errors="ignore",
+        ) as stream:
             yield from stream
 
 
 def read_from_stdin() -> Iterable[str]:
     yield from sys.stdin
-
-
-def open_output(path: str | None) -> TextIO:
-    if path is None:
-        return sys.stdout
-
-    return open(path, "w", encoding="utf-8")
 
 
 def main() -> int:
@@ -174,12 +234,21 @@ def main() -> int:
     if args.stdin:
         source = read_from_stdin()
     else:
-        source = read_from_socket(args.host, args.port)
+        source = read_from_socket(
+            args.host,
+            args.port,
+        )
 
     timestamp = 0
 
     output_context = (
-        nullcontext(sys.stdout) if args.stdout or args.output is None else open(args.output, "w", encoding="utf-8")
+        nullcontext(sys.stdout)
+        if args.stdout or args.output is None
+        else open(
+            args.output,
+            "w",
+            encoding="utf-8",
+        )
     )
 
     try:
@@ -190,7 +259,10 @@ def main() -> int:
                 if line is None:
                     continue
 
-                converted_lines = convert_line(line, timestamp)
+                converted_lines = convert_line(
+                    line,
+                    timestamp,
+                )
 
                 if not converted_lines:
                     continue
@@ -210,7 +282,10 @@ def main() -> int:
         return 1
 
     except OSError as error:
-        print(f"I/O error: {error}", file=sys.stderr)
+        print(
+            f"I/O error: {error}",
+            file=sys.stderr,
+        )
         return 1
 
     return 0

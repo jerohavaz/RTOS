@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import os
 import re
@@ -12,6 +10,9 @@ from typing import Callable
 from scheduler.config import EXPECTED as SCHEDULER_EXPECTED
 from scheduler.config import GENERATOR_OPTIONS as SCHEDULER_OPTIONS
 from scheduler.generate_tessla import generate as generate_scheduler
+from queue.config import EXPECTED as QUEUE_EXPECTED
+from queue.config import GENERATOR_OPTIONS as QUEUE_OPTIONS
+from queue.generate_tessla import generate as generate_queue
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -21,6 +22,18 @@ DEFAULT_TESSLA_JAR = Path.home() / "Desktop" / "tessla.jar"
 
 OUTPUT_PATTERN = re.compile(
     r"^[^:]+:\s+([A-Za-z_][A-Za-z0-9_]*)\s*="
+)
+
+INPUT_PATTERN = re.compile(
+    r"^in\s+([A-Za-z_][A-Za-z0-9_]*)\s*:"
+)
+
+DEFINITION_PATTERN = re.compile(
+    r"^def\s+([A-Za-z_][A-Za-z0-9_]*)"
+)
+
+OUTPUT_DECLARATION_PATTERN = re.compile(
+    r"^out\s+([A-Za-z_][A-Za-z0-9_]*)\s*$"
 )
 
 
@@ -34,6 +47,13 @@ class VerificationModule:
 
 
 MODULES = {
+    "queue": VerificationModule(
+        name="queue",
+        directory=ROOT_DIR / "queue",
+        generator=generate_queue,
+        generator_options=QUEUE_OPTIONS,
+        expected=QUEUE_EXPECTED,
+    ),
     "scheduler": VerificationModule(
         name="scheduler",
         directory=ROOT_DIR / "scheduler",
@@ -84,7 +104,13 @@ def generate_specification(
     options["mode"] = mode
 
     if overrides:
-        options.update(overrides)
+        options.update(
+            {
+                name: value
+                for name, value in overrides.items()
+                if name in module.generator_options
+            }
+        )
 
     specification = module.generator(**options)
 
@@ -104,6 +130,105 @@ def generate_specification(
         specification,
         encoding="utf-8",
     )
+
+    return output_path
+
+
+def combine_specifications(
+    specifications: list[tuple[str, str]],
+) -> str:
+    inputs: dict[str, str] = {}
+    definitions: dict[str, str] = {}
+    outputs: set[str] = set()
+    body_lines: list[str] = []
+    output_lines: list[str] = []
+
+    for module_name, specification in specifications:
+        body_lines.append("")
+
+        for line in specification.splitlines():
+            input_match = INPUT_PATTERN.match(line)
+
+            if input_match is not None:
+                stream_name = input_match.group(1)
+                previous = inputs.get(stream_name)
+
+                if previous is None:
+                    inputs[stream_name] = line
+                elif previous != line:
+                    raise ValueError(
+                        f"conflicting input '{stream_name}' "
+                        f"in module '{module_name}'"
+                    )
+
+                continue
+
+            definition_match = DEFINITION_PATTERN.match(line)
+
+            if definition_match is not None:
+                definition_name = definition_match.group(1)
+                previous_module = definitions.get(definition_name)
+
+                if previous_module is not None:
+                    raise ValueError(
+                        f"duplicate definition '{definition_name}' "
+                        f"in modules '{previous_module}' and "
+                        f"'{module_name}'"
+                    )
+
+                definitions[definition_name] = module_name
+
+            output_match = OUTPUT_DECLARATION_PATTERN.match(line)
+
+            if output_match is not None:
+                output_name = output_match.group(1)
+
+                if output_name in outputs:
+                    continue
+
+                outputs.add(output_name)
+                output_lines.append(line)
+                continue
+
+            body_lines.append(line)
+
+    sections = [
+        "\n".join(inputs.values()),
+        "\n".join(body_lines).strip(),
+        "\n".join(output_lines),
+    ]
+
+    return "\n\n".join(section for section in sections if section) + "\n"
+
+
+def write_combined_specification(
+    modules: list[VerificationModule],
+    mode: str,
+    overrides: dict[str, object],
+) -> Path:
+    specifications: list[tuple[str, str]] = []
+
+    for module in modules:
+        options = dict(module.generator_options)
+        options["mode"] = mode
+        options.update(
+            {
+                name: value
+                for name, value in overrides.items()
+                if name in module.generator_options
+            }
+        )
+        specifications.append(
+            (
+                module.name,
+                module.generator(**options),
+            )
+        )
+
+    combined = combine_specifications(specifications)
+    output_path = BUILD_DIR / "combined.tessla"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(combined, encoding="utf-8")
 
     return output_path
 
@@ -178,7 +303,38 @@ def command_generate(
     if args.quantum is not None:
         overrides["quantum_ticks"] = args.quantum
 
+    if args.queues is not None:
+        queue_capacities = dict(args.queues)
+
+        if len(queue_capacities) != len(args.queues):
+            print(
+                "[ERROR] duplicate queue id",
+                file=sys.stderr,
+            )
+            return 1
+
+        overrides["queue_capacities"] = queue_capacities
+
     failures = 0
+
+    if args.combined:
+        try:
+            output_path = write_combined_specification(
+                modules=modules,
+                mode=args.mode,
+                overrides=overrides,
+            )
+            print(
+                "[GENERATED] combined: "
+                f"{output_path.relative_to(ROOT_DIR)}"
+            )
+            return 0
+        except Exception as error:
+            print(
+                f"[ERROR] combined: {error}",
+                file=sys.stderr,
+            )
+            return 1
 
     for module in modules:
         try:
@@ -376,6 +532,29 @@ def command_clean(
     return 0
 
 
+def parse_queue(value: str) -> tuple[int, int]:
+    try:
+        queue_id_text, capacity_text = value.split(":", 1)
+        queue_id = int(queue_id_text)
+        capacity = int(capacity_text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "queue must use QUEUE_ID:CAPACITY"
+        ) from error
+
+    if queue_id < 0:
+        raise argparse.ArgumentTypeError(
+            "queue id must be non-negative"
+        )
+
+    if capacity <= 0:
+        raise argparse.ArgumentTypeError(
+            "queue capacity must be greater than zero"
+        )
+
+    return queue_id, capacity
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -415,6 +594,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
+        "--combined",
+        action="store_true",
+        help=(
+            "Generate one combined specification for all "
+            "selected modules."
+        ),
+    )
+
+    generate_parser.add_argument(
         "--max-tasks",
         type=int,
         help=(
@@ -429,6 +617,18 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Override the configured quantum "
             "for manual generation."
+        ),
+    )
+
+    generate_parser.add_argument(
+        "--queue",
+        dest="queues",
+        action="append",
+        type=parse_queue,
+        metavar="QUEUE_ID:CAPACITY",
+        help=(
+            "Override configured queues for manual generation. "
+            "Repeat for multiple queues."
         ),
     )
 

@@ -8,12 +8,14 @@
 #include <stdint.h>
 
 typedef struct {
+    uint32_t id;
     ring_msgbuf_t buffer;
     prio_waitq_t send_wait_list;
     prio_waitq_t recv_wait_list;
 } os_queue_t;
 
-os_status_t os_queue_init(os_queue_t *queue, void *storage, uint32_t msg_size, uint32_t msg_count);
+os_status_t os_queue_init(
+    os_queue_t *queue, uint32_t id, void *storage, uint32_t msg_size, uint32_t msg_count);
 
 os_status_t os_queue_send(os_queue_t *queue, const void *msg, uint32_t timeout_ticks);
 

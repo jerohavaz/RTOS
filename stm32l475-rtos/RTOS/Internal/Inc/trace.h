@@ -36,6 +36,46 @@ void trace_isr_exit(void);
 void trace_isr_exit_to_scheduler(void);
 
 /* --------------------------------------------------------------------------
+ * Message queue events
+ * -------------------------------------------------------------------------- */
+
+void trace_queue_create(uint32_t queue_id, uint32_t capacity);
+
+void trace_queue_send_attempt(uint32_t queue_id,
+                              uint8_t task_id,
+                              uint8_t task_priority,
+                              uint32_t timeout_ticks,
+                              uint32_t message_hash);
+
+void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
+
+void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
+
+void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id);
+
+void trace_queue_receive_attempt(uint32_t queue_id,
+                                 uint8_t task_id,
+                                 uint8_t task_priority,
+                                 uint32_t timeout_ticks);
+
+void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
+
+void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
+
+void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id);
+
+void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id);
+
+void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id);
+
+void trace_queue_handoff(uint32_t queue_id,
+                         uint8_t sender_id,
+                         uint8_t receiver_id,
+                         uint32_t message_hash);
+
+void trace_queue_fill(uint32_t queue_id, uint32_t fill);
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
@@ -50,6 +90,7 @@ static inline void trace_init(void) {}
  * -------------------------------------------------------------------------- */
 
 static inline void trace_task_create(TCB_sctTCB_t *task) {}
+
 static inline void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {}
 
 /* --------------------------------------------------------------------------
@@ -57,10 +98,15 @@ static inline void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t 
  * -------------------------------------------------------------------------- */
 
 static inline void trace_task_ready(TCB_sctTCB_t *task) {}
+
 static inline void trace_task_run(TCB_sctTCB_t *task) {}
+
 static inline void trace_task_stop_run(void) {}
+
 static inline void trace_task_block(TCB_sctTCB_t *task) {}
+
 static inline void trace_idle(void) {}
+
 static inline void trace_tick(uint32_t dt) {}
 
 /* --------------------------------------------------------------------------
@@ -68,8 +114,58 @@ static inline void trace_tick(uint32_t dt) {}
  * -------------------------------------------------------------------------- */
 
 static inline void trace_isr_enter(void) {}
+
 static inline void trace_isr_exit(void) {}
+
 static inline void trace_isr_exit_to_scheduler(void) {}
+
+/* --------------------------------------------------------------------------
+ * Message queue events
+ * -------------------------------------------------------------------------- */
+
+static inline void trace_queue_create(uint32_t queue_id, uint32_t capacity) {}
+
+static inline void trace_queue_send_attempt(uint32_t queue_id,
+                                            uint8_t task_id,
+                                            uint8_t task_priority,
+                                            uint32_t timeout_ticks,
+                                            uint32_t message_hash) {}
+
+static inline void trace_queue_send_success(uint32_t queue_id,
+                                            uint8_t task_id,
+                                            uint32_t message_hash) {}
+
+static inline void trace_queue_send_block(uint32_t queue_id,
+                                          uint8_t task_id,
+                                          uint8_t task_priority) {}
+
+static inline void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id) {}
+
+static inline void trace_queue_receive_attempt(uint32_t queue_id,
+                                               uint8_t task_id,
+                                               uint8_t task_priority,
+                                               uint32_t timeout_ticks) {}
+
+static inline void trace_queue_receive_success(uint32_t queue_id,
+                                               uint8_t task_id,
+                                               uint32_t message_hash) {}
+
+static inline void trace_queue_receive_block(uint32_t queue_id,
+                                             uint8_t task_id,
+                                             uint8_t task_priority) {}
+
+static inline void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id) {}
+
+static inline void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id) {}
+
+static inline void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id) {}
+
+static inline void trace_queue_handoff(uint32_t queue_id,
+                                       uint8_t sender_id,
+                                       uint8_t receiver_id,
+                                       uint32_t message_hash) {}
+
+static inline void trace_queue_fill(uint32_t queue_id, uint32_t fill) {}
 
 /* --------------------------------------------------------------------------
  * Generic log event
