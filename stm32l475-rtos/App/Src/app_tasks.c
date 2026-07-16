@@ -1,161 +1,151 @@
 #include "app_tasks.h"
-
-#include "os_delay.h"
 #include "os_queue.h"
 #include "os_task.h"
+#include "os_delay.h"
 #include "os_types.h"
-
 #include "stm32l4xx_hal.h"
 
-#include <stdint.h>
-
-#define QUEUE_ID        1u
-#define QUEUE_DEPTH     2u
-#define MESSAGE_COUNT   6u
-#define RECEIVE_TIMEOUT 5u
-
-#define PRODUCER_PRIORITY 3u
-#define CONSUMER_PRIORITY 3u
-#define MONITOR_PRIORITY  7u
+#define QUEUE_DEPTH 4u
 
 typedef struct {
+    uint32_t sender;
     uint32_t sequence;
-    uint32_t value;
+    uint32_t payload;
     uint32_t checksum;
-} queue_message_t;
+} test_msg_t;
 
 static os_queue_t queue;
-static queue_message_t queue_storage[QUEUE_DEPTH];
+static test_msg_t queue_storage[QUEUE_DEPTH];
 
-static volatile uint32_t producer_started;
-static volatile uint32_t producer_finished;
-static volatile uint32_t consumer_started;
-static volatile uint32_t consumer_finished;
-static volatile uint32_t consumed_count;
-static volatile uint32_t test_errors;
+volatile uint32_t test_error_count = 0u;
 
-static uint32_t message_checksum(uint32_t sequence, uint32_t value) {
-    return 0xA5A50000u ^ sequence ^ value;
-}
+static volatile uint32_t phase = 0u;
+static volatile uint32_t receiver_started = 0u;
+static volatile uint32_t receiver_done = 0u;
+static volatile uint32_t sender_started = 0u;
+static volatile uint32_t sender_done = 0u;
 
-static queue_message_t make_message(uint32_t sequence) {
-    queue_message_t message;
-
-    message.sequence = sequence;
-    message.value = 1000u + sequence;
-    message.checksum = message_checksum(message.sequence, message.value);
-
-    return message;
-}
-
-static uint8_t message_is_valid(const queue_message_t *message, uint32_t expected_sequence) {
-    if (message == 0) {
-        return 0u;
-    }
-
-    if (message->sequence != expected_sequence) {
-        return 0u;
-    }
-
-    if (message->value != (1000u + expected_sequence)) {
-        return 0u;
-    }
-
-    if (message->checksum != message_checksum(message->sequence, message->value)) {
-        return 0u;
-    }
-
-    return 1u;
-}
+enum { PHASE_IDLE = 0u, PHASE_EMPTY_QUEUE = 1u, PHASE_FULL_QUEUE = 2u };
 
 static void test_fail(void) {
-    test_errors++;
-
+    test_error_count++;
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 }
 
-static void producer_task(void) {
-    producer_started = 1u;
+static uint32_t msg_checksum(const test_msg_t *msg) {
+    return 0xA5A55A5Au ^ msg->sender ^ msg->sequence ^ msg->payload;
+}
 
-    for (uint32_t sequence = 0u; sequence < MESSAGE_COUNT; ++sequence) {
-        queue_message_t message = make_message(sequence);
+static test_msg_t make_msg(uint32_t sender, uint32_t sequence, uint32_t payload) {
+    test_msg_t msg;
 
-        if (os_queue_send(&queue, &message, OS_WAIT_FOREVER) != OS_OK) {
-            test_fail();
-        }
-    }
+    msg.sender = sender;
+    msg.sequence = sequence;
+    msg.payload = payload;
+    msg.checksum = msg_checksum(&msg);
 
-    producer_finished = 1u;
+    return msg;
+}
 
-    while (1) {
-        os_delay(100u);
+static uint8_t msg_is_equal(const test_msg_t *actual, const test_msg_t *expected) {
+    return actual->sender == expected->sender && actual->sequence == expected->sequence &&
+           actual->payload == expected->payload && actual->checksum == expected->checksum &&
+           actual->checksum == msg_checksum(actual);
+}
+
+static void queue_reset(void) {
+    if (os_queue_init(&queue, 1, queue_storage, sizeof(test_msg_t), QUEUE_DEPTH) != OS_OK) {
+        test_fail();
     }
 }
 
-static void consumer_task(void) {
-    queue_message_t message;
+/* Receives one message from an initially empty queue. */
+static void receiver_task(void) {
+    test_msg_t actual;
+    test_msg_t expected;
 
-    consumer_started = 1u;
-
-    /*
-     * Allow the producer to fill the queue and block.
-     *
-     * With QUEUE_DEPTH = 2 and MESSAGE_COUNT = 6, the producer must
-     * block unless the queue implementation incorrectly overwrites data.
-     */
-    os_delay(10u);
-
-    for (uint32_t expected = 0u; expected < MESSAGE_COUNT; ++expected) {
-        if (os_queue_recv(&queue, &message, OS_WAIT_FOREVER) != OS_OK) {
-            test_fail();
-            continue;
-        }
-
-        if (!message_is_valid(&message, expected)) {
-            test_fail();
-        }
-
-        consumed_count++;
+    while (phase != PHASE_EMPTY_QUEUE) {
+        os_delay(1u);
     }
 
-    /*
-     * The queue must now be empty. A timed receive must block and finish
-     * with OS_ERR_TIMEOUT.
-     */
-    if (os_queue_recv(&queue, &message, RECEIVE_TIMEOUT) != OS_ERR_TIMEOUT) {
+    expected = make_msg(1u, 42u, 0x12345678u);
+    receiver_started = 1u;
+
+    if (os_queue_recv(&queue, &actual, OS_WAIT_FOREVER) != OS_OK) {
+        test_fail();
+    } else if (!msg_is_equal(&actual, &expected)) {
         test_fail();
     }
 
-    consumer_finished = 1u;
+    receiver_done = 1u;
 
     while (1) {
         os_delay(100u);
     }
 }
 
-static void monitor_task(void) {
-    queue_message_t message;
-    queue_message_t output;
+/* Sends one message to an initially full queue. */
+static void sender_task(void) {
+    test_msg_t msg;
 
-    /*
-     * Basic empty/full checks before concurrent execution.
-     */
+    while (phase != PHASE_FULL_QUEUE) {
+        os_delay(1u);
+    }
+
+    msg = make_msg(2u, QUEUE_DEPTH, 0xCAFEBABEu);
+    sender_started = 1u;
+
+    if (os_queue_send(&queue, &msg, OS_WAIT_FOREVER) != OS_OK) {
+        test_fail();
+    }
+
+    sender_done = 1u;
+
+    while (1) {
+        os_delay(100u);
+    }
+}
+
+static void test_blocking_receive(void) {
+    test_msg_t msg;
+
+    queue_reset();
+    phase = PHASE_EMPTY_QUEUE;
+
+    while (receiver_started == 0u) {
+        os_delay(1u);
+    }
+
+    /* The task must still be blocked while the queue is empty. */
+    os_delay(10u);
+    if (receiver_done != 0u) {
+        test_fail();
+    }
+
+    msg = make_msg(1u, 42u, 0x12345678u);
+    if (os_queue_send(&queue, &msg, OS_NO_WAIT) != OS_OK) {
+        test_fail();
+    }
+
+    while (receiver_done == 0u) {
+        os_delay(1u);
+    }
+
     if (!os_queue_is_empty(&queue)) {
         test_fail();
     }
+}
 
-    if (os_queue_is_full(&queue)) {
-        test_fail();
-    }
+static void test_blocking_send(void) {
+    test_msg_t actual;
+    test_msg_t expected;
 
-    if (os_queue_recv(&queue, &output, OS_NO_WAIT) != OS_ERR_WOULD_BLOCK) {
-        test_fail();
-    }
+    queue_reset();
 
-    for (uint32_t index = 0u; index < QUEUE_DEPTH; ++index) {
-        message = make_message(100u + index);
-
-        if (os_queue_send(&queue, &message, OS_NO_WAIT) != OS_OK) {
+    /* Fill the queue with distinguishable messages. */
+    for (uint32_t i = 0u; i < QUEUE_DEPTH; i++) {
+        expected = make_msg(2u, i, 0x1000u + i);
+        if (os_queue_send(&queue, &expected, OS_NO_WAIT) != OS_OK) {
             test_fail();
         }
     }
@@ -164,43 +154,57 @@ static void monitor_task(void) {
         test_fail();
     }
 
-    message = make_message(999u);
+    phase = PHASE_FULL_QUEUE;
 
-    if (os_queue_send(&queue, &message, OS_NO_WAIT) != OS_ERR_WOULD_BLOCK) {
-        test_fail();
-    }
-
-    for (uint32_t index = 0u; index < QUEUE_DEPTH; ++index) {
-        if (os_queue_recv(&queue, &output, OS_NO_WAIT) != OS_OK) {
-            test_fail();
-            continue;
-        }
-
-        if (!message_is_valid(&output, 100u + index)) {
-            test_fail();
-        }
-    }
-
-    /*
-     * Let producer and consumer run.
-     */
-    while ((producer_started == 0u) || (consumer_started == 0u)) {
+    while (sender_started == 0u) {
         os_delay(1u);
     }
 
-    while ((producer_finished == 0u) || (consumer_finished == 0u)) {
+    /* The task must still be blocked while the queue is full. */
+    os_delay(10u);
+    if (sender_done != 0u) {
+        test_fail();
+    }
+
+    /* Free one slot and validate the oldest message. */
+    expected = make_msg(2u, 0u, 0x1000u);
+    if (os_queue_recv(&queue, &actual, OS_NO_WAIT) != OS_OK) {
+        test_fail();
+    } else if (!msg_is_equal(&actual, &expected)) {
+        test_fail();
+    }
+
+    while (sender_done == 0u) {
         os_delay(1u);
     }
 
-    if (consumed_count != MESSAGE_COUNT) {
-        test_fail();
+    /* Validate FIFO order and the message from the unblocked sender. */
+    for (uint32_t i = 1u; i <= QUEUE_DEPTH; i++) {
+        if (i < QUEUE_DEPTH) {
+            expected = make_msg(2u, i, 0x1000u + i);
+        } else {
+            expected = make_msg(2u, i, 0xCAFEBABEu);
+        }
+
+        if (os_queue_recv(&queue, &actual, OS_NO_WAIT) != OS_OK) {
+            test_fail();
+        } else if (!msg_is_equal(&actual, &expected)) {
+            test_fail();
+        }
     }
 
     if (!os_queue_is_empty(&queue)) {
         test_fail();
     }
+}
 
-    if (test_errors == 0u) {
+static void monitor_task(void) {
+    os_delay(20u);
+
+    test_blocking_receive();
+    test_blocking_send();
+
+    if (test_error_count == 0u) {
         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
     }
 
@@ -210,28 +214,16 @@ static void monitor_task(void) {
 }
 
 void app_tasks_init(void) {
-    producer_started = 0u;
-    producer_finished = 0u;
-    consumer_started = 0u;
-    consumer_finished = 0u;
-    consumed_count = 0u;
-    test_errors = 0u;
-
-    if (os_queue_init(&queue, QUEUE_ID, queue_storage, sizeof(queue_message_t), QUEUE_DEPTH) !=
-        OS_OK) {
-        test_fail();
-        return;
-    }
-
-    if (os_task_create(producer_task, PRODUCER_PRIORITY) != OS_OK) {
+    if (os_task_create(receiver_task, 4u) != OS_OK) {
         test_fail();
     }
 
-    if (os_task_create(consumer_task, CONSUMER_PRIORITY) != OS_OK) {
+    if (os_task_create(sender_task, 4u) != OS_OK) {
         test_fail();
     }
 
-    if (os_task_create(monitor_task, MONITOR_PRIORITY) != OS_OK) {
+    /* Higher numeric value means higher priority. */
+    if (os_task_create(monitor_task, 7u) != OS_OK) {
         test_fail();
     }
 }
