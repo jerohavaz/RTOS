@@ -23,6 +23,10 @@ static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
 static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
     KERNEL_REQUIRE(task != 0);
 
+    TCB_eTaskStates_t old_state = task->tcb.eTaskState;
+
+    trace_task_state(task->tcb.u8TaskId, (uint8_t)old_state, (uint8_t)state);
+
     switch (state) {
         case TaskState_Ready:
             task->tcb.eTaskState = TaskState_Ready;

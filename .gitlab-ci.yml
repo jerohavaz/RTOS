@@ -1,3 +1,9 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - when: always
+
 stages:
   - docker
   - prepare
@@ -9,6 +15,7 @@ variables:
   FIRMWARE_DIR: "stm32l475-rtos"
   BUILD_DIR: "stm32l475-rtos/build/Debug"
   STM32_CI_IMAGE: "$CI_REGISTRY_IMAGE/stm32-ci:latest"
+  VERIFICATION_CI_IMAGE: "$CI_REGISTRY_IMAGE/verification-ci:latest"
 
 default:
   image: "$STM32_CI_IMAGE"
@@ -34,6 +41,27 @@ build_image:
   rules:
     - changes:
         - gitlab-runner/Dockerfile
+        - .gitlab-ci.yml
+      when: on_success
+    - when: manual
+      allow_failure: true
+
+verification_image:
+  stage: docker
+  image: docker
+  services:
+    - docker:dind
+  tags:
+    - runner
+  before_script:
+    - *docker_login
+  script:
+    - docker build --pull -t "$VERIFICATION_CI_IMAGE" -f verification/Dockerfile verification
+    - docker push "$VERIFICATION_CI_IMAGE"
+  rules:
+    - changes:
+        - verification/Dockerfile
+        - verification/**/*
         - .gitlab-ci.yml
       when: on_success
     - when: manual
@@ -88,6 +116,27 @@ cppcheck:
       -iLibs/SEGGER
       -iCore/Src/syscalls.c
 
+verification:
+  stage: analyze
+  image:
+    name: "$VERIFICATION_CI_IMAGE"
+    entrypoint: [""]
+  script:
+    - cd verification
+    - python3 verify.py list
+    - python3 verify.py test
+  artifacts:
+    when: always
+    paths:
+      - verification/build/
+    expire_in: 1 week
+  rules:
+    - changes:
+        - verification/**/*
+        - .gitlab-ci.yml
+      when: on_success
+    - when: never
+
 pages:
   stage: pages
   image:
@@ -103,3 +152,5 @@ pages:
   artifacts:
     paths:
       - public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

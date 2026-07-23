@@ -1,0 +1,9 @@
+0: state_id = 1
+0: state_old = 0
+0: state_new = 1
+
+1: ready_id = 1
+1: ready_prio = 1
+
+2: running_id = 1
+2: running_prio = 1
