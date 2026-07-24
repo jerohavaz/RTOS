@@ -33,6 +33,12 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "TICK": [
         ("tick", int),
     ],
+    "DELAY_BUSY_START": [
+        ("delay_busy_start_id", int),
+    ],
+    "DELAY_BUSY_END": [
+        ("delay_busy_end_id", int),
+    ],
 }
 
 

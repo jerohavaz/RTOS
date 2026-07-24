@@ -24,7 +24,7 @@
 #define OS_TRACE_MUTEX     (0u)
 #define OS_TRACE_SEMAPHORE (0u)
 #define OS_TRACE_QUEUE     (0u)
-#define OS_TRACE_DELAY     (0u)
+#define OS_TRACE_DELAY     (1u)
 
 // Cortex-M interrupt priorities
 #define OS_SVC_INTERRUPT_PRIORITY     (13u)

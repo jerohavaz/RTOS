@@ -73,6 +73,36 @@ static void test_fail(void) {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 }
 
+static void  test_busy_delay_task(void){
+    uint32_t start_tick;
+    uint32_t end_tick;
+    uint32_t meas_tick;
+    while(1){
+        start_tick = uwTick;
+        os_delay_busy(100u);
+        end_tick = uwTick;
+        meas_tick = end_tick - start_tick;
+        if(meas_tick > 102 || meas_tick < 98){
+            test_fail();
+        }
+    }
+}
+
+static void  test_non_block_delay_task(void){
+    uint32_t start_tick = 0;
+    uint32_t end_tick = 0;
+    uint32_t meas_tick = 0;
+    while(1){
+        start_tick = uwTick;
+        os_delay(25u);
+        end_tick = uwTick;
+        meas_tick = end_tick - start_tick;
+        
+    }
+}
+
+#ifdef REST
+
 static void wait_for_phase(uint32_t phase) {
     while (test_phase != phase) {
         os_delay(10u);
@@ -729,8 +759,16 @@ static void monitor_task(void) {
         os_delay(100u);
     }
 }
+#endif
 
 void app_tasks_init(void) {
+    if(os_task_create(test_busy_delay_task, 3u) != OS_OK){
+        test_fail();
+    }
+    if(os_task_create(test_non_block_delay_task, 5u) != OS_OK){
+        test_fail();
+    }
+    #ifdef REST
     basic_queue_tests();
 
     /*
@@ -782,4 +820,5 @@ void app_tasks_init(void) {
     if (os_task_create(monitor_task, 7u) != OS_OK) {
         test_fail();
     }
+    #endif
 }

@@ -150,6 +150,26 @@ void trace_isr_exit_to_scheduler(void) {
 }
 
 /* --------------------------------------------------------------------------
+ * Non-Blocking Delay events
+ * -------------------------------------------------------------------------- */
+
+void trace_task_delay_busy_start(TCB_sctTCB_t *task) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
+    SEGGER_RTT_printf(0, "DELAY_BUSY_START %u\n", (unsigned int)task->u8TaskId);
+#endif
+}
+
+void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
+    SEGGER_RTT_printf(0, "DELAY_BUSY_END %u\n", (unsigned int)task->u8TaskId);
+#endif
+}
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 

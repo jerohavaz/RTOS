@@ -36,6 +36,12 @@ void trace_isr_exit(void);
 void trace_isr_exit_to_scheduler(void);
 
 /* --------------------------------------------------------------------------
+ * Delay events
+ * -------------------------------------------------------------------------- */
+void trace_task_delay_busy_start(TCB_sctTCB_t *task);
+void trace_task_delay_busy_end(TCB_sctTCB_t *task);
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
@@ -70,6 +76,12 @@ static inline void trace_tick(uint32_t dt) {}
 static inline void trace_isr_enter(void) {}
 static inline void trace_isr_exit(void) {}
 static inline void trace_isr_exit_to_scheduler(void) {}
+
+/* --------------------------------------------------------------------------
+ * Delay events
+ * -------------------------------------------------------------------------- */
+static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
  * Generic log event
