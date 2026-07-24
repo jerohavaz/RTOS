@@ -59,7 +59,7 @@ void os_delay_busy(uint32_t delay_ticks){
     uint32_t end_tick = k_tick_get() + delay_ticks;
 
     KERNEL_REQUIRE(task != 0);
-    trace_task_delay_busy_end(&task->tcb);
+    trace_task_delay_busy_start(&task->tcb);
 
     while( end_tick > k_tick_get()){
         port_no_operation();    //busy delay
