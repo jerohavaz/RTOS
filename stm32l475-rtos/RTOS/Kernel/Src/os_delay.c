@@ -61,7 +61,7 @@ os_status_t os_delay_busy(uint32_t delay_ticks) {
 
     uint32_t end_tick = k_tick_get() + delay_ticks;
 
-    trace_task_delay_busy_start(&task->tcb); 
+    trace_task_delay_busy_start(&task->tcb, delay_ticks); 
 
     while ((int32_t)(end_tick - k_tick_get()) > 0) {
         port_no_operation(); 
