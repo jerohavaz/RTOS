@@ -49,24 +49,27 @@ os_status_t os_delay(uint32_t delay_ticks) {
     return task->wait_result;
 }
 
-void os_delay_busy(uint32_t delay_ticks){
-    if(delay_ticks == 0u){
-        return;
+os_status_t os_delay_busy(uint32_t delay_ticks) {
+    KERNEL_REQUIRE(delay_ticks < 0x80000000u); 
+
+    if (delay_ticks == 0u) { 
+        return OS_ERR_INVALID_ARG; 
     }
 
-    
-    kernel_task_t *task = k_sched_current();
+    kernel_task_t *task = k_sched_current(); 
+    KERNEL_REQUIRE(task != 0); 
+
     uint32_t end_tick = k_tick_get() + delay_ticks;
 
-    KERNEL_REQUIRE(task != 0);
-    trace_task_delay_busy_start(&task->tcb);
+    trace_task_delay_busy_start(&task->tcb); 
 
-    while( end_tick > k_tick_get()){
-        port_no_operation();    //busy delay
+    while ((int32_t)(end_tick - k_tick_get()) > 0) {
+        port_no_operation(); 
     }
 
-    KERNEL_REQUIRE(task != 0);
     trace_task_delay_busy_end(&task->tcb);
+
+    return OS_OK;
 }
 
 void k_delay_timeout_cleanup(kernel_task_t *task) {
