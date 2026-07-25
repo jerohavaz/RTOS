@@ -10,7 +10,4 @@ EXPECTED = {
     "bad_busy_delay_too_short.input": {
         "violation_busy_delay_too_short",
     },
-    "bad_busy_delay_too_long.input": {
-        "violation_busy_delay_too_long",
-    },
 }

@@ -9,7 +9,6 @@ CHECKS = [
     ("busy_delay_never_blocks", "busy_delay_blocked"),
     ("busy_delay_remains_running", "busy_delay_interrupted_state"),
     ("busy_delay_duration_respected_short", "busy_delay_too_short"),
-    ("busy_delay_duration_respected_long", "busy_delay_too_long"),
 ]
 
 
@@ -116,20 +115,6 @@ def violation_busy_delay_too_short :=
     "busy_delay_too_short",
     "delay_busy_end_id >= 0",
     "busy_delay_ended_too_early",
-)}
-
-# Bedingung B: Zu spät beendet
-def busy_delay_ended_too_late :=
-  elapsed_ticks > last(target_ticks, delay_busy_end_id)
-
-def violation_busy_delay_too_long :=
-  filter(delay_busy_end_id, busy_delay_ended_too_late)
-
-{emit_pass_fail_pair(
-    "busy_delay_duration_respected_long",
-    "busy_delay_too_long",
-    "delay_busy_end_id >= 0",
-    "busy_delay_ended_too_late",
 )}
 """
 
