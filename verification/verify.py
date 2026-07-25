@@ -13,6 +13,10 @@ from scheduler.config import EXPECTED as SCHEDULER_EXPECTED
 from scheduler.config import GENERATOR_OPTIONS as SCHEDULER_OPTIONS
 from scheduler.generate_tessla import generate as generate_scheduler
 
+from delay.config import EXPECTED as DELAY_EXPECTED
+from delay.config import GENERATOR_OPTIONS as DELAY_OPTIONS
+from delay.generate_tessla import generate as generate_delay
+
 
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
@@ -40,6 +44,13 @@ MODULES = {
         generator=generate_scheduler,
         generator_options=SCHEDULER_OPTIONS,
         expected=SCHEDULER_EXPECTED,
+    ),
+    "delay": VerificationModule(
+        name="delay",
+        directory=ROOT_DIR / "delay",
+        generator=generate_delay,
+        generator_options=DELAY_OPTIONS,
+        expected=DELAY_EXPECTED,
     ),
 }
 
