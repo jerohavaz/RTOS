@@ -93,7 +93,7 @@ static kernel_task_t *sched_peek_next(void) {
 }
 
 static bool sched_switch_needed(bool allow_same_prio) {
-    kernel_task_t *current = g_current_task;
+    const kernel_task_t *current = g_current_task;
     KERNEL_REQUIRE(current != 0);
     KERNEL_REQUIRE(g_idle_task != 0);
 
@@ -105,7 +105,7 @@ static bool sched_switch_needed(bool allow_same_prio) {
         return true;
     }
 
-    kernel_task_t *next = sched_peek_next();
+    const kernel_task_t *next = sched_peek_next();
     KERNEL_REQUIRE(next != 0);
 
     /*

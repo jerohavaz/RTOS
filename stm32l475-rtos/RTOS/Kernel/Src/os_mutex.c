@@ -99,7 +99,7 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
         return OS_ERR_INVALID_STATE;
     }
 
-    kernel_task_t *current = k_sched_current();
+    const kernel_task_t *current = k_sched_current();
 
     if (current == 0) {
         return OS_ERR_INVALID_STATE;
