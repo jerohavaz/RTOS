@@ -51,9 +51,19 @@ def PASS_{public_name} :=
 
 
 def emit_busy_delay_checks() -> str:
-    return f"""# Regel 1: Ein Busy Delay darf NIEMALS nach BLOCKED (3) wechseln
+    return f"""# Speichert die ID des Tasks, der sich aktuell im Busy Delay befindet (-1 falls keiner)
+def busy_task_event: Events[Int] :=
+  merge(
+    delay_busy_start_id,
+    filter(-1, delay_busy_end_id >= 0)
+  )
+
+def active_busy_task :=
+  default(last(busy_task_event, state_id), -1)
+
+# Regel 1: Ein Task im Busy Delay darf NIEMALS nach BLOCKED (3) wechseln
 def busy_delay_illegal_block :=
-  state_new == {STATE_BLOCKED}
+  state_new == {STATE_BLOCKED} && state_id == active_busy_task
 
 def violation_busy_delay_blocked :=
   filter(state_id, busy_delay_illegal_block)
