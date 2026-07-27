@@ -8,8 +8,9 @@
 #include "tcb.h"
 #include "trace.h"
 #include <stdint.h>
+#include <stdbool.h>
 
-static uint8_t g_sched_started = 0u;
+static bool g_sched_started = false;
 
 static kernel_task_t *g_current_task = 0;
 static kernel_task_t *g_idle_task = 0;
@@ -91,8 +92,8 @@ static kernel_task_t *sched_peek_next(void) {
     return g_idle_task;
 }
 
-static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
-    kernel_task_t *current = g_current_task;
+static bool sched_switch_needed(bool allow_same_prio) {
+    const kernel_task_t *current = g_current_task;
     KERNEL_REQUIRE(current != 0);
     KERNEL_REQUIRE(g_idle_task != 0);
 
@@ -101,10 +102,10 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
      * Scheduler must select another context, possibly idle.
      */
     if (current->tcb.eTaskState != TaskState_Running) {
-        return 1u;
+        return true;
     }
 
-    kernel_task_t *next = sched_peek_next();
+    const kernel_task_t *next = sched_peek_next();
     KERNEL_REQUIRE(next != 0);
 
     /*
@@ -119,7 +120,7 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
      * A real running task must not be replaced by idle.
      */
     if (k_sched_is_idle(next)) {
-        return 0u;
+        return false;
     }
 
     /*
@@ -133,37 +134,37 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
      * This assumes larger u8TaskPrio means higher priority.
      */
     if (next->tcb.u8TaskPrio > current->tcb.u8TaskPrio) {
-        return 1u;
+        return true;
     }
 
     /*
      * Same-priority ready task only rotates on yield/SysTick.
      */
-    if ((allow_same_prio != 0u) && (next->tcb.u8TaskPrio == current->tcb.u8TaskPrio)) {
-        return 1u;
+    if (allow_same_prio && (next->tcb.u8TaskPrio == current->tcb.u8TaskPrio)) {
+        return true;
     }
 
-    return 0u;
+    return false;
 }
 
-static uint8_t sched_request_switch(uint8_t allow_same_prio) {
-    if (g_sched_started == 0u) {
-        return 0u;
+static bool sched_request_switch(bool allow_same_prio) {
+    if (!g_sched_started) {
+        return false;
     }
 
     if (!sched_switch_needed(allow_same_prio)) {
-        return 0u;
+        return false;
     }
 
     port_request_context_switch();
 
-    return 1u;
+    return true;
 }
 
 void k_sched_init(void) {
     g_current_task = 0;
     g_idle_task = 0;
-    g_sched_started = 0u;
+    g_sched_started = false;
 
     prio_waitq_init(&g_ready_queue, sched_node);
 
@@ -177,7 +178,7 @@ void k_sched_set_idle_task(kernel_task_t *task) {
     g_idle_task = task;
 }
 
-uint8_t k_sched_is_idle(const kernel_task_t *task) {
+bool k_sched_is_idle(const kernel_task_t *task) {
     return (task != 0) && (task == g_idle_task);
 }
 
@@ -209,7 +210,7 @@ port_stack_t *k_sched_start_first_context(void) {
 
     sched_task_set_state(g_current_task, TaskState_Running);
 
-    g_sched_started = 1u;
+    g_sched_started = true;
 
     return g_current_task->tcb.pu32TaskSP;
 }
@@ -238,9 +239,9 @@ void k_sched_task_block(kernel_task_t *task) {
  *
  * Same-priority tasks do not preempt here. They rotate on yield/SysTick.
  */
-uint8_t k_sched_request_switch(void) {
+bool k_sched_request_switch(void) {
     uint32_t key = port_enter_critical();
-    uint8_t requested = sched_request_switch(0u);
+    bool requested = sched_request_switch(false);
 
     port_exit_critical(key);
 
@@ -252,9 +253,9 @@ uint8_t k_sched_request_switch(void) {
  *
  * Allows same-priority round-robin in addition to normal preemption.
  */
-uint8_t k_sched_request_yield(void) {
+bool k_sched_request_yield(void) {
     uint32_t key = port_enter_critical();
-    uint8_t requested = sched_request_switch(1u);
+    bool requested = sched_request_switch(true);
 
     port_exit_critical(key);
 
@@ -315,6 +316,6 @@ kernel_task_t *k_sched_current(void) {
     return task;
 }
 
-uint8_t k_sched_started(void) {
+bool k_sched_started(void) {
     return g_sched_started;
 }

@@ -2,6 +2,7 @@
 #include "kernel_panic.h"
 #include "kernel_task.h"
 #include "task_list.h"
+#include <stdbool.h>
 
 static kernel_task_list_node_t *timeout_node(kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
@@ -60,13 +61,13 @@ void timeout_list_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
     task->wake_tick = 0;
 }
 
-uint8_t timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
+bool timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
     KERNEL_REQUIRE(timeout_list != 0);
     KERNEL_REQUIRE(task != 0);
 
-    uint8_t removed = task_list_try_remove(&timeout_list->list, task);
+    bool removed = task_list_try_remove(&timeout_list->list, task);
 
-    if (removed != 0u) {
+    if (removed) {
         task->wake_tick = 0u;
     }
 

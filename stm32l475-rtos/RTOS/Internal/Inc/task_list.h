@@ -14,6 +14,7 @@
 
 #include "kernel_task.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -56,7 +57,7 @@ void task_list_init(task_list_t *list, task_node_fn_t get_node);
  *
  * @pre list must not be 0.
  */
-uint8_t task_list_is_empty(const task_list_t *list);
+bool task_list_is_empty(const task_list_t *list);
 
 /**
  * @brief Append a task to the back of the list.
@@ -137,6 +138,6 @@ void task_list_remove(task_list_t *list, kernel_task_t *task);
  * list's selected node. It assumes that the selected node is used exclusively
  * by this list domain.
  */
-uint8_t task_list_try_remove(task_list_t *list, kernel_task_t *task);
+bool task_list_try_remove(task_list_t *list, kernel_task_t *task);
 
 #endif /* TASK_LIST_H_ */
