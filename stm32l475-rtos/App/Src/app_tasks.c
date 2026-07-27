@@ -73,36 +73,6 @@ static void test_fail(void) {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
 }
 
-static void  test_busy_delay_task(void){
-    uint32_t start_tick;
-    uint32_t end_tick;
-    uint32_t meas_tick;
-    while(1){
-        start_tick = uwTick;
-        os_delay_busy(100u);
-        end_tick = uwTick;
-        meas_tick = end_tick - start_tick;
-        if(meas_tick > 102 || meas_tick < 98){
-            test_fail();
-        }
-    }
-}
-
-static void  test_non_block_delay_task(void){
-    uint32_t start_tick = 0;
-    uint32_t end_tick = 0;
-    uint32_t meas_tick = 0;
-    while(1){
-        start_tick = uwTick;
-        os_delay(25u);
-        end_tick = uwTick;
-        meas_tick = end_tick - start_tick;
-        
-    }
-}
-
-#ifdef REST
-
 static void wait_for_phase(uint32_t phase) {
     while (test_phase != phase) {
         os_delay(10u);
@@ -451,6 +421,34 @@ static void consumer_task(void) {
     }
 }
 
+static void  busy_delay_task(void){
+    uint32_t start_tick;
+    uint32_t end_tick;
+    uint32_t meas_tick;
+    while(1){
+        start_tick = uwTick;
+        os_delay_busy(100u);
+        end_tick = uwTick;
+        meas_tick = end_tick - start_tick;
+        if(meas_tick > 102 || meas_tick < 98){
+            test_fail();
+        }
+    }
+}
+
+static void  block_delay_task(void){
+    uint32_t start_tick = 0;
+    uint32_t end_tick = 0;
+    uint32_t meas_tick = 0;
+    while(1){
+        start_tick = uwTick;
+        os_delay(25u);
+        end_tick = uwTick;
+        meas_tick = end_tick - start_tick;
+        
+    }
+}
+
 static void monitor_task(void) {
     queue_test_msg_t msg;
     queue_test_msg_t out;
@@ -759,31 +757,25 @@ static void monitor_task(void) {
         os_delay(100u);
     }
 }
-#endif
+
 
 void app_tasks_init(void) {
-    if(os_task_create(test_busy_delay_task, 3u) != OS_OK){
-        test_fail();
-    }
-    if(os_task_create(test_non_block_delay_task, 5u) != OS_OK){
-        test_fail();
-    }
-    #ifdef REST
+    
     basic_queue_tests();
-
+    
     /*
-     * Create monitor last but give it highest priority.
-     * Assumption: lower numeric value means higher priority.
-     */
-
+    * Create monitor last but give it highest priority.
+    * Assumption: lower numeric value means higher priority.
+    */
+    
     if (os_task_create(recv_handoff_task, 4u) != OS_OK) {
         test_fail();
     }
-
+    
     if (os_task_create(blocked_sender_task, 4u) != OS_OK) {
         test_fail();
     }
-
+    
     if (os_task_create(recv_timeout_task, 4u) != OS_OK) {
         test_fail();
     }
@@ -791,26 +783,26 @@ void app_tasks_init(void) {
     if (os_task_create(send_timeout_task, 4u) != OS_OK) {
         test_fail();
     }
-
+    
     /*
-     * Low receiver is created before high receiver on purpose.
-     * If the wait queue is FIFO instead of priority ordered, the low receiver
-     * will incorrectly get TEST_MSG_PRIO_FIRST.
-     */
+    * Low receiver is created before high receiver on purpose.
+    * If the wait queue is FIFO instead of priority ordered, the low receiver
+    * will incorrectly get TEST_MSG_PRIO_FIRST.
+    */
     if (os_task_create(prio_low_recv_task, 3u) != OS_OK) {
         test_fail();
     }
-
+    
     if (os_task_create(prio_high_recv_task, 5u) != OS_OK) {
         test_fail();
     }
-
+    
     for (uint32_t p = 0u; p < PRODUCER_COUNT; p++) {
         if (os_task_create(producer_task, 3u) != OS_OK) {
             test_fail();
         }
     }
-
+    
     for (uint32_t c = 0u; c < CONSUMER_COUNT; c++) {
         if (os_task_create(consumer_task, 3u) != OS_OK) {
             test_fail();
@@ -820,5 +812,11 @@ void app_tasks_init(void) {
     if (os_task_create(monitor_task, 7u) != OS_OK) {
         test_fail();
     }
-    #endif
+    
+    if(os_task_create(busy_delay_task, 3u) != OS_OK){
+        test_fail();
+    }
+    if(os_task_create(block_delay_task, 5u) != OS_OK){
+        test_fail();
+    }
 }
