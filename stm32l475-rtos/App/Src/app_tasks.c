@@ -16,8 +16,7 @@ static void test_fail(void) {
 }
 
 static uint8_t delay_is_in_range(uint32_t measured, uint32_t expected) {
-    return (measured >= (expected - DELAY_TOLERANCE)) &&
-           (measured <= (expected + DELAY_TOLERANCE));
+    return (measured >= (expected - DELAY_TOLERANCE)) && (measured <= (expected + DELAY_TOLERANCE));
 }
 
 static void busy_delay_task(void) {

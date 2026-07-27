@@ -157,8 +157,9 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    
-    SEGGER_RTT_printf(0, "DELAY_BUSY_START %u %u\n", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
+
+    SEGGER_RTT_printf(
+        0, "DELAY_BUSY_START %u %u\n", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
 #endif
 }
 
