@@ -1,5 +1,6 @@
 #include "ring_msgbuf.h"
 #include "kernel_panic.h"
+#include <stdbool.h>
 #include <string.h>
 
 void ring_msgbuf_init(ring_msgbuf_t *rb, void *buffer, uint32_t msg_size, uint32_t capacity) {
@@ -16,13 +17,13 @@ void ring_msgbuf_init(ring_msgbuf_t *rb, void *buffer, uint32_t msg_size, uint32
     rb->tail = 0u;
 }
 
-uint8_t ring_msgbuf_is_empty(const ring_msgbuf_t *rb) {
+bool ring_msgbuf_is_empty(const ring_msgbuf_t *rb) {
     KERNEL_REQUIRE(rb != 0);
 
     return rb->count == 0u;
 }
 
-uint8_t ring_msgbuf_is_full(const ring_msgbuf_t *rb) {
+bool ring_msgbuf_is_full(const ring_msgbuf_t *rb) {
     KERNEL_REQUIRE(rb != 0);
 
     return rb->count >= rb->capacity;

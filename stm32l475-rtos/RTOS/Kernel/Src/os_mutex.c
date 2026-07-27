@@ -31,21 +31,17 @@ os_status_t os_mutex_lock(os_mutex_t *mutex, uint32_t timeout_ticks) {
      * Mutexes are task-owned.
      * Exception/ISR context cannot own a mutex and cannot block.
      */
-    if (port_in_exception() != 0u) {
+    if (port_in_exception()) {
         return OS_ERR_IN_ISR;
     }
 
-    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= 0x80000000u)) {
+    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= K_TIMEOUT_MAX)) {
         return OS_ERR_INVALID_ARG;
     }
 
     kernel_task_t *current = k_sched_current();
 
-    if (current == 0) {
-        return OS_ERR_INVALID_STATE;
-    }
-
-    if (k_sched_is_idle(current) != 0u) {
+    if (current == 0 || k_sched_is_idle(current)) {
         return OS_ERR_INVALID_STATE;
     }
 
@@ -99,7 +95,7 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
     /*
      * Only a task can own/unlock a mutex.
      */
-    if (port_in_exception() != 0u) {
+    if (port_in_exception()) {
         return OS_ERR_INVALID_STATE;
     }
 

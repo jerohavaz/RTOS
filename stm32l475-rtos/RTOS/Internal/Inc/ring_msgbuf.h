@@ -1,6 +1,7 @@
 #ifndef RING_MSGBUF_H_
 #define RING_MSGBUF_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {
@@ -14,8 +15,8 @@ typedef struct {
 
 void ring_msgbuf_init(ring_msgbuf_t *rb, void *buffer, uint32_t msg_size, uint32_t capacity);
 
-uint8_t ring_msgbuf_is_empty(const ring_msgbuf_t *rb);
-uint8_t ring_msgbuf_is_full(const ring_msgbuf_t *rb);
+bool ring_msgbuf_is_empty(const ring_msgbuf_t *rb);
+bool ring_msgbuf_is_full(const ring_msgbuf_t *rb);
 
 uint32_t ring_msgbuf_count(const ring_msgbuf_t *rb);
 uint32_t ring_msgbuf_capacity(const ring_msgbuf_t *rb);

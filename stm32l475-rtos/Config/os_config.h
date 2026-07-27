@@ -1,8 +1,10 @@
 #ifndef OS_CONFIG_H_
 #define OS_CONFIG_H_
 
+#include <stdbool.h>
+
 // Tasks
-#define OS_MAX_TASKS       (13u) // TODO: make this independent of idle
+#define OS_MAX_TASKS       (12u)
 #define OS_TASK_STACK_SIZE (512u)
 
 // Priorities
@@ -11,20 +13,20 @@
 #define OS_TASK_PRIORITY_HIGHEST (OS_MAX_PRIORITIES - 1u)
 
 // Tracing master switch
-#define OS_TRACE_ENABLED (1u)
+#define OS_TRACE_ENABLED (true)
 
 // Trace backends
-#define OS_TRACE_SEGGER_SYSVIEW (1u)
-#define OS_TRACE_TESSLA_RTT     (1u)
+#define OS_TRACE_SEGGER_SYSVIEW (true)
+#define OS_TRACE_TESSLA_RTT     (true)
 
 // Trace categories
-#define OS_TRACE_SCHEDULER (1u)
-#define OS_TRACE_TASKS     (1u)
-#define OS_TRACE_ISR       (1u)
-#define OS_TRACE_MUTEX     (0u)
-#define OS_TRACE_SEMAPHORE (0u)
-#define OS_TRACE_QUEUE     (0u)
-#define OS_TRACE_DELAY     (0u)
+#define OS_TRACE_SCHEDULER (true)
+#define OS_TRACE_TASKS     (true)
+#define OS_TRACE_ISR       (true)
+#define OS_TRACE_MUTEX     (false)
+#define OS_TRACE_SEMAPHORE (false)
+#define OS_TRACE_QUEUE     (false)
+#define OS_TRACE_DELAY     (false)
 
 // Cortex-M interrupt priorities
 #define OS_SVC_INTERRUPT_PRIORITY     (13u)

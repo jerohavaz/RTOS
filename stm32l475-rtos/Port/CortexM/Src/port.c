@@ -160,7 +160,7 @@ uint32_t port_get_active_exception_id(void) {
     return __get_IPSR();
 }
 
-uint8_t port_in_exception(void) {
+bool port_in_exception(void) {
     return (port_get_active_exception_id() != 0u);
 }
 
