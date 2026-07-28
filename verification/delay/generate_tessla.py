@@ -50,23 +50,85 @@ def PASS_{public_name} :=
 """
 
 
-def emit_busy_delay_checks() -> str:
-    return f"""# Speichert die ID des Tasks, der sich aktuell im Busy Delay befindet (-1 falls keiner)
-def busy_task_event: Events[Int] :=
+def build_nested_merge(streams: list[str], fallback: str = "filter(state_id, false)") -> str:
+    """Verschachtelt merge(), da TeSSLa merge nur genau 2 Argumente erlaubt."""
+    if not streams:
+        return fallback
+    result = streams[0]
+    for s in streams[1:]:
+        result = f"merge({result}, {s})"
+    return result
+
+
+def emit_busy_delay_checks(max_tasks: int = 3, busy_tasks: int = 3) -> str:
+    num_tasks = min(max_tasks, busy_tasks) if busy_tasks > 0 else max_tasks
+
+    lines = [
+        "# --- Globaler Tick-Zähler ---",
+        """def tick_sum: Events[Int] =
   merge(
-    delay_busy_start_id,
-    filter(-1, delay_busy_end_id >= 0)
+    if tick > 0 then default(last(tick_sum, tick), 0) + tick else 0,
+    0
+  )
+""",
+    ]
+
+    block_violations = []
+    too_short_violations = []
+
+    for t in range(num_tasks):
+        lines.append(f"""# --- Task {t} Isolation ---
+# Filter Ereignisse nur für Task {t}
+def start_ev_{t} := filter(delay_busy_start_id, delay_busy_start_id == {t})
+def end_ev_{t}   := filter(delay_busy_end_id, delay_busy_end_id == {t})
+
+# Speichert den Tick-Stand des letzten Starts von Task {t}
+def last_start_tick_{t}: Events[Int] =
+  merge(
+    last(tick_sum, start_ev_{t}),
+    default(last(last_start_tick_{t}, state_id), -1)
   )
 
-def active_busy_task :=
-  default(last(busy_task_event, state_id), -1)
+# Speichert den Tick-Stand des letzten Endes von Task {t}
+def last_end_tick_{t}: Events[Int] =
+  merge(
+    last(tick_sum, end_ev_{t}),
+    default(last(last_end_tick_{t}, state_id), -1)
+  )
 
-# Regel 1: Ein Task im Busy Delay darf NIEMALS nach BLOCKED (3) wechseln
+# Task {t} ist im Busy Delay, wenn der letzte Start nach dem letzten Ende lag
+def is_in_busy_{t} := last_start_tick_{t} > last_end_tick_{t} && last_start_tick_{t} >= 0
+
+# geforderte Ticks
+def target_ticks_{t}: Events[Int] =
+  merge(
+    filter(delay_busy_start_ticks, delay_busy_start_id == {t}),
+    default(last(target_ticks_{t}, end_ev_{t}), 0)
+  )
+
+def elapsed_ticks_{t} :=
+  last(tick_sum, end_ev_{t}) - last(last_start_tick_{t}, end_ev_{t})
+
+# Violation 1: Task {t} wechselt nach BLOCKED (3), während er im Busy Delay ist
+def viol_block_{t} :=
+  filter(state_id, state_id == {t} && state_new == {STATE_BLOCKED} && is_in_busy_{t})
+
+# Violation 2: Delay für Task {t} endet zu früh
+def viol_too_short_{t} :=
+  filter(end_ev_{t}, elapsed_ticks_{t} < default(last(target_ticks_{t}, end_ev_{t}), 0))
+""")
+
+        block_violations.append(f"viol_block_{t}")
+        too_short_violations.append(f"viol_too_short_{t}")
+
+    merged_block = build_nested_merge(block_violations, "filter(state_id, false)")
+    merged_too_short = build_nested_merge(too_short_violations, "filter(delay_busy_end_id, false)")
+
+    lines.append(f"""# --- Zusammenführung aller Violations ---
+def violation_busy_delay_blocked := {merged_block}
+
 def busy_delay_illegal_block :=
-  state_new == {STATE_BLOCKED} && state_id == active_busy_task
-
-def violation_busy_delay_blocked :=
-  filter(state_id, busy_delay_illegal_block)
+  default(last(violation_busy_delay_blocked >= 0, state_id), false)
 
 {emit_pass_fail_pair(
     "busy_delay_never_blocks",
@@ -75,9 +137,7 @@ def violation_busy_delay_blocked :=
     "busy_delay_illegal_block",
 )}
 
-# Regel 2: Task muss während des Busy Delays im Zustand RUNNING bleiben
-def busy_delay_invalid_state :=
-  state_new != {STATE_RUNNING}
+def busy_delay_invalid_state := state_new != {STATE_RUNNING}
 
 def violation_busy_delay_interrupted_state :=
   filter(delay_busy_start_id, busy_delay_invalid_state)
@@ -89,36 +149,10 @@ def violation_busy_delay_interrupted_state :=
     "busy_delay_invalid_state",
 )}
 
-# --- Regel 3: Tick-basierte Dauerüberprüfung ---
+def violation_busy_delay_too_short := {merged_too_short}
 
-# Laufender Gesamtzähler für Ticks
-def tick_sum: Events[Int] =
-  merge(
-    if tick > 0 then default(last(tick_sum, tick), 0) + tick else 0,
-    0
-  )
-
-# Speichert die geforderten Ziel-Ticks ab dem Start-Event
-def target_ticks: Events[Int] =
-  merge(delay_busy_start_ticks, default(last(target_ticks, delay_busy_start_ticks), 0))
-
-# Speichert den Tick-Zählerstand exakt zum Zeitpunkt des Starts
-def start_tick_snapshot: Events[Int] =
-  merge(
-    last(tick_sum, delay_busy_start_id),
-    default(last(start_tick_snapshot, delay_busy_start_id), 0)
-  )
-
-# Berechnet die verstrichenen Ticks beim Beenden des Delays
-def elapsed_ticks :=
-  last(tick_sum, delay_busy_end_id) - last(start_tick_snapshot, delay_busy_end_id)
-
-# Bedingung A: Zu früh beendet
 def busy_delay_ended_too_early :=
-  elapsed_ticks < last(target_ticks, delay_busy_end_id)
-
-def violation_busy_delay_too_short :=
-  filter(delay_busy_end_id, busy_delay_ended_too_early)
+  default(last(violation_busy_delay_too_short >= 0, delay_busy_end_id), false)
 
 {emit_pass_fail_pair(
     "busy_delay_duration_respected_short",
@@ -126,7 +160,9 @@ def violation_busy_delay_too_short :=
     "delay_busy_end_id >= 0",
     "busy_delay_ended_too_early",
 )}
-"""
+""")
+
+    return "\n".join(lines)
 
 
 def emit_outputs(mode: str) -> str:
@@ -148,12 +184,13 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(
-    max_tasks: int,
-    mode: str,
+    max_tasks: int = 3,
+    busy_tasks: int = 3,
+    mode: str = "violations",
 ) -> str:
     parts = [
         emit_header(),
-        emit_busy_delay_checks(),
+        emit_busy_delay_checks(max_tasks, busy_tasks),
         emit_outputs(mode),
     ]
 

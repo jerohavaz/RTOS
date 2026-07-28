@@ -1,5 +1,6 @@
 GENERATOR_OPTIONS = {
     "max_tasks": 3,
+    "busy_tasks": 3, 
 }
 
 EXPECTED = {
