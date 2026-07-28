@@ -61,7 +61,7 @@ def build_nested_merge(streams: list[str], fallback: str = "filter(state_id, fal
 
 
 def emit_busy_delay_checks(max_tasks: int = 3, busy_tasks: int = 3) -> str:
-    num_tasks = min(max_tasks, busy_tasks) if busy_tasks > 0 else max_tasks
+    num_tasks = max_tasks
 
     lines = [
         "# --- Globaler Tick-Zähler ---",
