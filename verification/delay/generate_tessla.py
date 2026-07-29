@@ -51,7 +51,6 @@ def PASS_{public_name} :=
 
 
 def build_nested_merge(streams: list[str], fallback: str = "filter(state_id, false)") -> str:
-    """Verschachtelt merge(), da TeSSLa merge nur genau 2 Argumente erlaubt."""
     if not streams:
         return fallback
     result = streams[0]
@@ -60,16 +59,13 @@ def build_nested_merge(streams: list[str], fallback: str = "filter(state_id, fal
     return result
 
 
-def emit_busy_delay_checks(max_tasks: int = 3, busy_tasks: int = 3) -> str:
+def emit_busy_delay_checks(max_tasks: int = 8, busy_tasks: int = 8) -> str:
     num_tasks = max_tasks
 
     lines = [
-        "# --- Globaler Tick-Zähler ---",
-        """def tick_sum: Events[Int] =
-  merge(
-    if tick > 0 then default(last(tick_sum, tick), 0) + tick else 0,
-    0
-  )
+        "# --- Globaler Tick-Zähler (Globale Zeit) ---",
+        """def current_tick_count: Events[Int] :=
+  default(last(current_tick_count, tick), 0) + if tick >= 0 then tick else 0
 """,
     ]
 
@@ -77,45 +73,36 @@ def emit_busy_delay_checks(max_tasks: int = 3, busy_tasks: int = 3) -> str:
     too_short_violations = []
 
     for t in range(num_tasks):
-        lines.append(f"""# --- Task {t} Isolation ---
-# Filter Ereignisse nur für Task {t}
+        lines.append(f"""# --- Task {t} Verification ---
 def start_ev_{t} := filter(delay_busy_start_id, delay_busy_start_id == {t})
+def start_ticks_ev_{t} := filter(delay_busy_start_ticks, delay_busy_start_id == {t})
 def end_ev_{t}   := filter(delay_busy_end_id, delay_busy_end_id == {t})
 
-# Speichert den Tick-Stand des letzten Starts von Task {t}
-def last_start_tick_{t}: Events[Int] =
-  merge(
-    last(tick_sum, start_ev_{t}),
-    default(last(last_start_tick_{t}, state_id), -1)
-  )
+# Aktueller Tick-Stand zum Zeitpunkt des Starts
+def start_tick_{t} := default(last(current_tick_count, start_ev_{t}), 0)
+def target_ticks_{t} := start_ticks_ev_{t}
 
-# Speichert den Tick-Stand des letzten Endes von Task {t}
-def last_end_tick_{t}: Events[Int] =
-  merge(
-    last(tick_sum, end_ev_{t}),
-    default(last(last_end_tick_{t}, state_id), -1)
-  )
+# Activity State Tracking
+def busy_active_{t}: Events[Bool] := merge(
+  if start_ev_{t} >= 0 then true else false,
+  if end_ev_{t} >= 0 then false else true
+)
+def is_in_busy_{t} := default(last(busy_active_{t}, state_id), false)
 
-# Task {t} ist im Busy Delay, wenn der letzte Start nach dem letzten Ende lag
-def is_in_busy_{t} := last_start_tick_{t} > last_end_tick_{t} && last_start_tick_{t} >= 0
+# Tick-Stand bei Ende
+def end_tick_{t} := current_tick_count
+def start_tick_at_end_{t} := default(last(start_tick_{t}, end_ev_{t}), 0)
+def target_ticks_at_end_{t} := default(last(target_ticks_{t}, end_ev_{t}), 0)
 
-# geforderte Ticks
-def target_ticks_{t}: Events[Int] =
-  merge(
-    filter(delay_busy_start_ticks, delay_busy_start_id == {t}),
-    default(last(target_ticks_{t}, end_ev_{t}), 0)
-  )
+def elapsed_global_ticks_{t} := end_tick_{t} - start_tick_at_end_{t}
 
-def elapsed_ticks_{t} :=
-  last(tick_sum, end_ev_{t}) - last(last_start_tick_{t}, end_ev_{t})
-
-# Violation 1: Task {t} wechselt nach BLOCKED (3), während er im Busy Delay ist
+# Violation 1: Wechsel zu BLOCKED während busy delay
 def viol_block_{t} :=
   filter(state_id, state_id == {t} && state_new == {STATE_BLOCKED} && is_in_busy_{t})
 
-# Violation 2: Delay für Task {t} endet zu früh
+# Violation 2: Zu wenige globale Ticks beim Ende-Event verstrichen
 def viol_too_short_{t} :=
-  filter(end_ev_{t}, elapsed_ticks_{t} < default(last(target_ticks_{t}, end_ev_{t}), 0))
+  filter(end_ev_{t}, elapsed_global_ticks_{t} < target_ticks_at_end_{t})
 """)
 
         block_violations.append(f"viol_block_{t}")
@@ -184,8 +171,8 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(
-    max_tasks: int = 3,
-    busy_tasks: int = 3,
+    max_tasks: int = 8,
+    busy_tasks: int = 8,
     mode: str = "violations",
 ) -> str:
     parts = [
@@ -195,3 +182,7 @@ def generate(
     ]
 
     return "\n".join(parts)
+
+
+if __name__ == "__main__":
+    print(generate())
