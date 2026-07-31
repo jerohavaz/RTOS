@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 // Tasks
-#define OS_MAX_TASKS       (12u)
+#define OS_MAX_TASKS       (3u)
 #define OS_TASK_STACK_SIZE (512u)
 
 // Priorities
@@ -26,7 +26,7 @@
 #define OS_TRACE_MUTEX     (false)
 #define OS_TRACE_SEMAPHORE (false)
 #define OS_TRACE_QUEUE     (false)
-#define OS_TRACE_DELAY     (false)
+#define OS_TRACE_DELAY     (true)
 
 // Cortex-M interrupt priorities
 #define OS_SVC_INTERRUPT_PRIORITY     (13u)

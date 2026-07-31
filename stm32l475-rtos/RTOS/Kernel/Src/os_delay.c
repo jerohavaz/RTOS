@@ -3,6 +3,7 @@
 #include "k_timeout.h"
 #include "kernel_panic.h"
 #include "port.h"
+#include "trace.h"
 #include "os_delay.h"
 
 os_status_t os_delay(uint32_t delay_ticks) {
@@ -42,6 +43,30 @@ os_status_t os_delay(uint32_t delay_ticks) {
     k_sched_request_switch();
 
     return current->wait_result;
+}
+
+os_status_t os_delay_busy(uint32_t delay_ticks) {
+    
+    if (delay_ticks == 0u || delay_ticks >= 0x80000000u) {
+        return OS_ERR_INVALID_ARG;
+    }
+
+    kernel_task_t *task = k_sched_current();
+    if(task == 0){
+        return OS_ERR_INVALID_STATE;
+    }
+
+    trace_task_delay_busy_start(&task->tcb, delay_ticks);
+
+    uint32_t start_tick = k_tick_get();
+
+    while ((int32_t)(k_tick_get() - start_tick) < (int32_t)delay_ticks) {
+        port_no_operation();
+    }
+
+    trace_task_delay_busy_end(&task->tcb);
+
+    return OS_OK;
 }
 
 void k_delay_timeout_cleanup(kernel_task_t *task) {
