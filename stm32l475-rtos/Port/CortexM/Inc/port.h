@@ -1,6 +1,7 @@
 #ifndef PORT_H_
 #define PORT_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -136,7 +137,7 @@ uint32_t port_get_active_exception_id(void);
  * @retval 1 CPU is running inside an exception handler.
  * @retval 0 CPU is running in thread mode.
  */
-uint8_t port_in_exception(void);
+bool port_in_exception(void);
 
 /* -------------------------------------------------------------------------- */
 /* Idle / debug                                                                */

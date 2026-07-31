@@ -8,7 +8,7 @@ void os_isr_enter(void) {
 }
 
 void os_systick_tick(void) {
-    if (k_sched_started() == 0u) {
+    if (!k_sched_started()) {
         return;
     }
 
@@ -19,12 +19,12 @@ void os_systick_tick(void) {
 }
 
 void os_isr_exit(void) {
-    if (k_sched_started() == 0u) {
+    if (!k_sched_started()) {
         trace_isr_exit();
         return;
     }
 
-    if (k_sched_request_yield() != 0u) {
+    if (k_sched_request_yield()) {
         trace_isr_exit_to_scheduler(); // TODO CHECK SYSVIEW
         return;
     }

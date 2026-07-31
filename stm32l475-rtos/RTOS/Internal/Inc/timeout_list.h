@@ -3,6 +3,7 @@
 
 #include "kernel_task.h"
 #include "task_list.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {
@@ -12,7 +13,7 @@ typedef struct {
 void timeout_list_init(timeout_list_t *timeout_list);
 void timeout_list_add(timeout_list_t *timeout_list, kernel_task_t *task, uint32_t wake_tick);
 void timeout_list_remove(timeout_list_t *timeout_list, kernel_task_t *task);
-uint8_t timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task);
+bool timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task);
 kernel_task_t *timeout_list_pop_expired(timeout_list_t *timeout_list, uint32_t now);
 
 #endif

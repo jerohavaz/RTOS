@@ -6,6 +6,8 @@
 #include "kernel_task.h"
 #include <stdint.h>
 
+#define K_MAX_TASKS OS_MAX_TASKS + 1u
+
 void k_task_init(void);
 void k_task_lock_creation(void);
 

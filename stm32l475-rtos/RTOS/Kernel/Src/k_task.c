@@ -7,19 +7,20 @@
 #include "port.h"
 #include "tcb.h"
 #include "trace.h"
+#include <stdbool.h>
 #include <stdint.h>
 
-#if (OS_MAX_TASKS == 0u)
-#error "OS_MAX_TASKS must be greater than 0"
+#if (K_MAX_TASKS == 0u)
+#error "K_MAX_TASKS must be greater than 0"
 #endif
 
-#if (OS_MAX_TASKS > 255u)
-#error "OS_MAX_TASKS must fit in uint8_t task IDs"
+#if (K_MAX_TASKS > 255u)
+#error "K_MAX_TASKS must fit in uint8_t task IDs"
 #endif
 
-static kernel_task_t g_tasks[OS_MAX_TASKS];
+static kernel_task_t g_tasks[K_MAX_TASKS];
 static uint32_t g_task_count = 0u;
-static uint8_t g_task_creation_locked = 0u;
+static bool g_task_creation_locked = false;
 
 static void task_exit_error(void) {
     while (1) {
@@ -48,9 +49,9 @@ static void task_clear(kernel_task_t *task) {
 
 void k_task_init(void) {
     g_task_count = 0u;
-    g_task_creation_locked = 0u;
+    g_task_creation_locked = false;
 
-    for (uint32_t i = 0u; i < OS_MAX_TASKS; i++) {
+    for (uint32_t i = 0u; i < K_MAX_TASKS; i++) {
         task_clear(&g_tasks[i]);
     }
 }
@@ -68,7 +69,7 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
         return OS_ERR_NULL;
     }
 
-    if (g_task_creation_locked != 0u) {
+    if (g_task_creation_locked) {
         return OS_ERR_INVALID_STATE;
     }
 
@@ -76,11 +77,11 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
         return OS_ERR_INVALID_PRIO;
     }
 
-    if (g_task_count >= OS_MAX_TASKS) {
+    if (g_task_count >= K_MAX_TASKS) {
         return OS_ERR_FULL;
     }
 
-    KERNEL_REQUIRE(g_task_count < OS_MAX_TASKS);
+    KERNEL_REQUIRE(g_task_count < K_MAX_TASKS);
 
     kernel_task_t *task = &g_tasks[g_task_count];
     TCB_sctTCB_t *tcb = &task->tcb;
@@ -136,7 +137,7 @@ uint32_t k_task_count(void) {
 }
 
 void k_task_lock_creation(void) {
-    KERNEL_REQUIRE(g_task_creation_locked == 0u);
+    KERNEL_REQUIRE(!g_task_creation_locked);
 
-    g_task_creation_locked = 1u;
+    g_task_creation_locked = true;
 }
