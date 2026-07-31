@@ -51,7 +51,7 @@ static void trace_tessla_emit(const char *format, ...) {
         snprintf(record, sizeof(record), "TRACE %lu %s\n", (unsigned long)sequence, payload);
 
     if (record_length > 0 && (size_t)record_length < sizeof(record)) {
-        (void)SEGGER_RTT_WriteSkipNoLock(
+        SEGGER_RTT_WriteSkipNoLock(
             TRACE_TESSLA_RTT_CHANNEL, record, (unsigned int)record_length);
     }
 
