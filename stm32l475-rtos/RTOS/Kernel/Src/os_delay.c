@@ -56,12 +56,11 @@ os_status_t os_delay_busy(uint32_t delay_ticks) {
         return OS_ERR_INVALID_STATE;
     }
 
-    uint32_t start_tick = k_tick_get();
-    uint32_t target_ticks = delay_ticks;
-
     trace_task_delay_busy_start(&task->tcb, delay_ticks);
 
-    while ((int32_t)(k_tick_get() - start_tick) < (int32_t) target_ticks) {
+    uint32_t start_tick = k_tick_get();
+
+    while ((int32_t)(k_tick_get() - start_tick) < (int32_t)delay_ticks) {
         port_no_operation();
     }
 
