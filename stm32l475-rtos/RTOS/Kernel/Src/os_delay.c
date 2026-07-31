@@ -46,13 +46,12 @@ os_status_t os_delay(uint32_t delay_ticks) {
 }
 
 os_status_t os_delay_busy(uint32_t delay_ticks) {
-    
     if (delay_ticks == 0u || delay_ticks >= 0x80000000u) {
         return OS_ERR_INVALID_ARG;
     }
 
     kernel_task_t *task = k_sched_current();
-    if(task == 0){
+    if (task == 0) {
         return OS_ERR_INVALID_STATE;
     }
 

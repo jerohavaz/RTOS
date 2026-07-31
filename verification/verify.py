@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import os
 import re
@@ -17,15 +15,22 @@ from delay.config import EXPECTED as DELAY_EXPECTED
 from delay.config import GENERATOR_OPTIONS as DELAY_OPTIONS
 from delay.generate_tessla import generate as generate_delay
 
+from integrity.config import EXPECTED as INTEGRITY_EXPECTED
+from integrity.config import GENERATOR_OPTIONS as INTEGRITY_OPTIONS
+from integrity.generate_tessla import generate as generate_integrity
 
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
 DEFAULT_TESSLA_JAR = Path.home() / "Desktop" / "tessla.jar"
 
-OUTPUT_PATTERN = re.compile(
-    r"^[^:]+:\s+([A-Za-z_][A-Za-z0-9_]*)\s*="
-)
+OUTPUT_PATTERN = re.compile(r"^[^:]+:\s+([A-Za-z_][A-Za-z0-9_]*)\s*=")
+
+INPUT_PATTERN = re.compile(r"^in\s+([A-Za-z_][A-Za-z0-9_]*)\s*:")
+
+DEFINITION_PATTERN = re.compile(r"^def\s+([A-Za-z_][A-Za-z0-9_]*)")
+
+OUTPUT_DECLARATION_PATTERN = re.compile(r"^out\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,13 @@ MODULES = {
         generator_options=DELAY_OPTIONS,
         expected=DELAY_EXPECTED,
     ),
+    "integrity": VerificationModule(
+        name="integrity",
+        directory=ROOT_DIR / "integrity",
+        generator=generate_integrity,
+        generator_options=INTEGRITY_OPTIONS,
+        expected=INTEGRITY_EXPECTED,
+    ),
 }
 
 
@@ -59,10 +71,7 @@ def select_modules(
     requested: list[str],
 ) -> list[VerificationModule]:
     if not requested:
-        return [
-            MODULES[name]
-            for name in sorted(MODULES)
-        ]
+        return [MODULES[name] for name in sorted(MODULES)]
 
     selected: list[VerificationModule] = []
 
@@ -72,10 +81,7 @@ def select_modules(
         if module is None:
             available = ", ".join(sorted(MODULES))
 
-            raise ValueError(
-                f"Unknown module '{name}'. "
-                f"Available modules: {available}"
-            )
+            raise ValueError(f"Unknown module '{name}'. " f"Available modules: {available}")
 
         selected.append(module)
 
@@ -95,14 +101,12 @@ def generate_specification(
     options["mode"] = mode
 
     if overrides:
-        options.update(overrides)
+        options.update({name: value for name, value in overrides.items() if name in module.generator_options})
 
     specification = module.generator(**options)
 
     if not isinstance(specification, str):
-        raise TypeError(
-            f"{module.name} generator must return str"
-        )
+        raise TypeError(f"{module.name} generator must return str")
 
     output_path = generated_spec_path(module)
 
@@ -113,6 +117,105 @@ def generate_specification(
 
     output_path.write_text(
         specification,
+        encoding="utf-8",
+    )
+
+    return output_path
+
+
+def combine_specifications(
+    specifications: list[tuple[str, str]],
+) -> str:
+    inputs: dict[str, str] = {}
+    definitions: dict[str, str] = {}
+    outputs: set[str] = set()
+    body_lines: list[str] = []
+    output_lines: list[str] = []
+
+    for module_name, specification in specifications:
+        body_lines.append("")
+
+        for line in specification.splitlines():
+            input_match = INPUT_PATTERN.match(line)
+
+            if input_match is not None:
+                stream_name = input_match.group(1)
+                previous = inputs.get(stream_name)
+
+                if previous is None:
+                    inputs[stream_name] = line
+                elif previous != line:
+                    raise ValueError(f"conflicting input '{stream_name}' " f"in module '{module_name}'")
+
+                continue
+
+            definition_match = DEFINITION_PATTERN.match(line)
+
+            if definition_match is not None:
+                definition_name = definition_match.group(1)
+                previous_module = definitions.get(definition_name)
+
+                if previous_module is not None:
+                    raise ValueError(
+                        f"duplicate definition '{definition_name}' "
+                        f"in modules '{previous_module}' and "
+                        f"'{module_name}'"
+                    )
+
+                definitions[definition_name] = module_name
+
+            output_match = OUTPUT_DECLARATION_PATTERN.match(line)
+
+            if output_match is not None:
+                output_name = output_match.group(1)
+
+                if output_name in outputs:
+                    continue
+
+                outputs.add(output_name)
+                output_lines.append(line)
+                continue
+
+            body_lines.append(line)
+
+    sections = [
+        "\n".join(inputs.values()),
+        "\n".join(body_lines).strip(),
+        "\n".join(output_lines),
+    ]
+
+    return "\n\n".join(section for section in sections if section) + "\n"
+
+
+def write_combined_specification(
+    modules: list[VerificationModule],
+    mode: str,
+    overrides: dict[str, object],
+) -> Path:
+    specifications: list[tuple[str, str]] = []
+
+    for module in modules:
+        options = dict(module.generator_options)
+        options["mode"] = mode
+        options.update({name: value for name, value in overrides.items() if name in module.generator_options})
+
+        specification = module.generator(**options)
+
+        if not isinstance(specification, str):
+            raise TypeError(f"{module.name} generator must return str")
+
+        specifications.append((module.name, specification))
+
+    combined = combine_specifications(specifications)
+    output_path = BUILD_DIR / "combined.tessla"
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    output_path.write_text(
+        combined,
         encoding="utf-8",
     )
 
@@ -191,6 +294,24 @@ def command_generate(
 
     failures = 0
 
+    if args.combined:
+        try:
+            output_path = write_combined_specification(
+                modules=modules,
+                mode=args.mode,
+                overrides=overrides,
+            )
+
+            print("[GENERATED] combined: " f"{output_path.relative_to(ROOT_DIR)}")
+            return 0
+
+        except Exception as error:
+            print(
+                f"[ERROR] combined: {error}",
+                file=sys.stderr,
+            )
+            return 1
+
     for module in modules:
         try:
             output_path = generate_specification(
@@ -199,10 +320,7 @@ def command_generate(
                 overrides=overrides,
             )
 
-            print(
-                f"[GENERATED] {module.name}: "
-                f"{output_path.relative_to(ROOT_DIR)}"
-            )
+            print(f"[GENERATED] {module.name}: " f"{output_path.relative_to(ROOT_DIR)}")
 
         except Exception as error:
             print(
@@ -228,37 +346,22 @@ def run_module_tests(
 
     test_dir = module.directory / "test"
 
-    existing_tests = {
-        path.name
-        for path in test_dir.glob("*.input")
-    }
+    existing_tests = {path.name for path in test_dir.glob("*.input")}
 
     configured_tests = set(module.expected)
 
     passed = 0
     failed = 0
 
-    for test_name in sorted(
-        existing_tests - configured_tests
-    ):
-        print(
-            f"[FAIL] {test_name}: "
-            "no expected result configured"
-        )
+    for test_name in sorted(existing_tests - configured_tests):
+        print(f"[FAIL] {test_name}: " "no expected result configured")
         failed += 1
 
-    for test_name in sorted(
-        configured_tests - existing_tests
-    ):
-        print(
-            f"[FAIL] {test_name}: "
-            "test file not found"
-        )
+    for test_name in sorted(configured_tests - existing_tests):
+        print(f"[FAIL] {test_name}: " "test file not found")
         failed += 1
 
-    for test_name in sorted(
-        existing_tests & configured_tests
-    ):
+    for test_name in sorted(existing_tests & configured_tests):
         trace_path = test_dir / test_name
         expected_streams = module.expected[test_name]
 
@@ -269,10 +372,7 @@ def run_module_tests(
         )
 
         if result.returncode != 0:
-            print(
-                f"[FAIL] {test_name}: "
-                "TeSSLa interpreter error"
-            )
+            print(f"[FAIL] {test_name}: " "TeSSLa interpreter error")
 
             if result.stdout:
                 for line in result.stdout.splitlines():
@@ -281,9 +381,7 @@ def run_module_tests(
             failed += 1
             continue
 
-        actual_streams = extract_output_streams(
-            result.stdout
-        )
+        actual_streams = extract_output_streams(result.stdout)
 
         if actual_streams == expected_streams:
             print(f"[PASS] {test_name}")
@@ -296,14 +394,8 @@ def run_module_tests(
             continue
 
         print(f"[FAIL] {test_name}")
-        print(
-            f"  Expected: "
-            f"{format_streams(expected_streams)}"
-        )
-        print(
-            f"  Actual:   "
-            f"{format_streams(actual_streams)}"
-        )
+        print(f"  Expected: " f"{format_streams(expected_streams)}")
+        print(f"  Actual:   " f"{format_streams(actual_streams)}")
 
         if result.stdout:
             print("  Output:")
@@ -324,8 +416,7 @@ def command_test(
 ) -> int:
     if not args.tessla_jar.is_file():
         print(
-            f"[ERROR] TeSSLa JAR not found: "
-            f"{args.tessla_jar}",
+            f"[ERROR] TeSSLa JAR not found: " f"{args.tessla_jar}",
             file=sys.stderr,
         )
         return 1
@@ -388,11 +479,7 @@ def command_clean(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Generate and test TeSSLa verification modules."
-        )
-    )
+    parser = argparse.ArgumentParser(description=("Generate and test TeSSLa verification modules."))
 
     subparsers = parser.add_subparsers(
         dest="command",
@@ -426,21 +513,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
+        "--combined",
+        action="store_true",
+        help=("Generate one combined specification for all " "selected modules."),
+    )
+
+    generate_parser.add_argument(
         "--max-tasks",
         type=int,
-        help=(
-            "Override the configured task count "
-            "for manual generation."
-        ),
+        help=("Override the configured task count " "for manual generation."),
     )
 
     generate_parser.add_argument(
         "--quantum",
         type=int,
-        help=(
-            "Override the configured quantum "
-            "for manual generation."
-        ),
+        help=("Override the configured quantum " "for manual generation."),
     )
 
     generate_parser.set_defaults(
@@ -449,10 +536,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     test_parser = subparsers.add_parser(
         "test",
-        help=(
-            "Generate specifications using module test "
-            "configuration and run tests."
-        ),
+        help=("Generate specifications using module test " "configuration and run tests."),
     )
 
     test_parser.add_argument(
