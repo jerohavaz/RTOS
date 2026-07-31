@@ -1,3 +1,9 @@
+/**
+ * @file prio_waitq.c
+ * @brief Fixed-priority task wait-queue implementation.
+ * @author Jerome
+ */
+
 #include "prio_waitq.h"
 #include "kernel_panic.h"
 #include "kernel_task.h"

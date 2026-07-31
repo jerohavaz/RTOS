@@ -1,13 +1,19 @@
 /**
  * @file task_list.h
  * @brief Intrusive circular doubly linked list for kernel tasks.
+ * @author Jerome
  *
- * Each list stores tasks through a caller-selected node embedded in the task
- * object. A task may be linked into multiple lists at the same time only if
- * each list uses a different embedded node.
+ * @details
+ * Each list stores tasks through a caller-selected
+ * @ref kernel_task_list_node_t embedded in the task object. A task may be
+ * linked into multiple lists simultaneously only when each list uses a
+ * different embedded node.
  *
- * This module does not allocate memory and does not perform internal
- * synchronization. Shared lists must be protected by the caller.
+ * The list is circular: the tail points to the head and the head's previous
+ * link identifies the tail. All operations are O(1); the implementation never
+ * scans the list, allocates memory, or performs internal synchronization.
+ * Callers must protect shared lists with the appropriate kernel critical
+ * section.
  */
 #ifndef TASK_LIST_H_
 #define TASK_LIST_H_
@@ -24,17 +30,28 @@
  *
  * @return Pointer to the selected embedded list node.
  *
- * @pre task must not be 0.
+ * @pre @p task must not be null.
+ * @post The returned pointer must not be null.
+ *
+ * @note A list stores this callback during @ref task_list_init and uses it for
+ *       every task subsequently passed to that list.
  */
 typedef kernel_task_list_node_t *(*task_node_fn_t)(kernel_task_t *task);
 
 /**
  * @brief Intrusive task list.
+ *
+ * @invariant An empty list has @ref head equal to null and @ref count equal to
+ *            zero.
+ * @invariant A non-empty list has a non-null @ref head and a positive
+ *            @ref count.
+ * @invariant For a one-element list, the selected node's next and previous
+ *            pointers both reference the head task.
  */
 typedef struct {
-    kernel_task_t *head;     ///< First task in the list, or 0 if the list is empty.
-    uint32_t count;          ///< Number of tasks currently linked in the list.
-    task_node_fn_t get_node; ///< Callback used to access this list's embedded node.
+    kernel_task_t *head;     /**< First task, or null when the list is empty. */
+    uint32_t count;          /**< Number of tasks currently linked in the list. */
+    task_node_fn_t get_node; /**< Selector for this list's embedded task node. */
 } task_list_t;
 
 /**
@@ -43,8 +60,13 @@ typedef struct {
  * @param list List to initialize.
  * @param get_node Callback used to retrieve this list's embedded task node.
  *
- * @pre list must not be 0.
- * @pre get_node must not be 0.
+ * @pre @p list must not be null.
+ * @pre @p get_node must not be null.
+ * @pre @p list must not own linked tasks; reinitialization does not unlink
+ *      existing nodes.
+ * @post The list is empty and retains @p get_node for later operations.
+ *
+ * @note Time complexity is O(1).
  */
 void task_list_init(task_list_t *list, task_node_fn_t get_node);
 
@@ -53,9 +75,14 @@ void task_list_init(task_list_t *list, task_node_fn_t get_node);
  *
  * @param list List to inspect.
  *
- * @return 1 if the list is empty, otherwise 0.
+ * @retval true The list contains no tasks.
+ * @retval false The list contains at least one task.
  *
- * @pre list must not be 0.
+ * @pre @p list must not be null.
+ *
+ * @note The implementation checks consistency between @ref task_list_t::head
+ *       and @ref task_list_t::count.
+ * @note Time complexity is O(1).
  */
 bool task_list_is_empty(const task_list_t *list);
 
@@ -65,27 +92,36 @@ bool task_list_is_empty(const task_list_t *list);
  * @param list List to modify.
  * @param task Task to append.
  *
- * @pre list must be initialized with task_list_init().
- * @pre task must not be 0.
- * @pre task must not already be linked through this list's selected node.
+ * @pre @p list must be initialized with @ref task_list_init.
+ * @pre @p task must not be null.
+ * @pre The selected node in @p task must be unlinked.
+ * @post @p task is the logical tail; the existing head is unchanged.
+ *
+ * @note In an empty list, @p task becomes the head and its selected next and
+ *       previous links point to itself.
+ * @note Time complexity is O(1).
  */
 void task_list_push_back(task_list_t *list, kernel_task_t *task);
 
 /**
  * @brief Insert a task before an existing task.
  *
- * If @p existing is the current head, @p task becomes the new head. If the list
- * is empty or @p existing is 0, this function appends @p task to the back of the
- * list.
+ * If @p existing is the current head, @p task becomes the new head. If the
+ * list is empty or @p existing is null, this function behaves as
+ * @ref task_list_push_back.
  *
  * @param list List to modify.
- * @param existing Existing task before which @p task is inserted, or 0.
+ * @param existing Existing task before which @p task is inserted, or null to
+ *                 append.
  * @param task Task to insert.
  *
- * @pre list must be initialized with task_list_init().
- * @pre task must not be 0.
- * @pre task must not already be linked through this list's selected node.
- * @pre existing must be 0 or must already be linked in @p list.
+ * @pre @p list must be initialized with @ref task_list_init.
+ * @pre @p task must not be null.
+ * @pre The selected node in @p task must be unlinked.
+ * @pre @p existing must be null or linked in @p list through the selected
+ *      node.
+ *
+ * @note Time complexity is O(1).
  */
 void task_list_insert_before(task_list_t *list, kernel_task_t *existing, kernel_task_t *task);
 
@@ -94,9 +130,14 @@ void task_list_insert_before(task_list_t *list, kernel_task_t *existing, kernel_
  *
  * @param list List to modify.
  *
- * @return Removed front task, or 0 if the list is empty.
+ * @return Removed front task.
+ * @retval NULL The list is empty.
  *
- * @pre list must be initialized with task_list_init().
+ * @pre @p list must be initialized with @ref task_list_init.
+ * @post A removed task's selected next and previous pointers are null.
+ *
+ * @note If another task remains, it becomes the new head.
+ * @note Time complexity is O(1).
  */
 kernel_task_t *task_list_pop_front(task_list_t *list);
 
@@ -105,9 +146,13 @@ kernel_task_t *task_list_pop_front(task_list_t *list);
  *
  * @param list List to inspect.
  *
- * @return Front task, or 0 if the list is empty.
+ * @return Current front task.
+ * @retval NULL The list is empty.
  *
- * @pre list must not be 0.
+ * @pre @p list must not be null.
+ *
+ * @note This function does not modify the list.
+ * @note Time complexity is O(1).
  */
 kernel_task_t *task_list_peek_front(const task_list_t *list);
 
@@ -117,9 +162,14 @@ kernel_task_t *task_list_peek_front(const task_list_t *list);
  * @param list List to modify.
  * @param task Task to remove.
  *
- * @pre list must be initialized with task_list_init().
- * @pre task must not be 0.
- * @pre task must be linked in @p list through this list's selected node.
+ * @pre @p list must be initialized with @ref task_list_init.
+ * @pre @p task must not be null.
+ * @pre @p task must be linked in @p list through the selected node.
+ * @post The removed task's selected next and previous pointers are null.
+ * @post If the removed task was the head, its successor becomes the new head.
+ *
+ * @note Violating the membership precondition triggers a kernel panic.
+ * @note Time complexity is O(1).
  */
 void task_list_remove(task_list_t *list, kernel_task_t *task);
 
@@ -129,14 +179,20 @@ void task_list_remove(task_list_t *list, kernel_task_t *task);
  * @param list List to modify.
  * @param task Task to remove if present.
  *
- * @return 1 if the task was removed, otherwise 0.
+ * @retval true The selected node was linked and the task was removed.
+ * @retval false The list was empty or the selected node was unlinked.
  *
- * @pre list must be initialized with task_list_init().
- * @pre task must not be 0.
+ * @pre @p list must be initialized with @ref task_list_init.
+ * @pre @p task must not be null.
+ * @post On successful removal, the selected next and previous pointers are
+ *       null.
  *
- * @warning This function can only prove that @p task is linked through this
- * list's selected node. It assumes that the selected node is used exclusively
- * by this list domain.
+ * @warning The function can detect whether the selected node is linked, but it
+ *          cannot prove that the node belongs to @p list. The selected node
+ *          must be exclusive to this list domain; otherwise attempting removal
+ *          can corrupt both lists and trigger a kernel panic.
+ *
+ * @note Time complexity is O(1).
  */
 bool task_list_try_remove(task_list_t *list, kernel_task_t *task);
 

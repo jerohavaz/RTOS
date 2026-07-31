@@ -1,3 +1,9 @@
+/**
+ * @file trace.c
+ * @brief Configurable kernel trace-backend implementation.
+ * @author Jerome
+ */
+
 #include "trace.h"
 
 #if OS_TRACE_ENABLED
@@ -14,6 +20,15 @@
 #endif
 
 #if OS_TRACE_SEGGER_SYSVIEW && (OS_TRACE_TASKS || OS_TRACE_SCHEDULER)
+/**
+ * @brief Convert an RTOS task ID to the SystemView task-ID type.
+ *
+ * @param task Task control block whose ID is required.
+ *
+ * @return Task ID converted to @c U32.
+ *
+ * @pre @p task must not be null.
+ */
 static U32 sv_task_id(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
     return (U32)task->u8TaskId;
@@ -168,12 +183,14 @@ void trace_log(const char *text) {
 #endif
 }
 
-/*
- * SystemView calls this function to determine the currently active
- * Cortex-M exception number.
+/**
+ * @brief Return the active Cortex-M exception ID to SystemView.
  *
- * Keep it available whenever SystemView is enabled, even if OS_TRACE_ISR
- * disables explicit ISR events. The SystemView configuration may reference it.
+ * SystemView configuration code may call this function even when explicit RTOS
+ * ISR tracing is disabled, so it is available whenever the SystemView backend
+ * is enabled.
+ *
+ * @return Active exception number, or zero in Thread mode.
  */
 #if OS_TRACE_SEGGER_SYSVIEW
 unsigned long SEGGER_SYSVIEW_X_GetInterruptId(void) {
