@@ -14,32 +14,58 @@ stages:
 variables:
   FIRMWARE_DIR: "stm32l475-rtos"
   BUILD_DIR: "stm32l475-rtos/build/Debug"
-  STM32_CI_IMAGE: "stm32-ci:latest"
-  VERIFICATION_CI_IMAGE: "verification-ci:latest"
+  STM32_CI_IMAGE: "$CI_REGISTRY_IMAGE/stm32-ci:latest"
+  VERIFICATION_CI_IMAGE: "$CI_REGISTRY_IMAGE/verification-ci:latest"
 
 default:
-  image:
-    name: "$STM32_CI_IMAGE"
-    pull_policy: never
+  image: "$STM32_CI_IMAGE"
   tags:
     - runner
   interruptible: true
 
+.docker_login: &docker_login
+  - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+
 build_image:
   stage: docker
-  image: docker:cli
+  image: docker
+  services:
+    - docker:dind
   tags:
     - runner
+  before_script:
+    - *docker_login
   script:
     - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/Dockerfile .
+    - docker push "$STM32_CI_IMAGE"
+  rules:
+    - changes:
+        - gitlab-runner/Dockerfile
+        - .gitlab-ci.yml
+      when: on_success
+    - when: manual
+      allow_failure: true
 
 verification_image:
   stage: docker
-  image: docker:cli
+  image: docker
+  services:
+    - docker:dind
   tags:
     - runner
+  before_script:
+    - *docker_login
   script:
     - docker build --pull -t "$VERIFICATION_CI_IMAGE" -f verification/Dockerfile verification
+    - docker push "$VERIFICATION_CI_IMAGE"
+  rules:
+    - changes:
+        - verification/Dockerfile
+        - verification/**/*
+        - .gitlab-ci.yml
+      when: on_success
+    - when: manual
+      allow_failure: true
 
 format:
   stage: prepare
@@ -95,7 +121,6 @@ verification:
   image:
     name: "$VERIFICATION_CI_IMAGE"
     entrypoint: [""]
-    pull_policy: never
   script:
     - cd verification
     - python3 verify.py list
