@@ -187,7 +187,3 @@ def generate(
     parts.append(emit_outputs(mode))
 
     return "\n".join(parts)
-
-
-if __name__ == "__main__":
-    print(generate())
