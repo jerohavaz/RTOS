@@ -46,17 +46,21 @@ os_status_t os_delay(uint32_t delay_ticks) {
 }
 
 os_status_t os_delay_busy(uint32_t delay_ticks) {
-    
-    if (delay_ticks == 0u || delay_ticks >= 0x80000000u) {
+    if (port_in_exception()) {
+        return OS_ERR_IN_ISR;
+    }
+
+    if (delay_ticks == 0u || delay_ticks >= K_TIMEOUT_MAX) {
         return OS_ERR_INVALID_ARG;
     }
 
-    kernel_task_t *task = k_sched_current();
-    if(task == 0){
+    kernel_task_t *current = k_sched_current();
+
+    if (current == 0 || k_sched_is_idle(current)) {
         return OS_ERR_INVALID_STATE;
     }
 
-    trace_task_delay_busy_start(&task->tcb, delay_ticks);
+    trace_task_delay_busy_start(&current->tcb, delay_ticks);
 
     uint32_t start_tick = k_tick_get();
 
@@ -64,7 +68,7 @@ os_status_t os_delay_busy(uint32_t delay_ticks) {
         port_no_operation();
     }
 
-    trace_task_delay_busy_end(&task->tcb);
+    trace_task_delay_busy_end(&current->tcb);
 
     return OS_OK;
 }

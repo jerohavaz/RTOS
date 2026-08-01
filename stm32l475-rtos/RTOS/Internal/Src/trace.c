@@ -11,6 +11,51 @@
 
 #if OS_TRACE_TESSLA_RTT
 #include "SEGGER_RTT.h"
+
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+
+#define TRACE_TESSLA_RTT_CHANNEL  (0u)
+#define TRACE_TESSLA_PAYLOAD_SIZE (96u)
+#define TRACE_TESSLA_RECORD_SIZE  (128u)
+
+static uint32_t g_trace_sequence;
+
+/*
+ * Format one logical TeSSLa event and submit it to RTT as one record.
+ *
+ * The sequence allocation and RTT insertion are kept in the same critical
+ * section so task and SysTick producers cannot appear out of order. RTT stays
+ * non-blocking: if the complete record does not fit, it is skipped. Since the
+ * sequence number has already been consumed, the receiver detects the loss
+ * when the next record arrives.
+ */
+static void trace_tessla_emit(const char *format, ...) {
+    char payload[TRACE_TESSLA_PAYLOAD_SIZE];
+    char record[TRACE_TESSLA_RECORD_SIZE];
+
+    va_list args;
+    va_start(args, format);
+    int payload_length = vsnprintf(payload, sizeof(payload), format, args);
+    va_end(args);
+
+    if (payload_length < 0 || (size_t)payload_length >= sizeof(payload)) {
+        return;
+    }
+
+    uint32_t key = port_enter_critical();
+    uint32_t sequence = g_trace_sequence++;
+
+    int record_length =
+        snprintf(record, sizeof(record), "TRACE %lu %s\n", (unsigned long)sequence, payload);
+
+    if (record_length > 0 && (size_t)record_length < sizeof(record)) {
+        SEGGER_RTT_WriteSkipNoLock(TRACE_TESSLA_RTT_CHANNEL, record, (unsigned int)record_length);
+    }
+
+    port_exit_critical(key);
+}
 #endif
 
 #if OS_TRACE_SEGGER_SYSVIEW && (OS_TRACE_TASKS || OS_TRACE_SCHEDULER)
@@ -23,7 +68,8 @@ static U32 sv_task_id(const TCB_sctTCB_t *task) {
 void trace_init(void) {
 #if OS_TRACE_TESSLA_RTT
     SEGGER_RTT_Init();
-    SEGGER_RTT_WriteString(0, "TESSLA_START\n");
+    g_trace_sequence = 0u;
+    SEGGER_RTT_WriteString(TRACE_TESSLA_RTT_CHANNEL, "TESSLA_START\n");
 #endif
 
 #if OS_TRACE_SEGGER_SYSVIEW
@@ -44,18 +90,15 @@ void trace_task_create(TCB_sctTCB_t *task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
-    SEGGER_RTT_printf(
-        0, "TASK_CREATE %u %u\n", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
+    trace_tessla_emit(
+        "TASK_CREATE %u %u", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
 #endif
 }
 
 void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
-    SEGGER_RTT_printf(0,
-                      "STATE %u %u %u\n",
-                      (unsigned int)task_id,
-                      (unsigned int)old_state,
-                      (unsigned int)new_state);
+    trace_tessla_emit(
+        "STATE %u %u %u", (unsigned int)task_id, (unsigned int)old_state, (unsigned int)new_state);
 #endif
 }
 
@@ -71,8 +114,7 @@ void trace_task_ready(TCB_sctTCB_t *task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    SEGGER_RTT_printf(
-        0, "READY %u %u\n", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
+    trace_tessla_emit("READY %u %u", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
 #endif
 }
 
@@ -84,8 +126,8 @@ void trace_task_run(TCB_sctTCB_t *task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    SEGGER_RTT_printf(
-        0, "RUNNING %u %u\n", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
+    trace_tessla_emit(
+        "RUNNING %u %u", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
 #endif
 }
 
@@ -95,7 +137,7 @@ void trace_task_stop_run(void) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    SEGGER_RTT_WriteString(0, "STOP_RUNNING\n");
+    trace_tessla_emit("STOP_RUNNING");
 #endif
 }
 
@@ -107,7 +149,7 @@ void trace_task_block(TCB_sctTCB_t *task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    SEGGER_RTT_printf(0, "BLOCKED %u\n", (unsigned int)task->u8TaskId);
+    trace_tessla_emit("BLOCKED %u", (unsigned int)task->u8TaskId);
 #endif
 }
 
@@ -117,13 +159,13 @@ void trace_idle(void) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    SEGGER_RTT_WriteString(0, "IDLE\n");
+    trace_tessla_emit("IDLE");
 #endif
 }
 
 void trace_tick(uint32_t dt) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    SEGGER_RTT_printf(0, "TICK %lu\n", (unsigned long)dt);
+    trace_tessla_emit("TICK %lu", (unsigned long)dt);
 #endif
 }
 
@@ -157,9 +199,8 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-
-    SEGGER_RTT_printf(
-        0, "DELAY_BUSY_START %u %u\n", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
+    trace_tessla_emit(
+        "DELAY_BUSY_START %u %u", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
 #endif
 }
 
@@ -167,7 +208,7 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    SEGGER_RTT_printf(0, "DELAY_BUSY_END %u\n", (unsigned int)task->u8TaskId);
+    trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task->u8TaskId);
 #endif
 }
 
@@ -184,8 +225,7 @@ void trace_log(const char *text) {
 
 #if OS_TRACE_TESSLA_RTT
     if (text != 0) {
-        SEGGER_RTT_WriteString(0, text);
-        SEGGER_RTT_WriteString(0, "\n");
+        trace_tessla_emit("LOG %s", text);
     }
 #endif
 }
