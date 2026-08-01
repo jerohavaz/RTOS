@@ -55,7 +55,7 @@ os_status_t os_delay_busy(uint32_t delay_ticks) {
     }
 
     kernel_task_t *current = k_sched_current();
-    
+
     if (current == 0 || k_sched_is_idle(current)) {
         return OS_ERR_INVALID_STATE;
     }
