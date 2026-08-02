@@ -38,6 +38,13 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "DELAY_BUSY_END": [
         ("delay_busy_end_id", int),
     ],
+    "DELAY_START": [
+        ("delay_start_id", int),
+        ("delay_start_ticks", int),
+    ],
+    "DELAY_END": [
+        ("delay_end_id", int),
+    ],
 }
 
 last_trace_sequence: int | None = None

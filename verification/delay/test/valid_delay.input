@@ -1,0 +1,26 @@
+0: state_id = 1
+0: state_old = 0
+0: state_new = 1
+
+1: state_id = 1
+1: state_old = 1
+1: state_new = 2
+
+2: running_id = 1
+2: running_prio = 1
+
+3: delay_start_id = 1
+3: delay_start_ticks = 2
+
+4: state_id = 1
+4: state_old = 2
+4: state_new = 3
+
+5: tick = 1
+6: tick = 1
+
+7: delay_end_id = 1
+
+8: state_id = 1
+8: state_old = 3
+8: state_new = 1

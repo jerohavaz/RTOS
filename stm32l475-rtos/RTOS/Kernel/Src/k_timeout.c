@@ -8,6 +8,7 @@
 #include "port.h"
 #include "timeout_list.h"
 #include "os_types.h"
+#include "trace.h"
 #include <stdbool.h>
 
 static volatile uint32_t g_tick = 0u;
@@ -61,6 +62,9 @@ void k_timeout_process_tick(void) {
         switch (task->wait_type) {
             case K_WAIT_DELAY:
                 k_delay_timeout_cleanup(task);
+
+                trace_task_delay_end(&task->tcb); //Unsicher ob der Trace hier oder im cleanup selber
+                
                 break;
 
             case K_WAIT_SEM:
