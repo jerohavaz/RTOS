@@ -84,4 +84,6 @@ void k_delay_timeout_cleanup(kernel_task_t *task) {
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;
     task->wait_result = OS_OK;
+    trace_task_delay_end(&task->tcb);
+
 }

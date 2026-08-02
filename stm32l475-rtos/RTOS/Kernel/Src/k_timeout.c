@@ -61,10 +61,7 @@ void k_timeout_process_tick(void) {
 
         switch (task->wait_type) {
             case K_WAIT_DELAY:
-                k_delay_timeout_cleanup(task);
-
-                trace_task_delay_end(&task->tcb); //Unsicher ob der Trace hier oder im cleanup selber
-                
+                k_delay_timeout_cleanup(task);                
                 break;
 
             case K_WAIT_SEM:
