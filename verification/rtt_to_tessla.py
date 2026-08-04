@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
         "--channel",
         type=int,
         default=0,
-        help="RTT up-buffer channel containing the TeSSLa text trace. Default: 0.",
+        help=("RTT up-buffer channel containing the TeSSLa text trace. " "Default: 0."),
     )
 
     parser.add_argument(
@@ -89,13 +89,11 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--summary",
-        action=argparse.BooleanOptionalAction,
+        "--no-summary",
+        action="store_false",
+        dest="summary",
         default=True,
-        help=(
-            "Print received and dropped event totals after writing to a file. "
-            "Enabled by default; use --no-summary to disable."
-        ),
+        help="Disable the live received and dropped event totals.",
     )
 
     return parser.parse_args()
@@ -179,8 +177,7 @@ def parse_trace_record(line: str) -> tuple[str | None, int]:
             expected = (last_trace_sequence + 1) & 0xFFFFFFFF
 
             print(
-                f"Trace incomplete: expected sequence {expected}, "
-                f"received {sequence}; {missing} record(s) missing",
+                f"Trace incomplete: expected sequence {expected}, " f"received {sequence}; {missing} record(s) missing",
                 file=sys.stderr,
             )
 
@@ -226,12 +223,20 @@ def convert_line(line: str, timestamp: int) -> list[str]:
     return output_lines
 
 
-def read_from_socket(host: str, port: int, channel: int) -> Iterable[str]:
+def read_from_socket(
+    host: str,
+    port: int,
+    channel: int,
+) -> Iterable[str]:
     with socket.create_connection((host, port)) as sock:
         config = f"$$SEGGER_TELNET_ConfigStr=RTTCh;{channel}$$\n"
         sock.sendall(config.encode("ascii"))
 
-        with sock.makefile("r", encoding="utf-8", errors="ignore") as stream:
+        with sock.makefile(
+            "r",
+            encoding="utf-8",
+            errors="ignore",
+        ) as stream:
             yield from stream
 
 
@@ -244,6 +249,15 @@ def open_output(path: str | None) -> TextIO:
         return sys.stdout
 
     return open(path, "w", encoding="utf-8")
+
+
+def print_live_summary(received_events: int) -> None:
+    print(
+        f"\rTrace summary: received={received_events}, " f"dropped={missing_trace_records}",
+        end="",
+        flush=True,
+        file=sys.stderr,
+    )
 
 
 def main() -> int:
@@ -260,6 +274,7 @@ def main() -> int:
 
     timestamp = 0
     received_events = 0
+    show_live_summary = args.output is not None and args.summary
 
     output_context = (
         nullcontext(sys.stdout) if args.stdout or args.output is None else open(args.output, "w", encoding="utf-8")
@@ -276,9 +291,7 @@ def main() -> int:
                 wrote_integrity_event = False
 
                 if missing > 0:
-                    output_stream.write(
-                        f"{timestamp}: trace_incomplete = {missing}\n"
-                    )
+                    output_stream.write(f"{timestamp}: trace_incomplete = {missing}\n")
                     wrote_integrity_event = True
 
                 line = clean_line(event_line)
@@ -287,6 +300,10 @@ def main() -> int:
                     if wrote_integrity_event:
                         output_stream.flush()
                         timestamp += 1
+
+                    if show_live_summary and missing > 0:
+                        print_live_summary(received_events)
+
                     continue
 
                 converted_lines = convert_line(line, timestamp)
@@ -295,6 +312,10 @@ def main() -> int:
                     if wrote_integrity_event:
                         output_stream.flush()
                         timestamp += 1
+
+                    if show_live_summary and missing > 0:
+                        print_live_summary(received_events)
+
                     continue
 
                 for converted_line in converted_lines:
@@ -305,12 +326,12 @@ def main() -> int:
                 timestamp += 1
                 received_events += 1
 
-        if args.output is not None and args.summary:
-            print(
-                "Trace summary: "
-                f"received={received_events}, "
-                f"dropped={missing_trace_records}"
-            )
+                if show_live_summary:
+                    print_live_summary(received_events)
+
+        if show_live_summary:
+            # Finish the carriage-return-based live summary line.
+            print(file=sys.stderr)
 
             if missing_trace_records > 0:
                 print(
@@ -319,6 +340,9 @@ def main() -> int:
                 )
 
     except ConnectionRefusedError:
+        if show_live_summary:
+            print(file=sys.stderr)
+
         print(
             f"Could not connect to RTT server at " f"{args.host}:{args.port}.",
             file=sys.stderr,
@@ -326,6 +350,9 @@ def main() -> int:
         return 1
 
     except OSError as error:
+        if show_live_summary:
+            print(file=sys.stderr)
+
         print(f"I/O error: {error}", file=sys.stderr)
         return 1
 
