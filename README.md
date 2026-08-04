@@ -1,102 +1,90 @@
-# RTOS
+# STM32L475 RTOS
 
-STM32L475 bare-metal RTOS project built with CMake and debugged through J-Link.
+A small bare-metal RTOS for the STM32L475VG (Arm Cortex-M4), built with CMake
+and the GNU Arm Embedded toolchain. The repository includes the firmware,
+SEGGER tracing, TeSSLa runtime verification, Doxygen documentation, and a
+GitLab CI pipeline.
+
+## Features
+
+- Static task and stack allocation; no kernel heap allocation
+- Preemptive fixed-priority scheduling
+- Round-robin scheduling for equal-priority tasks on tick or yield
+- Blocking and busy-wait delays with wrap-safe 32-bit timeouts
+- Non-recursive mutexes, bounded counting semaphores, and fixed-size queues
+- Priority-ordered wait queues with FIFO ordering inside each priority
+- Cortex-M context switching through SVC, PendSV, PSP, and SysTick
+- SEGGER SystemView and TeSSLa-compatible RTT tracing
+- Doxygen API documentation and GitLab CI checks
+
+Mutexes currently do not implement priority inheritance.
 
 ## Repository Layout
 
 ```text
 .
-├── stm32l475-rtos/     # Firmware project
+├── stm32l475-rtos/     # Firmware, RTOS kernel, Cortex-M port, and application
+├── verification/       # RTT capture and TeSSLa specifications/tests
 ├── gitlab-runner/      # Local GitLab runner setup
+├── .gitlab-ci.yml
 └── README.md
 ```
 
-All firmware commands in this document are run from:
+Run firmware commands from:
 
 ```bash
-./stm32l475-rtos
+cd stm32l475-rtos
 ```
 
-## Toolchain Requirements
+## Setup
 
-### Build tools
+Install the build and development tools:
 
 ```bash
 sudo apt update
-sudo apt install cmake ninja-build gcc-arm-none-eabi gdb-multiarch clang-format doxygen
+sudo apt install cmake ninja-build gcc-arm-none-eabi gdb-multiarch \
+  clang-format cppcheck doxygen
 ```
 
-Required commands:
+Install the SEGGER J-Link Software and Documentation Pack separately and ensure
+these commands are available on `PATH`:
 
-```bash
-cmake
-ninja
-arm-none-eabi-gcc
-arm-none-eabi-objdump
-arm-none-eabi-nm
-gdb-multiarch
-clang-format
-doxygen
-```
-
-### Debug and flash tools
-
-Install SEGGER J-Link tools and make sure these commands are available on `PATH`:
-
-```bash
+```text
 JLinkExe
 JLinkGDBServer
 ```
 
-The examples assume:
-
-```text
-Target MCU: STM32L475VG
-Debug probe: J-Link
-Interface: SWD
-Speed: 4000 kHz
-GDB port: 50000
-```
-
-## Build Firmware
-
-Configure the Debug preset:
+## Build
 
 ```bash
 cmake --preset Debug
+cmake --build --preset Debug
 ```
 
-Build the firmware:
-
-```bash
-cmake --build build/Debug
-```
-
-Expected output:
+The main artifact is:
 
 ```text
 build/Debug/rtos.elf
 ```
 
-## Flash and Run
-
-Use this when you only want to program the board and start the firmware.
-
-```bash
-JLinkExe -device STM32L475VG -if SWD -speed 4000 -CommanderScript scripts/flash.jlink
-```
+For an optimized build, replace `Debug` with `Release`.
 
 ## Flash and Debug
 
-Use this when you want to debug with GDB.
+Flash the target and start the firmware:
 
-Start the J-Link GDB server in one terminal:
+```bash
+JLinkExe -device STM32L475VG -if SWD -speed 4000 \
+  -CommanderScript scripts/flash.jlink
+```
+
+For a GDB session, start the server:
 
 ```bash
 JLinkGDBServer -device STM32L475VG -if SWD -speed 4000 -port 50000
 ```
 
-In a second terminal, connect GDB, flash the ELF, reset the target, and continue:
+Then connect from another terminal:
 
 ```bash
 gdb-multiarch build/Debug/rtos.elf \
@@ -108,29 +96,95 @@ gdb-multiarch build/Debug/rtos.elf \
   -ex "continue"
 ```
 
-## Format Source Code
+## RTOS Structure
 
-Format project-owned C and header files:
+The implementation is split into small layers:
+
+| Path | Responsibility |
+| --- | --- |
+| `RTOS/Public` | Application-facing task, delay, mutex, semaphore, queue, and ISR APIs |
+| `RTOS/Kernel` | Scheduler, task lifecycle, timeout handling, and idle task |
+| `RTOS/Internal` | Intrusive lists, priority wait queues, ring buffer, tracing, and panic handling |
+| `Port/CortexM` | Cortex-M stack setup, critical sections, SVC startup, and PendSV switching |
+| `Config/os_config.h` | Task limits, stack size, priorities, tracing, and exception priorities |
+| `App` | Example and stress-test tasks |
+| `Core` | STM32 startup, HAL initialization, and interrupt integration |
+
+Higher numeric task priorities run first. Equal-priority tasks rotate on a
+yield or SysTick. When no application task is ready, the separately managed
+idle task runs.
+
+Kernel objects use caller-provided or static storage. Blocked tasks can wait
+forever, return immediately with `OS_NO_WAIT`, or use a finite timeout below
+`2^31` ticks so comparisons remain valid across tick-counter wraparound.
+
+## Configuration and Tracing
+
+Edit `Config/os_config.h` to configure task capacity, per-task stack size,
+priority levels, exception priorities, trace backends, and trace categories.
+
+Tracing supports:
+
+- SEGGER SystemView events over RTT
+- Text events over RTT for TeSSLa verification
+
+The idle task remains awake while tracing is enabled to keep RTT/debug access
+responsive.
+
+See [verification/README.md](verification/README.md) for RTT capture, TeSSLa
+generation, monitor tests, and recorded-trace verification. The monitors cover
+scheduler behavior, delay timing, and trace integrity.
+
+## Formatting and Documentation
+
+Check formatting without changing files:
 
 ```bash
-find Core RTOS App Config Port -type f \( -name '*.c' -o -name '*.h' \) -print0 | xargs -0 clang-format -i
+find App Config Core Port RTOS -type f \( -name '*.c' -o -name '*.h' \) \
+  -print0 | xargs -0 clang-format --dry-run --Werror
 ```
 
-## VS Code Setup
+Apply formatting:
 
-Open the repository root in VS Code if you want access to both firmware and runner files.
-
-Required extensions:
-
-```text
-CMake Tools
-C/C++ or clangd
-Cortex-Debug
+```bash
+find App Config Core Port RTOS -type f \( -name '*.c' -o -name '*.h' \) \
+  -print0 | xargs -0 clang-format -i
 ```
 
-The STM32Cube extension is not required for building or debugging this project.
+Generate and open the Doxygen documentation:
 
-### `.vscode/settings.json`
+```bash
+doxygen Doxyfile
+xdg-open docs/html/index.html
+```
+
+## CI/CD
+
+GitLab push pipelines check formatting, configure and build the Debug preset,
+run `cppcheck`, test the TeSSLa verification tooling when it changes, and
+publish Doxygen HTML through GitLab Pages from the default branch. Build
+artifacts include ELF, map, and binary files.
+
+The repository also contains Docker definitions for the firmware and
+verification CI images. To start the supplied local GitLab runner from the
+repository root:
+
+```bash
+cd gitlab-runner
+docker compose up -d --build
+```
+
+## VS Code
+
+Recommended extensions:
+
+- CMake Tools
+- clangd, or Microsoft C/C++
+- Cortex-Debug
+
+The STM32Cube extension is not required.
+
+Example `.vscode/settings.json`:
 
 ```json
 {
@@ -145,7 +199,7 @@ The STM32Cube extension is not required for building or debugging this project.
 }
 ```
 
-### `.vscode/launch.json`
+Example `.vscode/launch.json`:
 
 ```json
 {
@@ -166,33 +220,4 @@ The STM32Cube extension is not required for building or debugging this project.
     }
   ]
 }
-```
-
-## Generate Documentation
-
-Generate Doxygen documentation:
-
-```bash
-doxygen Doxyfile
-```
-
-Open the generated HTML documentation:
-
-```bash
-xdg-open docs/html/index.html
-```
-
-## CI/CD Runner
-
-The GitLab runner files are outside the firmware project:
-
-```text
-./gitlab-runner
-```
-
-Start the local runner:
-
-```bash
-cd ../gitlab-runner
-docker-compose up -d --build
 ```
