@@ -1,3 +1,9 @@
+/**
+ * @file os_sem.c
+ * @brief Semaphore API and timeout-cleanup implementation.
+ * @author Jerome
+ */
+
 #include "k_sched.h"
 #include "k_sem.h"
 #include "k_timeout.h"
@@ -5,6 +11,13 @@
 #include "port.h"
 #include "os_sem.h"
 
+/**
+ * @brief Select a task's scheduler node for the semaphore wait queue.
+ *
+ * @param task Task whose embedded node is required.
+ * @return Pointer to @p task's scheduler node.
+ * @pre @p task must not be 0.
+ */
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }

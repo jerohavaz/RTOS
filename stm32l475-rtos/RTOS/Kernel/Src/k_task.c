@@ -1,3 +1,9 @@
+/**
+ * @file k_task.c
+ * @brief Static task storage and creation implementation.
+ * @author Jerome
+ */
+
 #include "kernel_task.h"
 #include "kernel_panic.h"
 #include "os_config.h"
@@ -22,11 +28,28 @@ static kernel_task_t g_tasks[K_MAX_TASKS];
 static uint32_t g_task_count = 0u;
 static bool g_task_creation_locked = false;
 
+/**
+ * @brief Trap a task that returns from its entry function.
+ *
+ * Installed as the initial task LR by port_init_task_stack(). A valid RTOS
+ * task is not permitted to return, so execution remains in this loop.
+ *
+ * @note This function never returns.
+ */
 static void task_exit_error(void) {
     while (1) {
     }
 }
 
+/**
+ * @brief Reset a task slot to its unused state.
+ *
+ * Clears the TCB state, intrusive-list links, wake tick, wait type, wait
+ * object, and wait result so the slot can be initialized by task creation.
+ *
+ * @param task Task slot to clear.
+ * @pre @p task must not be 0.
+ */
 static void task_clear(kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
 

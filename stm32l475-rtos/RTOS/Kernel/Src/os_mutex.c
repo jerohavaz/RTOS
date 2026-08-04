@@ -1,3 +1,9 @@
+/**
+ * @file os_mutex.c
+ * @brief Mutex API and timeout-cleanup implementation.
+ * @author Jerome
+ */
+
 #include "os_mutex.h"
 #include "k_mutex.h"
 #include "k_sched.h"
@@ -7,6 +13,13 @@
 #include "port.h"
 #include "prio_waitq.h"
 
+/**
+ * @brief Select a task's scheduler node for the mutex wait queue.
+ *
+ * @param task Task whose embedded node is required.
+ * @return Pointer to @p task's scheduler node.
+ * @pre @p task must not be 0.
+ */
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
@@ -96,7 +109,7 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
      * Only a task can own/unlock a mutex.
      */
     if (port_in_exception()) {
-        return OS_ERR_INVALID_STATE;
+        return OS_ERR_IN_ISR;
     }
 
     const kernel_task_t *current = k_sched_current();
