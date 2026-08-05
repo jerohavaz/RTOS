@@ -634,8 +634,7 @@ def violation_sem_timeout_result :=
 
 def emit_blocking_state_checks(max_tasks: int) -> str:
     task_match = [
-        f"(state_id == {task} && "
-        f"default(last(sem_block_task, state_id), -1) == {task})"
+        f"(state_id == {task} && " f"default(last(sem_block_task, state_id), -1) == {task})"
         for task in configured_task_ids(max_tasks)
     ]
     unconfirmed_wake = []
@@ -858,7 +857,6 @@ def generate(
 
     task_ids = list(configured_task_ids(max_tasks))
     actor_ids = [*task_ids, TASK_ID_NONE]
-
 
     parts = [
         emit_header(),

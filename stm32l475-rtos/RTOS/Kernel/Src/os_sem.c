@@ -63,8 +63,7 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
     TCB_sctTCB_t *current_tcb = (current != 0) ? &current->tcb : 0;
     uint8_t finite_timeout = (uint8_t)(timeout_ticks != OS_WAIT_FOREVER);
 
-    trace_sem_acquire_enter(
-        sem, current_tcb, sem->count, timeout_ticks, finite_timeout);
+    trace_sem_acquire_enter(sem, current_tcb, sem->count, timeout_ticks, finite_timeout);
 
     if (sem->count != 0u) {
         sem->count--;

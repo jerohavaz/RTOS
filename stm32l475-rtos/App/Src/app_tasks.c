@@ -3,11 +3,7 @@
 #include "os_task.h"
 #include "stm32l4xx_hal.h"
 
-enum {
-    WAKE_NONE,
-    WAKE_HIGH,
-    WAKE_LOW
-};
+enum { WAKE_NONE, WAKE_HIGH, WAKE_LOW };
 
 static os_sem_t sem_start_high;
 static os_sem_t sem_start_low;
@@ -31,9 +27,7 @@ static void expect_status(os_status_t actual, os_status_t expected) {
     }
 }
 
-static void waiter_loop(os_sem_t *start,
-                        uint8_t waiter_id,
-                        volatile uint32_t *wake_count) {
+static void waiter_loop(os_sem_t *start, uint8_t waiter_id, volatile uint32_t *wake_count) {
     while (1) {
         if (os_sem_acquire(start, OS_WAIT_FOREVER) != OS_OK) {
             test_fail();
@@ -73,8 +67,7 @@ static void controller_task(void) {
      * One-time counting semaphore and timeout checks.
      * sem_sync has count 0 and maximum count 2.
      */
-    expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT),
-                  OS_ERR_WOULD_BLOCK);
+    expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT), OS_ERR_WOULD_BLOCK);
 
     expect_status(os_sem_release(&sem_sync), OS_OK);
     expect_status(os_sem_release(&sem_sync), OS_OK);
@@ -82,12 +75,10 @@ static void controller_task(void) {
 
     expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT), OS_OK);
     expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT), OS_OK);
-    expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT),
-                  OS_ERR_WOULD_BLOCK);
+    expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT), OS_ERR_WOULD_BLOCK);
 
     expect_status(os_sem_acquire(&sem_sync, 3u), OS_ERR_TIMEOUT);
-    expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT),
-                  OS_ERR_WOULD_BLOCK);
+    expect_status(os_sem_acquire(&sem_sync, OS_NO_WAIT), OS_ERR_WOULD_BLOCK);
 
     while (1) {
         uint32_t next_round = stress_round_count + 1u;
@@ -107,8 +98,7 @@ static void controller_task(void) {
         expect_status(os_sem_release(&sem_gate), OS_OK);
         expect_status(os_sem_acquire(&sem_sync, OS_WAIT_FOREVER), OS_OK);
 
-        if ((expected_wake != WAKE_NONE) ||
-            (high_wake_count != next_round) ||
+        if ((expected_wake != WAKE_NONE) || (high_wake_count != next_round) ||
             (low_wake_count != stress_round_count)) {
             test_fail();
         }
@@ -118,8 +108,7 @@ static void controller_task(void) {
         expect_status(os_sem_release(&sem_gate), OS_OK);
         expect_status(os_sem_acquire(&sem_sync, OS_WAIT_FOREVER), OS_OK);
 
-        if ((expected_wake != WAKE_NONE) ||
-            (high_wake_count != next_round) ||
+        if ((expected_wake != WAKE_NONE) || (high_wake_count != next_round) ||
             (low_wake_count != next_round)) {
             test_fail();
         }
@@ -131,10 +120,8 @@ static void controller_task(void) {
 void app_tasks_init(void) {
     /* Public argument-validation paths. */
     expect_status(os_sem_init(0, 0u, 1u), OS_ERR_NULL);
-    expect_status(os_sem_init(&sem_sync, 0u, 0u),
-                  OS_ERR_INVALID_ARG);
-    expect_status(os_sem_init(&sem_sync, 2u, 1u),
-                  OS_ERR_INVALID_ARG);
+    expect_status(os_sem_init(&sem_sync, 0u, 0u), OS_ERR_INVALID_ARG);
+    expect_status(os_sem_init(&sem_sync, 2u, 1u), OS_ERR_INVALID_ARG);
 
     expect_status(os_sem_init(&sem_start_high, 0u, 1u), OS_OK);
     expect_status(os_sem_init(&sem_start_low, 0u, 1u), OS_OK);
