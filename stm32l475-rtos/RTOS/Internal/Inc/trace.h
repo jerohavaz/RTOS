@@ -209,7 +209,7 @@ static inline void trace_isr_exit_to_scheduler(void) {}
 /* --------------------------------------------------------------------------
  * Delay events
  * -------------------------------------------------------------------------- */
-static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
 static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------

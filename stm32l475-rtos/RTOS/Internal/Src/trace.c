@@ -28,14 +28,18 @@
 
 static uint32_t g_trace_sequence;
 
-/*
- * Format one logical TeSSLa event and submit it to RTT as one record.
+/**
+ * @brief Format and submit one logical TeSSLa event as an RTT record.
  *
- * The sequence allocation and RTT insertion are kept in the same critical
- * section so task and SysTick producers cannot appear out of order. RTT stays
- * non-blocking: if the complete record does not fit, it is skipped. Since the
- * sequence number has already been consumed, the receiver detects the loss
- * when the next record arrives.
+ * Sequence allocation and RTT insertion occur within the same critical
+ * section, preventing task and SysTick producers from appearing out of order.
+ *
+ * RTT remains non-blocking. If the complete record does not fit, it is
+ * discarded. Because its sequence number has already been consumed, the
+ * receiver detects the loss when the next record arrives.
+ *
+ * @param format printf-style format string for the event payload.
+ * @param ... Arguments referenced by @p format.
  */
 static void trace_tessla_emit(const char *format, ...) {
     char payload[TRACE_TESSLA_PAYLOAD_SIZE];
@@ -255,8 +259,8 @@ void trace_log(const char *text) {
  * @return Active exception number, or zero in Thread mode.
  */
 #if OS_TRACE_SEGGER_SYSVIEW
-unsigned long SEGGER_SYSVIEW_X_GetInterruptId(void) {
-    return (unsigned long)port_get_active_exception_id();
+U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
+    return (U32)port_get_active_exception_id();
 }
 #endif
 

@@ -68,6 +68,7 @@ static void task_clear(kernel_task_t *task) {
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;
     task->wait_result = OS_OK;
+    task->wait_data = 0;
 }
 
 void k_task_init(void) {

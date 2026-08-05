@@ -44,6 +44,14 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
         return OS_ERR_NULL;
     }
 
+    /*
+     * timeout_list ordering uses signed tick subtraction, so delays must stay
+     * below 2^31 ticks.
+     */
+    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= K_TIMEOUT_MAX)) {
+        return OS_ERR_INVALID_ARG;
+    }
+
     uint32_t key = port_enter_critical();
 
     if (sem->count != 0u) {
@@ -60,15 +68,6 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
     if (port_in_exception()) {
         port_exit_critical(key);
         return OS_ERR_IN_ISR;
-    }
-
-    /*
-     * timeout_list ordering uses signed tick subtraction, so delays must stay
-     * below 2^31 ticks.
-     */
-    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= K_TIMEOUT_MAX)) {
-        port_exit_critical(key);
-        return OS_ERR_INVALID_ARG;
     }
 
     kernel_task_t *current = k_sched_current();
