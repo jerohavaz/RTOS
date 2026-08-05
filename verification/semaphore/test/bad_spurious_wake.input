@@ -1,0 +1,6 @@
+0: sem_create_id = 100
+0: sem_create_initial_count = 0
+0: sem_create_max_count = 1
+1: sem_wake_id = 100
+1: sem_wake_task = 0
+1: sem_wake_prio = 2

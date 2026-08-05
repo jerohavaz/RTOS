@@ -161,6 +161,99 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
 void trace_task_delay_busy_end(TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
+ * Counting-semaphore events
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Record creation of a counting semaphore.
+ *
+ * @param semaphore Stable address of the semaphore object.
+ * @param initial_count Number of initially available tokens.
+ * @param max_count Maximum number of tokens the semaphore can hold.
+ *
+ * @note A binary semaphore is represented by @p max_count equal to one.
+ * @note Emitted only when @c OS_TRACE_SEMAPHORE is enabled.
+ */
+void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t max_count);
+
+/**
+ * @brief Record the start of an acquire operation.
+ *
+ * @param semaphore Stable address of the semaphore object.
+ * @param task Task attempting the acquire, or null when no task owns the
+ *             operation (for example, exception context or pre-scheduler use).
+ * @param count Number of available tokens observed before the attempt.
+ * @param timeout_ticks Requested timeout in kernel ticks.
+ * @param finite_timeout Nonzero if @p timeout_ticks is a finite deadline;
+ *                       zero for a non-timed/block-forever operation.
+ *
+ * @note A null @p task is encoded as task ID @c UINT8_MAX in the RTT event.
+ */
+void trace_sem_acquire_enter(const void *semaphore,
+                             TCB_sctTCB_t *task,
+                             uint32_t count,
+                             uint32_t timeout_ticks,
+                             uint8_t finite_timeout);
+
+/**
+ * @brief Record completion of an acquire operation.
+ *
+ * @param semaphore Stable address of the semaphore object.
+ * @param task Task completing the acquire, or null when no task owns the
+ *             operation.
+ * @param count Number of available tokens after completion.
+ * @param succeeded Nonzero only when one token was acquired.
+ *
+ * Emit this event on every normal return, including non-blocking failure and
+ * timeout. A blocked acquire that is later released emits it only after the
+ * task resumes and the acquire actually completes.
+ * A null @p task is encoded as task ID @c UINT8_MAX in the RTT event.
+ */
+void trace_sem_acquire_exit(const void *semaphore,
+                            TCB_sctTCB_t *task,
+                            uint32_t count,
+                            uint8_t succeeded);
+
+/**
+ * @brief Record that an acquire operation queued and blocked its task.
+ */
+void trace_sem_block(const void *semaphore,
+                     TCB_sctTCB_t *task,
+                     uint32_t timeout_ticks,
+                     uint8_t finite_timeout);
+
+/**
+ * @brief Record expiry of a finite semaphore-acquire timeout.
+ */
+void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count);
+
+/**
+ * @brief Record the result of a release operation.
+ *
+ * @param count_before Available-token count before the release.
+ * @param count_after Available-token count after the release or direct
+ *                    hand-off to a waiter.
+ * @param max_count Configured semaphore capacity.
+ * @param succeeded Nonzero if the release was accepted.
+ *
+ * @note Direct hand-off is allowed to leave the count unchanged when a waiter
+ *       receives the released token.
+ */
+void trace_sem_release(const void *semaphore,
+                       uint32_t count_before,
+                       uint32_t count_after,
+                       uint32_t max_count,
+                       uint8_t succeeded);
+
+/**
+ * @brief Record that release selected a waiting task for wakeup.
+ *
+ * The task priority is taken from the TCB so the verifier can check that the
+ * highest-priority waiter was selected. Trace sequence order breaks ties.
+ */
+void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task);
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
@@ -211,6 +304,33 @@ static inline void trace_isr_exit_to_scheduler(void) {}
  * -------------------------------------------------------------------------- */
 static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
 static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
+
+/* --------------------------------------------------------------------------
+ * Counting-semaphore events
+ * -------------------------------------------------------------------------- */
+static inline void trace_sem_create(const void *semaphore,
+                                    uint32_t initial_count,
+                                    uint32_t max_count) {}
+static inline void trace_sem_acquire_enter(const void *semaphore,
+                                           TCB_sctTCB_t *task,
+                                           uint32_t count,
+                                           uint32_t timeout_ticks,
+                                           uint8_t finite_timeout) {}
+static inline void trace_sem_acquire_exit(const void *semaphore,
+                                          TCB_sctTCB_t *task,
+                                          uint32_t count,
+                                          uint8_t succeeded) {}
+static inline void trace_sem_block(const void *semaphore,
+                                   TCB_sctTCB_t *task,
+                                   uint32_t timeout_ticks,
+                                   uint8_t finite_timeout) {}
+static inline void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count) {}
+static inline void trace_sem_release(const void *semaphore,
+                                     uint32_t count_before,
+                                     uint32_t count_after,
+                                     uint32_t max_count,
+                                     uint8_t succeeded) {}
+static inline void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
  * Generic log event

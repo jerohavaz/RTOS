@@ -19,6 +19,10 @@ from integrity.config import EXPECTED as INTEGRITY_EXPECTED
 from integrity.config import GENERATOR_OPTIONS as INTEGRITY_OPTIONS
 from integrity.generate_tessla import generate as generate_integrity
 
+from semaphore.config import EXPECTED as SEMAPHORE_EXPECTED
+from semaphore.config import GENERATOR_OPTIONS as SEMAPHORE_OPTIONS
+from semaphore.generate_tessla import generate as generate_semaphore
+
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
@@ -63,6 +67,13 @@ MODULES = {
         generator=generate_integrity,
         generator_options=INTEGRITY_OPTIONS,
         expected=INTEGRITY_EXPECTED,
+    ),
+    "semaphore": VerificationModule(
+        name="semaphore",
+        directory=ROOT_DIR / "semaphore",
+        generator=generate_semaphore,
+        generator_options=SEMAPHORE_OPTIONS,
+        expected=SEMAPHORE_EXPECTED,
     ),
 }
 
@@ -291,6 +302,9 @@ def command_generate(
 
     if args.quantum is not None:
         overrides["quantum_ticks"] = args.quantum
+
+    if args.max_semaphores is not None:
+        overrides["max_semaphores"] = args.max_semaphores
 
     failures = 0
 
@@ -530,6 +544,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=("Override the configured quantum " "for manual generation."),
     )
 
+    generate_parser.add_argument(
+        "--max-semaphores",
+        type=int,
+        help=("Override the number of dynamically tracked " "semaphore instances."),
+    )
+
     generate_parser.set_defaults(
         handler=command_generate,
     )
@@ -589,6 +609,10 @@ def main() -> int:
     if hasattr(args, "quantum"):
         if args.quantum is not None and args.quantum <= 0:
             parser.error("--quantum must be greater than 0")
+
+    if hasattr(args, "max_semaphores"):
+        if args.max_semaphores is not None and args.max_semaphores <= 0:
+            parser.error("--max-semaphores must be greater than 0")
 
     return args.handler(args)
 
