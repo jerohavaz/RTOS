@@ -1,3 +1,9 @@
+/**
+ * @file kernel_panic.c
+ * @brief Kernel fatal-error implementation.
+ * @author Jerome
+ */
+
 #include "kernel_panic.h"
 #include "port.h"
 

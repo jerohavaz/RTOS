@@ -1,3 +1,10 @@
+/**
+ * @file os_queue.c
+ * @brief Message-queue API and timeout-cleanup implementation.
+ * @author Jerome
+ * @author Martin
+ */
+
 #include "os_queue.h"
 #include "k_queue.h"
 #include "k_sched.h"
@@ -9,10 +16,28 @@
 #include <stdbool.h>
 #include <string.h>
 
+/**
+ * @brief Select a task's scheduler node for a queue wait list.
+ *
+ * @param task Task whose embedded node is required.
+ * @return Pointer to @p task's scheduler node.
+ * @pre @p task must not be 0.
+ */
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
 
+/**
+ * @brief Validate a queue-operation timeout.
+ *
+ * Accepts @ref OS_NO_WAIT, @ref OS_WAIT_FOREVER, and finite delays below the
+ * half-range limit required for wrap-safe tick ordering.
+ *
+ * @param timeout_ticks Requested timeout in system ticks.
+ * @retval OS_OK The timeout is valid.
+ * @retval OS_ERR_INVALID_ARG A finite timeout is greater than or equal to
+ *         @ref K_TIMEOUT_MAX.
+ */
 static os_status_t queue_check_timeout_arg(uint32_t timeout_ticks) {
     /*
      * timeout_list ordering uses signed tick subtraction, so delays must stay
