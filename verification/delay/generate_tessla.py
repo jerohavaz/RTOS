@@ -260,8 +260,7 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(
-    max_tasks: int = 8,
-    busy_tasks: int = 8,
+    max_tasks: int,
     mode: str = "violations",
 ) -> str:
     parts = [emit_header()]
