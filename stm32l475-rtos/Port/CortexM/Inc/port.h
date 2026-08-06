@@ -1,27 +1,33 @@
-#ifndef PORT_H_
-#define PORT_H_
-
-#include <stdint.h>
-
 /**
  * @file port.h
  * @brief Cortex-M port abstraction used by the RTOS kernel.
+ * @author Jerome
  *
- * This header exposes CPU-specific primitives behind a small port interface.
- * Kernel code may use these functions, but it must not directly access Cortex-M
- * registers, exception names, NVIC functions, or assembly instructions.
+ * @details
+ * Declares the CPU-port types and services required by the RTOS kernel.
+ * Kernel modules use this interface for task-stack initialization, scheduling
+ * requests, critical sections, execution-context detection, idle waiting, and
+ * fatal-error handling.
  */
+
+#ifndef PORT_H_
+#define PORT_H_
+
+#include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @brief Native stack word type for this CPU port.
  *
- * Cortex-M stacks are word-addressed and use 32-bit registers, so one stack
- * entry is 32 bits.
+ * A task stack is represented as an array of these entries.
  */
 typedef uint32_t port_stack_t;
 
 /**
  * @brief Task entry function type.
+ *
+ * Tasks take no parameters and return no value. Returning transfers control
+ * to the configured @ref port_task_exit_t handler.
  */
 typedef void (*port_task_entry_t)(void);
 
@@ -40,8 +46,9 @@ typedef void (*port_task_exit_t)(void);
 /**
  * @brief Initialize architecture-specific scheduler interrupt settings.
  *
- * Configures the exception priorities used by the RTOS, such as PendSV,
- * SysTick, and SVC. Priority values are taken from the OS configuration.
+ * Applies the scheduler interrupt priorities defined by the OS configuration.
+ *
+ * @pre The configured priorities must be valid for the selected CPU port.
  */
 void port_init_scheduler_interrupts(void);
 
@@ -50,31 +57,34 @@ void port_init_scheduler_interrupts(void);
  *
  * Transfers control to the architecture-specific first-task startup path.
  * This function does not return during normal operation.
+ *
+ * @pre The scheduler must have selected a task with a valid initialized stack.
  */
 void port_start_first_task(void);
 
 /**
  * @brief Request a context switch.
  *
- * Pends the PendSV exception. The actual context switch occurs when PendSV
- * executes.
+ * Requests deferred scheduler processing. The context switch may occur after
+ * this function returns.
  */
 void port_request_context_switch(void);
 
 /**
  * @brief Build the initial stack frame for a new task.
  *
- * Creates the architecture-specific initial stack layout expected by the
- * context restore code. On Cortex-M this includes the hardware exception frame
- * and the software-saved callee registers.
+ * Creates the port-specific initial context required to start a task.
  *
  * @param stack_base Pointer to the first element of the task stack buffer.
- * @param stack_words Number of port_stack_t entries in the stack buffer.
- * @param entry Task entry function.
- * @param exit_handler Function entered if the task function returns.
+ * @param stack_words Number of @ref port_stack_t entries in the stack buffer.
+ * @param entry Non-null task entry function.
+ * @param exit_handler Non-null function entered if the task function returns.
  *
- * @return Initial task stack pointer.
- * @retval 0 Invalid argument.
+ * @return Pointer to the initialized software-saved context.
+ * @retval NULL An argument is invalid or the buffer is too small.
+ *
+ * @note The returned stack pointer satisfies the alignment requirements of
+ *       the selected port.
  */
 port_stack_t *port_init_task_stack(port_stack_t *stack_base,
                                    uint32_t stack_words,
@@ -89,54 +99,51 @@ port_stack_t *port_init_task_stack(port_stack_t *stack_base,
  * @brief Disable all normal maskable interrupts.
  *
  * This is a one-way startup/panic helper. It does not preserve the previous
- * interrupt state.
+ * interrupt state and does not return it to the caller.
  *
- * Use port_enter_critical() and port_exit_critical() for normal kernel
- * critical sections.
+ * @note Use @ref port_enter_critical and @ref port_exit_critical for normal
+ *       nestable kernel critical sections.
  */
 void port_disable_interrupts(void);
 
 /**
  * @brief Enter a kernel critical section.
  *
- * Raises BASEPRI so interrupts at or below the configured kernel interrupt
- * priority cannot run. Higher-urgency interrupts remain enabled.
+ * Masks interrupts that are permitted to call the kernel while preserving the
+ * previous port-specific interrupt-mask state.
  *
- * The returned value must be passed to port_exit_critical() to restore the
- * previous BASEPRI state.
+ * @return Previous port-specific interrupt-mask state.
  *
- * @return Previous BASEPRI value.
+ * @note The returned value must be passed unchanged to the matching
+ *       @ref port_exit_critical call.
  */
 uint32_t port_enter_critical(void);
 
 /**
  * @brief Exit a kernel critical section.
  *
- * Restores the BASEPRI value returned by port_enter_critical().
+ * Restores the interrupt-mask state returned by port_enter_critical().
  *
- * @param previous_basepri Previous BASEPRI value.
+ * @param previous_basepri Interrupt-mask value returned by the matching
+ *                         @ref port_enter_critical call.
  */
 void port_exit_critical(uint32_t previous_basepri);
 
 /**
  * @brief Return the currently active exception number.
  *
- * On Cortex-M this reads IPSR. A return value of 0 means thread mode.
- *
- * @return Active exception number, or 0 when not inside an exception.
+ * @return Port-defined active exception identifier.
+ * @retval 0 The processor is not running in exception context.
  */
 uint32_t port_get_active_exception_id(void);
 
 /**
  * @brief Check whether the CPU is currently running in exception context.
  *
- * On Cortex-M this is true for SysTick, PendSV, SVC, fault handlers, and
- * external interrupt handlers. It is false in normal thread mode.
- *
- * @retval 1 CPU is running inside an exception handler.
- * @retval 0 CPU is running in thread mode.
+ * @retval true The CPU is running inside an exception handler.
+ * @retval false The CPU is running in thread mode.
  */
-uint8_t port_in_exception(void);
+bool port_in_exception(void);
 
 /* -------------------------------------------------------------------------- */
 /* Idle / debug                                                                */
@@ -145,7 +152,8 @@ uint8_t port_in_exception(void);
 /**
  * @brief Wait for interrupt.
  *
- * Executes the Cortex-M WFI instruction. Intended for use by the idle task.
+ * Suspends execution until an interrupt or another port-defined wake event
+ * occurs. Intended for use by the idle task.
  */
 void port_wait_for_interrupt(void);
 
@@ -156,15 +164,13 @@ void port_no_operation(void);
 
 /**
  * @brief Trigger a debugger breakpoint.
- *
- * If a debugger is attached, execution stops at the breakpoint.
  */
 void port_breakpoint(void);
 
 /**
  * @brief Halt the system.
  *
- * Disables interrupts and repeatedly triggers a breakpoint.
+ * Disables interrupts and enters a non-returning debug halt loop.
  */
 void port_halt(void);
 

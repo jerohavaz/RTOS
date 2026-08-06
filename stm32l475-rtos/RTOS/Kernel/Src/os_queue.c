@@ -1,3 +1,10 @@
+/**
+ * @file os_queue.c
+ * @brief Message-queue API and timeout-cleanup implementation.
+ * @author Jerome
+ * @author Martin
+ */
+
 #include "os_queue.h"
 
 #include "k_queue.h"
@@ -11,9 +18,17 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define QUEUE_TRACE_NO_TASK UINT8_MAX
 
+/**
+ * @brief Select a task's scheduler node for a queue wait list.
+ *
+ * @param task Task whose embedded node is required.
+ * @return Pointer to @p task's scheduler node.
+ * @pre @p task must not be 0.
+ */
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
@@ -48,12 +63,23 @@ static uint32_t queue_trace_hash(const void *data, uint32_t length) {
     return hash;
 }
 
+/**
+ * @brief Validate a queue-operation timeout.
+ *
+ * Accepts @ref OS_NO_WAIT, @ref OS_WAIT_FOREVER, and finite delays below the
+ * half-range limit required for wrap-safe tick ordering.
+ *
+ * @param timeout_ticks Requested timeout in system ticks.
+ * @retval OS_OK The timeout is valid.
+ * @retval OS_ERR_INVALID_ARG A finite timeout is greater than or equal to
+ *         @ref K_TIMEOUT_MAX.
+ */
 static os_status_t queue_check_timeout_arg(uint32_t timeout_ticks) {
     /*
      * timeout_list ordering uses signed tick subtraction, so delays must stay
      * below 2^31 ticks.
      */
-    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= 0x80000000u)) {
+    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= K_TIMEOUT_MAX)) {
         return OS_ERR_INVALID_ARG;
     }
 
@@ -83,25 +109,25 @@ os_status_t os_queue_init(
     return OS_OK;
 }
 
-uint8_t os_queue_is_empty(os_queue_t *queue) {
+bool os_queue_is_empty(os_queue_t *queue) {
     if (queue == 0) {
-        return 1u;
+        return true;
     }
 
     uint32_t key = port_enter_critical();
-    uint8_t result = ring_msgbuf_is_empty(&queue->buffer);
+    bool result = ring_msgbuf_is_empty(&queue->buffer);
     port_exit_critical(key);
 
     return result;
 }
 
-uint8_t os_queue_is_full(os_queue_t *queue) {
+bool os_queue_is_full(os_queue_t *queue) {
     if (queue == 0) {
-        return 0u;
+        return false;
     }
 
     uint32_t key = port_enter_critical();
-    uint8_t result = ring_msgbuf_is_full(&queue->buffer);
+    bool result = ring_msgbuf_is_full(&queue->buffer);
     port_exit_critical(key);
 
     return result;
@@ -187,19 +213,14 @@ os_status_t os_queue_send(os_queue_t *queue, const void *msg, uint32_t timeout_t
     /*
      * From here on, send would block.
      */
-    if (port_in_exception() != 0u) {
+    if (port_in_exception()) {
         port_exit_critical(key);
         return OS_ERR_IN_ISR;
     }
 
     kernel_task_t *current = k_sched_current();
 
-    if (current == 0) {
-        port_exit_critical(key);
-        return OS_ERR_INVALID_STATE;
-    }
-
-    if (k_sched_is_idle(current) != 0u) {
+    if (current == 0 || k_sched_is_idle(current)) {
         port_exit_critical(key);
         return OS_ERR_INVALID_STATE;
     }
@@ -348,19 +369,14 @@ os_status_t os_queue_recv(os_queue_t *queue, void *msg_out, uint32_t timeout_tic
     /*
      * From here on, recv would block.
      */
-    if (port_in_exception() != 0u) {
+    if (port_in_exception()) {
         port_exit_critical(key);
         return OS_ERR_IN_ISR;
     }
 
     kernel_task_t *current = k_sched_current();
 
-    if (current == 0) {
-        port_exit_critical(key);
-        return OS_ERR_INVALID_STATE;
-    }
-
-    if (k_sched_is_idle(current) != 0u) {
+    if (current == 0 || k_sched_is_idle(current)) {
         port_exit_critical(key);
         return OS_ERR_INVALID_STATE;
     }

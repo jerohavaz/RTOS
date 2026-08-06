@@ -1,8 +1,24 @@
+/**
+ * @file timeout_list.c
+ * @brief Ordered kernel timeout-list implementation.
+ * @author Jerome
+ */
+
 #include "timeout_list.h"
 #include "kernel_panic.h"
 #include "kernel_task.h"
 #include "task_list.h"
+#include <stdbool.h>
 
+/**
+ * @brief Select a task's dedicated timeout-list node.
+ *
+ * @param task Task whose timeout node is required.
+ *
+ * @return Pointer to @c task->timeout_node.
+ *
+ * @pre @p task must not be null.
+ */
 static kernel_task_list_node_t *timeout_node(kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
 
@@ -60,13 +76,13 @@ void timeout_list_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
     task->wake_tick = 0;
 }
 
-uint8_t timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
+bool timeout_list_try_remove(timeout_list_t *timeout_list, kernel_task_t *task) {
     KERNEL_REQUIRE(timeout_list != 0);
     KERNEL_REQUIRE(task != 0);
 
-    uint8_t removed = task_list_try_remove(&timeout_list->list, task);
+    bool removed = task_list_try_remove(&timeout_list->list, task);
 
-    if (removed != 0u) {
+    if (removed) {
         task->wake_tick = 0u;
     }
 

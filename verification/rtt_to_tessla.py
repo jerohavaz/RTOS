@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import socket
 import sys
@@ -33,7 +31,56 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "TICK": [
         ("tick", int),
     ],
-    "QUEUE_CREATE": [
+    "DELAY_BUSY_START": [
+        ("delay_busy_start_id", int),
+        ("delay_busy_start_ticks", int),
+    ],
+    "DELAY_BUSY_END": [
+        ("delay_busy_end_id", int),
+    ],
+    "SEM_CREATE": [
+        ("sem_create_id", int),
+        ("sem_create_initial_count", int),
+        ("sem_create_max_count", int),
+    ],
+    "SEM_ACQUIRE_ENTER": [
+        ("sem_acquire_enter_id", int),
+        ("sem_acquire_enter_task", int),
+        ("sem_acquire_enter_count", int),
+        ("sem_acquire_enter_timeout", int),
+        ("sem_acquire_enter_finite", int),
+    ],
+    "SEM_ACQUIRE_EXIT": [
+        ("sem_acquire_exit_id", int),
+        ("sem_acquire_exit_task", int),
+        ("sem_acquire_exit_count", int),
+        ("sem_acquire_exit_succeeded", int),
+    ],
+    "SEM_BLOCK": [
+        ("sem_block_id", int),
+        ("sem_block_task", int),
+        ("sem_block_prio", int),
+        ("sem_block_timeout", int),
+        ("sem_block_finite", int),
+    ],
+    "SEM_TIMEOUT": [
+        ("sem_timeout_id", int),
+        ("sem_timeout_task", int),
+        ("sem_timeout_count", int),
+    ],
+    "SEM_RELEASE": [
+        ("sem_release_id", int),
+        ("sem_release_count_before", int),
+        ("sem_release_count_after", int),
+        ("sem_release_max_count", int),
+        ("sem_release_succeeded", int),
+    ],
+    "SEM_WAKE": [
+        ("sem_wake_id", int),
+        ("sem_wake_task", int),
+        ("sem_wake_prio", int),
+    ],
+        "QUEUE_CREATE": [
         ("queue_create_id", int),
         ("queue_create_capacity", int),
     ],
@@ -98,6 +145,9 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     ],
 }
 
+last_trace_sequence: int | None = None
+missing_trace_records = 0
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert SEGGER RTT trace lines to TeSSLa input.")
@@ -113,6 +163,13 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=19021,
         help="RTT server port. Default: 19021.",
+    )
+
+    parser.add_argument(
+        "--channel",
+        type=int,
+        default=0,
+        help=("RTT up-buffer channel containing the TeSSLa text trace. " "Default: 0."),
     )
 
     parser.add_argument(
@@ -134,6 +191,14 @@ def parse_args() -> argparse.Namespace:
         "--stdout",
         action="store_true",
         help="Write converted TeSSLa input to stdout.",
+    )
+
+    parser.add_argument(
+        "--no-summary",
+        action="store_false",
+        dest="summary",
+        default=True,
+        help="Disable the live received and dropped event totals.",
     )
 
     return parser.parse_args()
@@ -176,6 +241,55 @@ def clean_line(line: str) -> str | None:
     return line
 
 
+def parse_trace_record(line: str) -> tuple[str | None, int]:
+    """Remove trace metadata and report missing logical records.
+
+    Legacy, unsequenced input remains supported for existing fixtures and
+    manually authored traces.
+    """
+    global last_trace_sequence
+    global missing_trace_records
+
+    stripped = line.strip()
+
+    if stripped == "TESSLA_START":
+        last_trace_sequence = None
+        return None, 0
+
+    if not stripped.startswith("TRACE "):
+        return stripped, 0
+
+    parts = stripped.split(maxsplit=2)
+
+    if len(parts) != 3:
+        print(f"Malformed trace record: {stripped}", file=sys.stderr)
+        return None, 0
+
+    try:
+        sequence = int(parts[1])
+    except ValueError:
+        print(f"Invalid trace sequence: {parts[1]}", file=sys.stderr)
+        return None, 0
+
+    missing = 0
+
+    if last_trace_sequence is not None:
+        distance = (sequence - last_trace_sequence) & 0xFFFFFFFF
+
+        if distance != 1:
+            missing = distance - 1
+            missing_trace_records += missing
+            expected = (last_trace_sequence + 1) & 0xFFFFFFFF
+
+            print(
+                f"Trace incomplete: expected sequence {expected}, " f"received {sequence}; {missing} record(s) missing",
+                file=sys.stderr,
+            )
+
+    last_trace_sequence = sequence
+    return parts[2], missing
+
+
 def format_value(value: object) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -214,8 +328,15 @@ def convert_line(line: str, timestamp: int) -> list[str]:
     return output_lines
 
 
-def read_from_socket(host: str, port: int) -> Iterable[str]:
+def read_from_socket(
+    host: str,
+    port: int,
+    channel: int,
+) -> Iterable[str]:
     with socket.create_connection((host, port)) as sock:
+        config = f"$$SEGGER_TELNET_ConfigStr=RTTCh;{channel}$$\n"
+        sock.sendall(config.encode("ascii"))
+
         with sock.makefile(
             "r",
             encoding="utf-8",
@@ -228,18 +349,37 @@ def read_from_stdin() -> Iterable[str]:
     yield from sys.stdin
 
 
+def open_output(path: str | None) -> TextIO:
+    if path is None:
+        return sys.stdout
+
+    return open(path, "w", encoding="utf-8")
+
+
+def print_live_summary(received_events: int) -> None:
+    print(
+        f"\rTrace summary: received={received_events}, " f"dropped={missing_trace_records}",
+        end="",
+        flush=True,
+        file=sys.stderr,
+    )
+
+
 def main() -> int:
     args = parse_args()
+
+    if args.channel < 0:
+        print("RTT channel must be non-negative.", file=sys.stderr)
+        return 1
 
     if args.stdin:
         source = read_from_stdin()
     else:
-        source = read_from_socket(
-            args.host,
-            args.port,
-        )
+        source = read_from_socket(args.host, args.port, args.channel)
 
     timestamp = 0
+    received_events = 0
+    show_live_summary = args.output is not None and args.summary
 
     output_context = (
         nullcontext(sys.stdout)
@@ -254,9 +394,27 @@ def main() -> int:
     try:
         with output_context as output_stream:
             for raw_line in source:
-                line = clean_line(raw_line)
+                event_line, missing = parse_trace_record(raw_line)
+
+                if event_line is None:
+                    continue
+
+                wrote_integrity_event = False
+
+                if missing > 0:
+                    output_stream.write(f"{timestamp}: trace_incomplete = {missing}\n")
+                    wrote_integrity_event = True
+
+                line = clean_line(event_line)
 
                 if line is None:
+                    if wrote_integrity_event:
+                        output_stream.flush()
+                        timestamp += 1
+
+                    if show_live_summary and missing > 0:
+                        print_live_summary(received_events)
+
                     continue
 
                 converted_lines = convert_line(
@@ -265,6 +423,13 @@ def main() -> int:
                 )
 
                 if not converted_lines:
+                    if wrote_integrity_event:
+                        output_stream.flush()
+                        timestamp += 1
+
+                    if show_live_summary and missing > 0:
+                        print_live_summary(received_events)
+
                     continue
 
                 for converted_line in converted_lines:
@@ -273,8 +438,25 @@ def main() -> int:
 
                 output_stream.flush()
                 timestamp += 1
+                received_events += 1
+
+                if show_live_summary:
+                    print_live_summary(received_events)
+
+        if show_live_summary:
+            # Finish the carriage-return-based live summary line.
+            print(file=sys.stderr)
+
+            if missing_trace_records > 0:
+                print(
+                    "Trace incomplete: TeSSLa results are inconclusive.",
+                    file=sys.stderr,
+                )
 
     except ConnectionRefusedError:
+        if show_live_summary:
+            print(file=sys.stderr)
+
         print(
             f"Could not connect to RTT server at " f"{args.host}:{args.port}.",
             file=sys.stderr,
@@ -282,10 +464,10 @@ def main() -> int:
         return 1
 
     except OSError as error:
-        print(
-            f"I/O error: {error}",
-            file=sys.stderr,
-        )
+        if show_live_summary:
+            print(file=sys.stderr)
+
+        print(f"I/O error: {error}", file=sys.stderr)
         return 1
 
     return 0

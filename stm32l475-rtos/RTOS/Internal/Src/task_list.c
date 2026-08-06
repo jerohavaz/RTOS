@@ -1,20 +1,50 @@
 /**
  * @file task_list.c
  * @brief Task list implementation.
+ * @author Jerome
  */
 
 #include "task_list.h"
 #include "kernel_panic.h"
+#include <stdbool.h>
 
-static uint8_t task_list_node_is_linked(const kernel_task_list_node_t *node) {
+/**
+ * @brief Test whether both links of an intrusive node are populated.
+ *
+ * @param node Node to inspect.
+ *
+ * @retval true @p node is non-null and both neighbor pointers are non-null.
+ * @retval false @p node is null or at least one neighbor pointer is null.
+ */
+static bool task_list_node_is_linked(const kernel_task_list_node_t *node) {
     return (node != 0) && (node->next != 0) && (node->prev != 0);
 }
 
+/**
+ * @brief Enforce the minimum initialized-list invariants.
+ *
+ * @param list List to validate.
+ *
+ * @pre @p list must not be null.
+ * @pre The list's node-selector callback must not be null.
+ */
 static void task_list_require_valid(const task_list_t *list) {
     KERNEL_REQUIRE(list != 0);
     KERNEL_REQUIRE(list->get_node != 0);
 }
 
+/**
+ * @brief Resolve the intrusive node selected by a list for a task.
+ *
+ * @param list Initialized list containing the node-selector callback.
+ * @param task Task whose embedded node is required.
+ *
+ * @return Non-null node selected from @p task.
+ *
+ * @pre @p list must be valid.
+ * @pre @p task must not be null.
+ * @post The configured selector must return a non-null node.
+ */
 static kernel_task_list_node_t *task_list_get_node(task_list_t *list, kernel_task_t *task) {
     task_list_require_valid(list);
     KERNEL_REQUIRE(task != 0);
@@ -26,6 +56,19 @@ static kernel_task_list_node_t *task_list_get_node(task_list_t *list, kernel_tas
     return node;
 }
 
+/**
+ * @brief Unlink a task known to be present in a list.
+ *
+ * Repairs neighboring links, advances the head when required, decrements the
+ * count, and clears both links in the removed task's selected node.
+ *
+ * @param list Initialized non-empty list containing @p task.
+ * @param task Task to unlink.
+ *
+ * @pre @p task must be linked through the node selected by @p list.
+ * @post The selected node in @p task is unlinked.
+ * @post List circularity and head/count consistency are preserved.
+ */
 static void task_list_unlink_present(task_list_t *list, kernel_task_t *task) {
     task_list_require_valid(list);
     KERNEL_REQUIRE(task != 0);
@@ -85,7 +128,7 @@ void task_list_init(task_list_t *list, task_node_fn_t get_node) {
     list->get_node = get_node;
 }
 
-uint8_t task_list_is_empty(const task_list_t *list) {
+bool task_list_is_empty(const task_list_t *list) {
     KERNEL_REQUIRE(list != 0);
 
     if (list->head == 0) {
@@ -214,13 +257,13 @@ void task_list_remove(task_list_t *list, kernel_task_t *task) {
     task_list_unlink_present(list, task);
 }
 
-uint8_t task_list_try_remove(task_list_t *list, kernel_task_t *task) {
+bool task_list_try_remove(task_list_t *list, kernel_task_t *task) {
     task_list_require_valid(list);
     KERNEL_REQUIRE(task != 0);
 
     if (list->head == 0) {
         KERNEL_REQUIRE(list->count == 0u);
-        return 0u;
+        return false;
     }
 
     KERNEL_REQUIRE(list->count > 0u);
@@ -228,10 +271,10 @@ uint8_t task_list_try_remove(task_list_t *list, kernel_task_t *task) {
     const kernel_task_list_node_t *node = task_list_get_node(list, task);
 
     if (!task_list_node_is_linked(node)) {
-        return 0u;
+        return false;
     }
 
     task_list_unlink_present(list, task);
 
-    return 1u;
+    return true;
 }

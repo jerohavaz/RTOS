@@ -2,28 +2,38 @@
 
 ## Trace Input
 
-Record RTT output:
+Record RTT channel 0 to a trace file:
 
 ```bash
 python3 rtt_to_tessla.py -o trace.input
 ```
 
-Or stream it directly into a generated monitor:
+Select another RTT channel if required:
+```
+
+File output prints a received/dropped event summary by default. Disable it with
+`--no-summary`.
+
+Stream RTT output directly into TeSSLa:
 
 ```bash
 python3 rtt_to_tessla.py --stdout | \
-java -jar ~/Desktop/tessla.jar interpreter build/combined.tessla
 ```
+
+The converter emits `trace_incomplete` when sequenced RTT records are missing.
+Any integrity violation makes the affected trace inconclusive.
 
 ## Verification CLI
 
-List modules:
+### List Modules
 
 ```bash
 python3 verify.py list
 ```
 
-Generate every module separately:
+### Generate Specifications
+
+Generate all modules separately:
 
 ```bash
 python3 verify.py generate
@@ -33,58 +43,62 @@ Generate one module:
 
 ```bash
 python3 verify.py generate scheduler
-python3 verify.py generate queue
 ```
 
-Generate one specification containing all modules:
+Generate one combined specification:
 
 ```bash
 python3 verify.py generate --combined
 ```
 
-Generation options:
-
-```text
---mode {violations,checks}   Output violations or FAIL/PASS streams
---max-tasks N                Override task count
---quantum N                  Override scheduler quantum
---queue ID:CAPACITY          Override queues; repeat for multiple queues
---combined                   Combine selected modules into one specification
-```
-
-Example:
+Combine selected modules:
 
 ```bash
-python3 verify.py generate --combined \
-    --mode checks \
-    --max-tasks 13 \
-    --quantum 1 \
-    --queue 1:2 \
-    --queue 5:8
-```
-
-Generated files are written to `build/`.
-
-## Tests
-
-Run all tests or one module:
-
-```bash
-python3 verify.py test
-python3 verify.py test scheduler
-python3 verify.py test queue
+python3 verify.py generate scheduler delay semaphore integrity --combined
 ```
 
 Options:
 
 ```text
---tessla-jar PATH   Path to tessla.jar
---verbose           Print output from passing tests
+--mode {violations,checks}   Output mode (default: violations)
+--combined                   Write one build/combined.tessla
+--max-tasks N                Override configured task count
+--max-semaphores N           Override tracked semaphore-instance count
+--quantum N                  Override configured scheduler quantum
 ```
 
-Tests use the generator options and expected outputs from each module's `config.py`.
+Overrides are applied only to modules that support them.
 
-## Manual Verification
+### Run Tests
+
+Run all module tests:
+
+```bash
+python3 verify.py test
+```
+
+Run selected module tests:
+
+```bash
+python3 verify.py test scheduler semaphore integrity
+```
+
+Options:
+
+```text
+--tessla-jar PATH    Path to tessla.jar
+--verbose            Print output from passing tests
+```
+
+Test parameters are taken from each module's `config.py`.
+
+### Clean Generated Specifications
+
+```bash
+python3 verify.py clean
+```
+
+## Verify a Recorded Trace
 
 ```bash
 python3 verify.py generate --combined
@@ -92,10 +106,4 @@ python3 verify.py generate --combined
 java -jar ~/Desktop/tessla.jar interpreter \
     build/combined.tessla \
     trace.input
-```
-
-Clean generated specifications:
-
-```bash
-python3 verify.py clean
 ```

@@ -1,8 +1,15 @@
+/**
+ * @file prio_waitq.c
+ * @brief Fixed-priority task wait-queue implementation.
+ * @author Jerome
+ */
+
 #include "prio_waitq.h"
 #include "kernel_panic.h"
 #include "kernel_task.h"
 #include "task_list.h"
 #include "tcb.h"
+#include <stdbool.h>
 
 #if (OS_MAX_PRIORITIES == 0u)
 #error "OS_MAX_PRIORITIES must be greater than 0"
@@ -44,7 +51,7 @@ void prio_waitq_init(prio_waitq_t *q, task_node_fn_t get_node) {
     }
 }
 
-uint8_t prio_waitq_is_empty(const prio_waitq_t *q) {
+bool prio_waitq_is_empty(const prio_waitq_t *q) {
     KERNEL_REQUIRE(q != 0);
 
     return (q->bitmap == 0u);

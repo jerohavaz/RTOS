@@ -1,3 +1,9 @@
+/**
+ * @file k_sched.c
+ * @brief Fixed-priority scheduler implementation.
+ * @author Jerome
+ */
+
 #include "k_sched.h"
 #include "kernel_panic.h"
 #include "k_task.h"
@@ -8,18 +14,37 @@
 #include "tcb.h"
 #include "trace.h"
 #include <stdint.h>
+#include <stdbool.h>
 
-static uint8_t g_sched_started = 0u;
+static bool g_sched_started = false;
 
 static kernel_task_t *g_current_task = 0;
 static kernel_task_t *g_idle_task = 0;
 
 static prio_waitq_t g_ready_queue;
 
+/**
+ * @brief Select a task's scheduler-list node.
+ *
+ * @param task Task whose embedded scheduler node is required.
+ * @return Pointer to @p task's scheduler node.
+ * @pre @p task must not be 0.
+ */
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
 
+/**
+ * @brief Apply a scheduler-owned task-state transition.
+ *
+ * Updates the TCB state, ready-queue membership, current-task pointer, and
+ * trace state associated with @p state.
+ *
+ * @param task Task to transition.
+ * @param state Destination state; must be ready, blocked, or running.
+ * @pre @p task must not be 0.
+ * @pre The caller must provide the required kernel synchronization.
+ */
 static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
     KERNEL_REQUIRE(task != 0);
 
@@ -69,6 +94,13 @@ static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
     }
 }
 
+/**
+ * @brief Remove and return the next task to run.
+ *
+ * @return Highest-priority ready task, or the idle task when no real task is
+ *         ready.
+ * @pre A valid idle task must be registered when the ready queue is empty.
+ */
 static kernel_task_t *sched_pick_next(void) {
     kernel_task_t *next = prio_waitq_pop_highest(&g_ready_queue);
 
@@ -81,6 +113,12 @@ static kernel_task_t *sched_pick_next(void) {
     return g_idle_task;
 }
 
+/**
+ * @brief Inspect the next scheduling candidate without removing it.
+ *
+ * @return Highest-priority ready task, or the idle-task pointer when the ready
+ *         queue is empty.
+ */
 static kernel_task_t *sched_peek_next(void) {
     kernel_task_t *next = prio_waitq_peek_highest(&g_ready_queue);
 
@@ -91,8 +129,17 @@ static kernel_task_t *sched_peek_next(void) {
     return g_idle_task;
 }
 
-static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
-    kernel_task_t *current = g_current_task;
+/**
+ * @brief Determine whether the current task should be replaced.
+ *
+ * @param allow_same_prio Whether another ready task of equal priority may
+ *        replace the current task.
+ * @retval true A context switch is required by the scheduling policy.
+ * @retval false The current task may continue running.
+ * @pre A current task and idle task must be registered.
+ */
+static bool sched_switch_needed(bool allow_same_prio) {
+    const kernel_task_t *current = g_current_task;
     KERNEL_REQUIRE(current != 0);
     KERNEL_REQUIRE(g_idle_task != 0);
 
@@ -101,10 +148,10 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
      * Scheduler must select another context, possibly idle.
      */
     if (current->tcb.eTaskState != TaskState_Running) {
-        return 1u;
+        return true;
     }
 
-    kernel_task_t *next = sched_peek_next();
+    const kernel_task_t *next = sched_peek_next();
     KERNEL_REQUIRE(next != 0);
 
     /*
@@ -119,7 +166,7 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
      * A real running task must not be replaced by idle.
      */
     if (k_sched_is_idle(next)) {
-        return 0u;
+        return false;
     }
 
     /*
@@ -133,37 +180,45 @@ static uint8_t sched_switch_needed(uint8_t allow_same_prio) {
      * This assumes larger u8TaskPrio means higher priority.
      */
     if (next->tcb.u8TaskPrio > current->tcb.u8TaskPrio) {
-        return 1u;
+        return true;
     }
 
     /*
      * Same-priority ready task only rotates on yield/SysTick.
      */
-    if ((allow_same_prio != 0u) && (next->tcb.u8TaskPrio == current->tcb.u8TaskPrio)) {
-        return 1u;
+    if (allow_same_prio && (next->tcb.u8TaskPrio == current->tcb.u8TaskPrio)) {
+        return true;
     }
 
-    return 0u;
+    return false;
 }
 
-static uint8_t sched_request_switch(uint8_t allow_same_prio) {
-    if (g_sched_started == 0u) {
-        return 0u;
+/**
+ * @brief Pend PendSV when the scheduling policy requires a switch.
+ *
+ * @param allow_same_prio Whether equal-priority rotation is permitted.
+ * @retval true PendSV was requested.
+ * @retval false The scheduler is stopped or no switch is required.
+ * @pre The caller must provide the required kernel synchronization.
+ */
+static bool sched_request_switch(bool allow_same_prio) {
+    if (!g_sched_started) {
+        return false;
     }
 
     if (!sched_switch_needed(allow_same_prio)) {
-        return 0u;
+        return false;
     }
 
     port_request_context_switch();
 
-    return 1u;
+    return true;
 }
 
 void k_sched_init(void) {
     g_current_task = 0;
     g_idle_task = 0;
-    g_sched_started = 0u;
+    g_sched_started = false;
 
     prio_waitq_init(&g_ready_queue, sched_node);
 
@@ -177,7 +232,7 @@ void k_sched_set_idle_task(kernel_task_t *task) {
     g_idle_task = task;
 }
 
-uint8_t k_sched_is_idle(const kernel_task_t *task) {
+bool k_sched_is_idle(const kernel_task_t *task) {
     return (task != 0) && (task == g_idle_task);
 }
 
@@ -209,7 +264,7 @@ port_stack_t *k_sched_start_first_context(void) {
 
     sched_task_set_state(g_current_task, TaskState_Running);
 
-    g_sched_started = 1u;
+    g_sched_started = true;
 
     return g_current_task->tcb.pu32TaskSP;
 }
@@ -230,31 +285,18 @@ void k_sched_task_block(kernel_task_t *task) {
     port_exit_critical(key);
 }
 
-/*
- * Kernel wakeup/preemption request.
- *
- * Use after a task was made Ready by timeout, message queue, semaphore,
- * event flag, ISR wakeup, etc.
- *
- * Same-priority tasks do not preempt here. They rotate on yield/SysTick.
- */
-uint8_t k_sched_request_switch(void) {
+bool k_sched_request_switch(void) {
     uint32_t key = port_enter_critical();
-    uint8_t requested = sched_request_switch(0u);
+    bool requested = sched_request_switch(false);
 
     port_exit_critical(key);
 
     return requested;
 }
 
-/*
- * Yield scheduling request.
- *
- * Allows same-priority round-robin in addition to normal preemption.
- */
-uint8_t k_sched_request_yield(void) {
+bool k_sched_request_yield(void) {
     uint32_t key = port_enter_critical();
-    uint8_t requested = sched_request_switch(1u);
+    bool requested = sched_request_switch(true);
 
     port_exit_critical(key);
 
@@ -315,6 +357,6 @@ kernel_task_t *k_sched_current(void) {
     return task;
 }
 
-uint8_t k_sched_started(void) {
+bool k_sched_started(void) {
     return g_sched_started;
 }

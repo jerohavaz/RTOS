@@ -1,3 +1,9 @@
+/**
+ * @file os_mutex.c
+ * @brief Mutex API and timeout-cleanup implementation.
+ * @author Jerome
+ */
+
 #include "os_mutex.h"
 #include "k_mutex.h"
 #include "k_sched.h"
@@ -7,6 +13,13 @@
 #include "port.h"
 #include "prio_waitq.h"
 
+/**
+ * @brief Select a task's scheduler node for the mutex wait queue.
+ *
+ * @param task Task whose embedded node is required.
+ * @return Pointer to @p task's scheduler node.
+ * @pre @p task must not be 0.
+ */
 static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
@@ -31,21 +44,17 @@ os_status_t os_mutex_lock(os_mutex_t *mutex, uint32_t timeout_ticks) {
      * Mutexes are task-owned.
      * Exception/ISR context cannot own a mutex and cannot block.
      */
-    if (port_in_exception() != 0u) {
+    if (port_in_exception()) {
         return OS_ERR_IN_ISR;
     }
 
-    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= 0x80000000u)) {
+    if ((timeout_ticks != OS_WAIT_FOREVER) && (timeout_ticks >= K_TIMEOUT_MAX)) {
         return OS_ERR_INVALID_ARG;
     }
 
     kernel_task_t *current = k_sched_current();
 
-    if (current == 0) {
-        return OS_ERR_INVALID_STATE;
-    }
-
-    if (k_sched_is_idle(current) != 0u) {
+    if (current == 0 || k_sched_is_idle(current)) {
         return OS_ERR_INVALID_STATE;
     }
 
@@ -99,11 +108,11 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
     /*
      * Only a task can own/unlock a mutex.
      */
-    if (port_in_exception() != 0u) {
-        return OS_ERR_INVALID_STATE;
+    if (port_in_exception()) {
+        return OS_ERR_IN_ISR;
     }
 
-    kernel_task_t *current = k_sched_current();
+    const kernel_task_t *current = k_sched_current();
 
     if (current == 0) {
         return OS_ERR_INVALID_STATE;

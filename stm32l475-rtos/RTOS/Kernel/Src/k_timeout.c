@@ -1,3 +1,9 @@
+/**
+ * @file k_timeout.c
+ * @brief Kernel tick and task-timeout implementation.
+ * @author Jerome
+ */
+
 #include "k_timeout.h"
 #include "k_delay.h"
 #include "k_mutex.h"
@@ -8,6 +14,7 @@
 #include "port.h"
 #include "timeout_list.h"
 #include "os_types.h"
+#include <stdbool.h>
 
 static volatile uint32_t g_tick = 0u;
 static timeout_list_t g_timeout_list;
@@ -33,7 +40,7 @@ void k_timeout_add(kernel_task_t *task, uint32_t delay_ticks) {
      * timeout_list ordering uses signed tick subtraction, so delays must stay
      * below 2^31 ticks.
      */
-    KERNEL_REQUIRE(delay_ticks < 0x80000000u);
+    KERNEL_REQUIRE(delay_ticks < K_TIMEOUT_MAX);
 
     timeout_list_add(&g_timeout_list, task, k_tick_get() + delay_ticks);
 }
@@ -42,7 +49,7 @@ void k_timeout_remove(kernel_task_t *task) {
     timeout_list_remove(&g_timeout_list, task);
 }
 
-uint8_t k_timeout_try_remove(kernel_task_t *task) {
+bool k_timeout_try_remove(kernel_task_t *task) {
     return timeout_list_try_remove(&g_timeout_list, task);
 }
 
