@@ -343,8 +343,7 @@ void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {
 
 void trace_queue_create(uint32_t queue_id, uint32_t capacity) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(
-        0, "QUEUE_CREATE %lu %lu\n", (unsigned long)queue_id, (unsigned long)capacity);
+    trace_tessla_emit("QUEUE_CREATE %lu %lu\n", (unsigned long)queue_id, (unsigned long)capacity);
 #endif
 }
 
@@ -354,8 +353,7 @@ void trace_queue_send_attempt(uint32_t queue_id,
                               uint32_t timeout_ticks,
                               uint32_t message_hash) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_SEND_ATTEMPT %lu %u %u %lu %lu\n",
+    trace_tessla_emit("QUEUE_SEND_ATTEMPT %lu %u %u %lu %lu\n",
                       (unsigned long)queue_id,
                       (unsigned int)task_id,
                       (unsigned int)task_priority,
@@ -366,8 +364,7 @@ void trace_queue_send_attempt(uint32_t queue_id,
 
 void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_SEND_SUCCESS %lu %u %lu\n",
+    trace_tessla_emit("QUEUE_SEND_SUCCESS %lu %u %lu\n",
                       (unsigned long)queue_id,
                       (unsigned int)task_id,
                       (unsigned long)message_hash);
@@ -376,8 +373,7 @@ void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t messa
 
 void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_SEND_BLOCK %lu %u %u\n",
+    trace_tessla_emit("QUEUE_SEND_BLOCK %lu %u %u\n",
                       (unsigned long)queue_id,
                       (unsigned int)task_id,
                       (unsigned int)task_priority);
@@ -396,8 +392,7 @@ void trace_queue_receive_attempt(uint32_t queue_id,
                                  uint8_t task_priority,
                                  uint32_t timeout_ticks) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_RECV_ATTEMPT %lu %u %u %lu\n",
+    trace_tessla_emit("QUEUE_RECV_ATTEMPT %lu %u %u %lu\n",
                       (unsigned long)queue_id,
                       (unsigned int)task_id,
                       (unsigned int)task_priority,
@@ -407,8 +402,7 @@ void trace_queue_receive_attempt(uint32_t queue_id,
 
 void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_RECV_SUCCESS %lu %u %lu\n",
+    trace_tessla_emit("QUEUE_RECV_SUCCESS %lu %u %lu\n",
                       (unsigned long)queue_id,
                       (unsigned int)task_id,
                       (unsigned long)message_hash);
@@ -417,8 +411,7 @@ void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t me
 
 void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_RECV_BLOCK %lu %u %u\n",
+    trace_tessla_emit("QUEUE_RECV_BLOCK %lu %u %u\n",
                       (unsigned long)queue_id,
                       (unsigned int)task_id,
                       (unsigned int)task_priority);
@@ -451,8 +444,7 @@ void trace_queue_handoff(uint32_t queue_id,
                          uint8_t receiver_id,
                          uint32_t message_hash) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0,
-                      "QUEUE_HANDOFF %lu %u %u %lu\n",
+    trace_tessla_emit("QUEUE_HANDOFF %lu %u %u %lu\n",
                       (unsigned long)queue_id,
                       (unsigned int)sender_id,
                       (unsigned int)receiver_id,
@@ -462,7 +454,7 @@ void trace_queue_handoff(uint32_t queue_id,
 
 void trace_queue_fill(uint32_t queue_id, uint32_t fill) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(0, "QUEUE_FILL %lu %lu\n", (unsigned long)queue_id, (unsigned long)fill);
+    trace_tessla_emit("QUEUE_FILL %lu %lu\n", (unsigned long)queue_id, (unsigned long)fill);
 #endif
 }
 
