@@ -30,8 +30,6 @@ from semaphore.generate_tessla import generate as generate_semaphore
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
-DEFAULT_TESSLA_JAR = Path.home() / "Desktop" / "tessla.jar"
-
 OUTPUT_PATTERN = re.compile(r"^[^:]+:\s+([A-Za-z_][A-Za-z0-9_]*)\s*=")
 
 INPUT_PATTERN = re.compile(r"^in\s+([A-Za-z_][A-Za-z0-9_]*)\s*:")
@@ -463,6 +461,14 @@ def run_module_tests(
 def command_test(
     args: argparse.Namespace,
 ) -> int:
+    if args.tessla_jar is None:
+        print(
+            "[ERROR] TeSSLa JAR not specified. Use --tessla-jar PATH "
+            "or set TESSLA_JAR.",
+            file=sys.stderr,
+        )
+        return 1
+
     if not args.tessla_jar.is_file():
         print(
             f"[ERROR] TeSSLa JAR not found: " f"{args.tessla_jar}",
@@ -638,12 +644,12 @@ def build_parser() -> argparse.ArgumentParser:
     test_parser.add_argument(
         "--tessla-jar",
         type=Path,
-        default=Path(
-            os.environ.get(
-                "TESSLA_JAR",
-                DEFAULT_TESSLA_JAR,
-            )
+        default=(
+            Path(os.environ["TESSLA_JAR"])
+            if "TESSLA_JAR" in os.environ
+            else None
         ),
+        help="Path to tessla.jar. Defaults to TESSLA_JAR.",
     )
 
     test_parser.add_argument(
