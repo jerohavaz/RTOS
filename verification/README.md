@@ -47,6 +47,7 @@ Generate a specific module:
 
 ```bash
 python3 verify.py generate scheduler
+python3 verify.py generate semaphore --max-semaphores 2
 ```
 
 Generate one combined specification:
@@ -58,7 +59,7 @@ python3 verify.py generate --combined
 Combine selected modules:
 
 ```bash
-python3 verify.py generate scheduler delay integrity --combined
+python3 verify.py generate scheduler delay semaphore integrity --combined
 ```
 
 Options:
@@ -67,6 +68,7 @@ Options:
 --mode {violations,checks}   Output mode (default: violations)
 --combined                   Write one build/combined.tessla
 --max-tasks N                Override configured task count
+--max-semaphores N           Override tracked semaphore-instance count
 --quantum N                  Override configured scheduler quantum
 ```
 
@@ -83,7 +85,7 @@ python3 verify.py test
 Run selected module tests:
 
 ```bash
-python3 verify.py test scheduler integrity
+python3 verify.py test scheduler semaphore integrity
 ```
 
 Options:

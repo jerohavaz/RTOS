@@ -129,7 +129,7 @@
 /**
  * @brief Trace semaphore operations.
  */
-#define OS_TRACE_SEMAPHORE (false)
+#define OS_TRACE_SEMAPHORE (true)
 
 /**
  * @brief Trace message-queue operations.

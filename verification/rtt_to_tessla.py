@@ -38,6 +38,48 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "DELAY_BUSY_END": [
         ("delay_busy_end_id", int),
     ],
+    "SEM_CREATE": [
+        ("sem_create_id", int),
+        ("sem_create_initial_count", int),
+        ("sem_create_max_count", int),
+    ],
+    "SEM_ACQUIRE_ENTER": [
+        ("sem_acquire_enter_id", int),
+        ("sem_acquire_enter_task", int),
+        ("sem_acquire_enter_count", int),
+        ("sem_acquire_enter_timeout", int),
+        ("sem_acquire_enter_finite", int),
+    ],
+    "SEM_ACQUIRE_EXIT": [
+        ("sem_acquire_exit_id", int),
+        ("sem_acquire_exit_task", int),
+        ("sem_acquire_exit_count", int),
+        ("sem_acquire_exit_succeeded", int),
+    ],
+    "SEM_BLOCK": [
+        ("sem_block_id", int),
+        ("sem_block_task", int),
+        ("sem_block_prio", int),
+        ("sem_block_timeout", int),
+        ("sem_block_finite", int),
+    ],
+    "SEM_TIMEOUT": [
+        ("sem_timeout_id", int),
+        ("sem_timeout_task", int),
+        ("sem_timeout_count", int),
+    ],
+    "SEM_RELEASE": [
+        ("sem_release_id", int),
+        ("sem_release_count_before", int),
+        ("sem_release_count_after", int),
+        ("sem_release_max_count", int),
+        ("sem_release_succeeded", int),
+    ],
+    "SEM_WAKE": [
+        ("sem_wake_id", int),
+        ("sem_wake_task", int),
+        ("sem_wake_prio", int),
+    ],
 }
 
 last_trace_sequence: int | None = None

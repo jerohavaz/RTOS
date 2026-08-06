@@ -232,6 +232,112 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
 }
 
 /* --------------------------------------------------------------------------
+ * Counting-semaphore events
+ * -------------------------------------------------------------------------- */
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+static unsigned long trace_sem_id(const void *semaphore) {
+    KERNEL_REQUIRE(semaphore != 0);
+    return (unsigned long)(uintptr_t)semaphore;
+}
+
+/** Task-ID value used when an acquire has no owning task. */
+static unsigned int trace_sem_task_id(const TCB_sctTCB_t *task) {
+    return (task != 0) ? (unsigned int)task->u8TaskId : (unsigned int)UINT8_MAX;
+}
+#endif
+
+void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t max_count) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_CREATE %lu %lu %lu",
+                      trace_sem_id(semaphore),
+                      (unsigned long)initial_count,
+                      (unsigned long)max_count);
+#endif
+}
+
+void trace_sem_acquire_enter(const void *semaphore,
+                             TCB_sctTCB_t *task,
+                             uint32_t count,
+                             uint32_t timeout_ticks,
+                             uint8_t finite_timeout) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_ACQUIRE_ENTER %lu %u %lu %lu %u",
+                      trace_sem_id(semaphore),
+                      trace_sem_task_id(task),
+                      (unsigned long)count,
+                      (unsigned long)timeout_ticks,
+                      (unsigned int)(finite_timeout != 0u));
+#endif
+}
+
+void trace_sem_acquire_exit(const void *semaphore,
+                            TCB_sctTCB_t *task,
+                            uint32_t count,
+                            uint8_t succeeded) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_ACQUIRE_EXIT %lu %u %lu %u",
+                      trace_sem_id(semaphore),
+                      trace_sem_task_id(task),
+                      (unsigned long)count,
+                      (unsigned int)(succeeded != 0u));
+#endif
+}
+
+void trace_sem_block(const void *semaphore,
+                     TCB_sctTCB_t *task,
+                     uint32_t timeout_ticks,
+                     uint8_t finite_timeout) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_BLOCK %lu %u %u %lu %u",
+                      trace_sem_id(semaphore),
+                      (unsigned int)task->u8TaskId,
+                      (unsigned int)task->u8TaskPrio,
+                      (unsigned long)timeout_ticks,
+                      (unsigned int)(finite_timeout != 0u));
+#endif
+}
+
+void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_TIMEOUT %lu %u %lu",
+                      trace_sem_id(semaphore),
+                      (unsigned int)task->u8TaskId,
+                      (unsigned long)count);
+#endif
+}
+
+void trace_sem_release(const void *semaphore,
+                       uint32_t count_before,
+                       uint32_t count_after,
+                       uint32_t max_count,
+                       uint8_t succeeded) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_RELEASE %lu %lu %lu %lu %u",
+                      trace_sem_id(semaphore),
+                      (unsigned long)count_before,
+                      (unsigned long)count_after,
+                      (unsigned long)max_count,
+                      (unsigned int)(succeeded != 0u));
+#endif
+}
+
+void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+    trace_tessla_emit("SEM_WAKE %lu %u %u",
+                      trace_sem_id(semaphore),
+                      (unsigned int)task->u8TaskId,
+                      (unsigned int)task->u8TaskPrio);
+#endif
+}
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
