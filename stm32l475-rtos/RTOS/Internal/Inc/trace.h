@@ -36,46 +36,6 @@ void trace_isr_exit(void);
 void trace_isr_exit_to_scheduler(void);
 
 /* --------------------------------------------------------------------------
- * Message queue events
- * -------------------------------------------------------------------------- */
-
-void trace_queue_create(uint32_t queue_id, uint32_t capacity);
-
-void trace_queue_send_attempt(uint32_t queue_id,
-                              uint8_t task_id,
-                              uint8_t task_priority,
-                              uint32_t timeout_ticks,
-                              uint32_t message_hash);
-
-void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
-
-void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
-
-void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id);
-
-void trace_queue_receive_attempt(uint32_t queue_id,
-                                 uint8_t task_id,
-                                 uint8_t task_priority,
-                                 uint32_t timeout_ticks);
-
-void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
-
-void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
-
-void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id);
-
-void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id);
-
-void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id);
-
-void trace_queue_handoff(uint32_t queue_id,
-                         uint8_t sender_id,
-                         uint8_t receiver_id,
-                         uint32_t message_hash);
-
-void trace_queue_fill(uint32_t queue_id, uint32_t fill);
-
-/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
