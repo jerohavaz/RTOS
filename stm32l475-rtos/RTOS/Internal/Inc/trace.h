@@ -257,40 +257,179 @@ void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task);
  * Message queue events
  * -------------------------------------------------------------------------- */
 
+/**
+ * @brief Record creation of a message queue.
+ *
+ * @param queue_id Stable numeric identifier of the queue.
+ * @param capacity Maximum number of buffered messages held by the queue.
+ *
+ * The identifier and capacity must match the queue configuration used to
+ * generate the TeSSLa monitor.
+ *
+ * @note Emitted only when both @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_QUEUE
+ *       are enabled.
+ */
 void trace_queue_create(uint32_t queue_id, uint32_t capacity);
 
+/**
+ * @brief Record the start of a queue-send operation.
+ *
+ * @param queue_id Identifier of the target queue.
+ * @param task_id Identifier of the sending task, or @c UINT8_MAX for an
+ *                operation performed from exception context.
+ * @param task_priority Priority of the sending task.
+ * @param timeout_ticks Requested timeout in kernel ticks. @c OS_NO_WAIT and
+ *                      @c OS_WAIT_FOREVER retain their public API meanings.
+ * @param message_hash 32-bit hash of the message being sent.
+ *
+ * Emit before determining whether the message is buffered, handed directly to
+ * a receiver, rejected, or must block.
+ *
+ * @note Emitted only when both @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_QUEUE
+ *       are enabled.
+ */
 void trace_queue_send_attempt(uint32_t queue_id,
                               uint8_t task_id,
                               uint8_t task_priority,
                               uint32_t timeout_ticks,
                               uint32_t message_hash);
 
+/**
+ * @brief Record successful completion of a queue-send operation.
+ *
+ * @param queue_id Identifier of the target queue.
+ * @param task_id Identifier of the sender, or @c UINT8_MAX for exception
+ *                context.
+ * @param message_hash Hash supplied by the corresponding send attempt.
+ *
+ * A successful send either places the message in the ring buffer or transfers
+ * it directly to a waiting receiver.
+ */
 void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
 
+/**
+ * @brief Record that a queue-send operation blocked its task.
+ *
+ * @param queue_id Identifier of the full queue.
+ * @param task_id Identifier of the task entering the send wait queue.
+ * @param task_priority Priority used to order the waiting sender.
+ *
+ * @pre The task must subsequently transition from @c RUNNING to @c BLOCKED.
+ */
 void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
 
+/**
+ * @brief Record expiry of a blocked queue-send operation.
+ *
+ * @param queue_id Identifier of the queue on which the task waited.
+ * @param task_id Identifier of the timed-out sender.
+ *
+ * @note Emit only for a finite timeout after the requested number of kernel
+ *       ticks has elapsed.
+ */
 void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id);
 
+/**
+ * @brief Record the start of a queue-receive operation.
+ *
+ * @param queue_id Identifier of the source queue.
+ * @param task_id Identifier of the receiving task, or @c UINT8_MAX for an
+ *                operation performed from exception context.
+ * @param task_priority Priority of the receiving task.
+ * @param timeout_ticks Requested timeout in kernel ticks. @c OS_NO_WAIT and
+ *                      @c OS_WAIT_FOREVER retain their public API meanings.
+ *
+ * Emit before determining whether a buffered message or waiting sender can
+ * satisfy the operation, or whether the operation must fail or block.
+ */
 void trace_queue_receive_attempt(uint32_t queue_id,
                                  uint8_t task_id,
                                  uint8_t task_priority,
                                  uint32_t timeout_ticks);
 
+/**
+ * @brief Record successful completion of a queue-receive operation.
+ *
+ * @param queue_id Identifier of the source queue.
+ * @param task_id Identifier of the receiver, or @c UINT8_MAX for exception
+ *                context.
+ * @param message_hash 32-bit hash of the received message.
+ *
+ * The hash must describe the bytes delivered to the receiver, whether the
+ * message came from the ring buffer or through direct handoff.
+ */
 void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
 
+/**
+ * @brief Record that a queue-receive operation blocked its task.
+ *
+ * @param queue_id Identifier of the empty queue.
+ * @param task_id Identifier of the task entering the receive wait queue.
+ * @param task_priority Priority used to order the waiting receiver.
+ *
+ * @pre The task must subsequently transition from @c RUNNING to @c BLOCKED.
+ */
 void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
 
+/**
+ * @brief Record expiry of a blocked queue-receive operation.
+ *
+ * @param queue_id Identifier of the queue on which the task waited.
+ * @param task_id Identifier of the timed-out receiver.
+ *
+ * @note Emit only for a finite timeout after the requested number of kernel
+ *       ticks has elapsed.
+ */
 void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id);
 
+/**
+ * @brief Record that a waiting sender was selected for wakeup.
+ *
+ * @param queue_id Identifier of the queue whose buffered receive freed a slot.
+ * @param task_id Identifier of the sender leaving the send wait queue.
+ *
+ * @pre The task must subsequently transition from @c BLOCKED to @c READY.
+ */
 void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id);
 
+/**
+ * @brief Record that a waiting receiver was selected for wakeup.
+ *
+ * @param queue_id Identifier of the queue receiving a direct handoff.
+ * @param task_id Identifier of the receiver leaving the receive wait queue.
+ *
+ * @pre The task must subsequently transition from @c BLOCKED to @c READY.
+ */
 void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id);
 
+/**
+ * @brief Record a direct message transfer between a sender and receiver.
+ *
+ * @param queue_id Identifier of the queue coordinating the transfer.
+ * @param sender_id Identifier of the sending task, or @c UINT8_MAX for
+ *                  exception context.
+ * @param receiver_id Identifier of the receiving task, or @c UINT8_MAX for
+ *                    exception context.
+ * @param message_hash 32-bit hash of the transferred message.
+ *
+ * Direct handoff bypasses the ring buffer and therefore does not change queue
+ * fill. Emit this event immediately before the matching send-success and
+ * receive-success events.
+ */
 void trace_queue_handoff(uint32_t queue_id,
                          uint8_t sender_id,
                          uint8_t receiver_id,
                          uint32_t message_hash);
 
+/**
+ * @brief Record the queue fill level after a ring-buffer modification.
+ *
+ * @param queue_id Identifier of the modified queue.
+ * @param fill Number of messages buffered after the push or pop.
+ *
+ * Emit immediately after every successful ring-buffer push or pop. Do not emit
+ * for direct handoff because it leaves the fill level unchanged.
+ */
 void trace_queue_fill(uint32_t queue_id, uint32_t fill);
 
 /* --------------------------------------------------------------------------
@@ -318,7 +457,6 @@ static inline void trace_init(void) {}
  * -------------------------------------------------------------------------- */
 
 static inline void trace_task_create(TCB_sctTCB_t *task) {}
-
 static inline void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {}
 
 /* --------------------------------------------------------------------------
@@ -326,15 +464,10 @@ static inline void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t 
  * -------------------------------------------------------------------------- */
 
 static inline void trace_task_ready(TCB_sctTCB_t *task) {}
-
 static inline void trace_task_run(TCB_sctTCB_t *task) {}
-
 static inline void trace_task_stop_run(void) {}
-
 static inline void trace_task_block(TCB_sctTCB_t *task) {}
-
 static inline void trace_idle(void) {}
-
 static inline void trace_tick(uint32_t dt) {}
 
 /* --------------------------------------------------------------------------
@@ -342,9 +475,7 @@ static inline void trace_tick(uint32_t dt) {}
  * -------------------------------------------------------------------------- */
 
 static inline void trace_isr_enter(void) {}
-
 static inline void trace_isr_exit(void) {}
-
 static inline void trace_isr_exit_to_scheduler(void) {}
 
 /* --------------------------------------------------------------------------

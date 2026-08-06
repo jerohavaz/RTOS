@@ -33,6 +33,15 @@ static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
     return &task->sched_node;
 }
 
+/**
+ * @brief Obtain the trace identifier of a task.
+ *
+ * @param task Task to identify, or null when the operation has no associated
+ *             task, such as an operation from exception context.
+ *
+ * @return The task ID from its TCB, or @c QUEUE_TRACE_NO_TASK when @p task is
+ *         null.
+ */
 static uint8_t queue_trace_task_id(const kernel_task_t *task) {
     if (task == 0) {
         return QUEUE_TRACE_NO_TASK;
@@ -41,6 +50,14 @@ static uint8_t queue_trace_task_id(const kernel_task_t *task) {
     return task->tcb.u8TaskId;
 }
 
+/**
+ * @brief Obtain the trace priority of a task.
+ *
+ * @param task Task whose priority is required, or null when the operation has
+ *             no associated task.
+ *
+ * @return The task priority from its TCB, or zero when @p task is null.
+ */
 static uint8_t queue_trace_task_priority(const kernel_task_t *task) {
     if (task == 0) {
         return 0u;
@@ -49,6 +66,22 @@ static uint8_t queue_trace_task_priority(const kernel_task_t *task) {
     return task->tcb.u8TaskPrio;
 }
 
+/**
+ * @brief Calculate the trace hash of a message.
+ *
+ * Computes the 32-bit FNV-1a hash used to correlate sent and received message
+ * contents without writing the complete message to the trace.
+ *
+ * @param data Message bytes to hash.
+ * @param length Number of bytes in @p data.
+ *
+ * @return The 32-bit FNV-1a hash of the message.
+ *
+ * @pre @p data must not be null.
+ *
+ * @note Hash equality does not prove byte-for-byte equality because collisions
+ *       are possible.
+ */
 static uint32_t queue_trace_hash(const void *data, uint32_t length) {
     const uint8_t *bytes = (const uint8_t *)data;
     uint32_t hash = 2166136261u;
