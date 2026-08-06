@@ -25,6 +25,7 @@ target_include_directories(rtos_config INTERFACE
 )
 
 add_subdirectory(cmake/stm32cubemx)
+add_subdirectory(Drivers/BSP)
 add_subdirectory(Port/CortexM)
 add_subdirectory(RTOS)
 
@@ -41,6 +42,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     rtos_kernel
+    bsp
 )
 
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
