@@ -8,9 +8,12 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         ca-certificates \
+        cargo \
         curl \
         openjdk-21-jre-headless \
+        rustc \
     && mkdir -p /opt/tessla \
     && curl \
         --fail \
@@ -20,6 +23,8 @@ RUN apt-get update \
         "${TESSLA_URL}" \
     && test -s "${TESSLA_JAR}" \
     && java -jar "${TESSLA_JAR}" --version \
+    && rustc --version \
+    && cargo --version \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
