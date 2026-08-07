@@ -46,7 +46,7 @@ bounded monitor slots. Configure these bounds using `--max-semaphores` and
 ### List Modules
 
 ```bash
-python3 verify.py list
+python3 tessla_verify.py list
 ```
 
 ### Generate Specifications
@@ -54,27 +54,27 @@ python3 verify.py list
 Generate all modules separately:
 
 ```bash
-python3 verify.py generate
+python3 tessla_verify.py generate
 ```
 
 Generate a specific module:
 
 ```bash
-python3 verify.py generate scheduler
-python3 verify.py generate semaphore --max-semaphores 2
-python3 verify.py generate mutex --max-mutexes 2
+python3 tessla_verify.py generate scheduler
+python3 tessla_verify.py generate semaphore --max-semaphores 2
+python3 tessla_verify.py generate mutex --max-mutexes 2
 ```
 
 Generate one combined specification:
 
 ```bash
-python3 verify.py generate --combined
+python3 tessla_verify.py generate --combined
 ```
 
 Combine selected modules:
 
 ```bash
-python3 verify.py generate scheduler delay semaphore mutex integrity --combined
+python3 tessla_verify.py generate scheduler delay semaphore mutex integrity --combined
 ```
 
 Options:
@@ -86,22 +86,62 @@ Options:
 --max-semaphores N           Override tracked semaphore-instance count
 --max-mutexes N              Override tracked mutex-instance count
 --quantum N                  Override configured scheduler quantum
+--compile-rust               Compile generated specifications to Rust monitors
+--tessla-jar PATH            TeSSLa JAR used for Rust compilation
 ```
 
 Overrides are applied only to modules that support them.
 
-### Run Tests
+### Compile a Rust Monitor
 
-Run all module tests:
+Compile a generated module to a native Rust monitor:
 
 ```bash
-python3 verify.py test
+python3 tessla_verify.py generate mutex \
+    --max-mutexes 2 \
+    --compile-rust \
+    --tessla-jar /path/to/tessla.jar
+```
+
+This creates:
+
+```text
+build/mutex.tessla
+build/mutex-monitor
+```
+
+Compile a combined monitor:
+
+```bash
+python3 tessla_verify.py generate \
+    scheduler delay semaphore mutex integrity \
+    --combined \
+    --compile-rust \
+    --tessla-jar /path/to/tessla.jar
+```
+
+The resulting executable is `build/combined-monitor`.
+
+### Run Tests
+
+Run all module tests with the interpreter:
+
+```bash
+python3 tessla_verify.py test
 ```
 
 Run selected module tests:
 
 ```bash
-python3 verify.py test scheduler semaphore mutex integrity
+python3 tessla_verify.py test scheduler semaphore mutex integrity
+```
+
+Compile each selected module once and reuse its Rust monitor for all fixtures:
+
+```bash
+python3 tessla_verify.py test mutex \
+    --rust \
+    --tessla-jar /path/to/tessla.jar
 ```
 
 Options:
@@ -109,22 +149,38 @@ Options:
 ```text
 --tessla-jar PATH    Path to tessla.jar
 --verbose            Print output from passing tests
+--rust               Compile once per module and use the Rust monitor
 ```
 
 Test parameters are taken from each module's `config.py`.
 
-### Clean Generated Specifications
+### Clean Generated Specifications and Monitors
 
 ```bash
-python3 verify.py clean
+python3 tessla_verify.py clean
 ```
+
+This removes generated `.tessla` specifications and compiled `*-monitor`
+executables from `build/`.
 
 ## Verify a Recorded Trace
 
+Using the interpreter:
+
 ```bash
-python3 verify.py generate --combined
+python3 tessla_verify.py generate --combined
 
 java -jar ~/Desktop/tessla.jar interpreter \
     build/combined.tessla \
     trace.input
+```
+
+Using a compiled Rust monitor:
+
+```bash
+python3 tessla_verify.py generate --combined \
+    --compile-rust \
+    --tessla-jar /path/to/tessla.jar
+
+build/combined-monitor < trace.input
 ```

@@ -1,3 +1,5 @@
+"""Generate, compile, and test the project's TeSSLa verification monitors."""
+
 import argparse
 import os
 import re
@@ -277,6 +279,60 @@ def run_tessla(
     )
 
 
+def rust_monitor_path(specification: Path) -> Path:
+    return specification.with_name(f"{specification.stem}-monitor")
+
+
+def compile_rust_monitor(
+    tessla_jar: Path,
+    specification: Path,
+) -> tuple[Path, subprocess.CompletedProcess[str]]:
+    monitor = rust_monitor_path(specification)
+    result = subprocess.run(
+        [
+            "java",
+            "-jar",
+            str(tessla_jar),
+            "compile-rust",
+            "-b",
+            str(monitor),
+            str(specification),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+
+    return monitor, result
+
+
+def run_rust_monitor(
+    monitor: Path,
+    trace: Path,
+) -> subprocess.CompletedProcess[str]:
+    with trace.open("r", encoding="utf-8") as trace_input:
+        return subprocess.run(
+            [str(monitor)],
+            stdin=trace_input,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+
+
+def report_compile_failure(
+    name: str,
+    result: subprocess.CompletedProcess[str],
+) -> None:
+    print(f"[ERROR] {name}: Rust monitor compilation failed", file=sys.stderr)
+
+    if result.stdout:
+        for line in result.stdout.splitlines():
+            print(f"  {line}", file=sys.stderr)
+
+
 def format_streams(streams: set[str]) -> str:
     if not streams:
         return "no violations"
@@ -331,6 +387,16 @@ def command_generate(
             )
 
             print("[GENERATED] combined: " f"{output_path.relative_to(ROOT_DIR)}")
+
+            if args.compile_rust:
+                monitor, result = compile_rust_monitor(args.tessla_jar, output_path)
+
+                if result.returncode != 0 or not monitor.is_file():
+                    report_compile_failure("combined", result)
+                    return 1
+
+                print(f"[COMPILED] combined: {monitor.relative_to(ROOT_DIR)}")
+
             return 0
 
         except Exception as error:
@@ -350,6 +416,16 @@ def command_generate(
 
             print(f"[GENERATED] {module.name}: " f"{output_path.relative_to(ROOT_DIR)}")
 
+            if args.compile_rust:
+                monitor, result = compile_rust_monitor(args.tessla_jar, output_path)
+
+                if result.returncode != 0 or not monitor.is_file():
+                    report_compile_failure(module.name, result)
+                    failures += 1
+                    continue
+
+                print(f"[COMPILED] {module.name}: {monitor.relative_to(ROOT_DIR)}")
+
         except Exception as error:
             print(
                 f"[ERROR] {module.name}: {error}",
@@ -364,6 +440,7 @@ def run_module_tests(
     module: VerificationModule,
     tessla_jar: Path,
     verbose: bool,
+    use_rust: bool,
 ) -> tuple[int, int]:
     print(f"\n=== {module.name} ===")
 
@@ -371,6 +448,22 @@ def run_module_tests(
         module=module,
         mode="violations",
     )
+
+    monitor: Path | None = None
+
+    if use_rust:
+        monitor, compile_result = compile_rust_monitor(tessla_jar, specification)
+
+        if compile_result.returncode != 0 or not monitor.is_file():
+            details = compile_result.stdout.strip()
+            message = f"{module.name} Rust monitor compilation failed"
+
+            if details:
+                message += f"\n{details}"
+
+            raise RuntimeError(message)
+
+        print(f"[COMPILED] {monitor.relative_to(ROOT_DIR)}")
 
     test_dir = module.directory / "test"
 
@@ -393,14 +486,21 @@ def run_module_tests(
         trace_path = test_dir / test_name
         expected_streams = module.expected[test_name]
 
-        result = run_tessla(
-            tessla_jar=tessla_jar,
-            specification=specification,
-            trace=trace_path,
-        )
+        if monitor is None:
+            result = run_tessla(
+                tessla_jar=tessla_jar,
+                specification=specification,
+                trace=trace_path,
+            )
+        else:
+            result = run_rust_monitor(
+                monitor=monitor,
+                trace=trace_path,
+            )
 
         if result.returncode != 0:
-            print(f"[FAIL] {test_name}: " "TeSSLa interpreter error")
+            backend = "Rust monitor" if monitor is not None else "TeSSLa interpreter"
+            print(f"[FAIL] {test_name}: {backend} error")
 
             if result.stdout:
                 for line in result.stdout.splitlines():
@@ -464,6 +564,7 @@ def command_test(
                 module=module,
                 tessla_jar=args.tessla_jar,
                 verbose=args.verbose,
+                use_rust=args.rust,
             )
 
             total_passed += passed
@@ -492,9 +593,11 @@ def command_clean(
 
     removed = 0
 
-    for path in BUILD_DIR.glob("*.tessla"):
-        path.unlink()
-        removed += 1
+    for pattern in ("*.tessla", "*-monitor"):
+        for path in BUILD_DIR.glob(pattern):
+            if path.is_file():
+                path.unlink()
+                removed += 1
 
     try:
         BUILD_DIR.rmdir()
@@ -570,6 +673,24 @@ def build_parser() -> argparse.ArgumentParser:
         help=("Override the number of dynamically tracked " "mutex instances."),
     )
 
+    generate_parser.add_argument(
+        "--compile-rust",
+        action="store_true",
+        help="Compile each generated specification to a Rust monitor.",
+    )
+
+    generate_parser.add_argument(
+        "--tessla-jar",
+        type=Path,
+        default=Path(
+            os.environ.get(
+                "TESSLA_JAR",
+                DEFAULT_TESSLA_JAR,
+            )
+        ),
+        help="TeSSLa JAR used by --compile-rust.",
+    )
+
     generate_parser.set_defaults(
         handler=command_generate,
     )
@@ -602,6 +723,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print output from passing tests.",
     )
 
+    test_parser.add_argument(
+        "--rust",
+        action="store_true",
+        help="Compile one Rust monitor per module and reuse it for all tests.",
+    )
+
     test_parser.set_defaults(
         handler=command_test,
     )
@@ -621,6 +748,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+
+    if getattr(args, "compile_rust", False) and not args.tessla_jar.is_file():
+        parser.error(f"TeSSLa JAR not found: {args.tessla_jar}")
 
     if hasattr(args, "max_tasks"):
         if args.max_tasks is not None and args.max_tasks <= 0:

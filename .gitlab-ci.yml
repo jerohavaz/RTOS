@@ -124,7 +124,7 @@ verification:
   script:
     - cd verification
     - python3 verify.py list
-    - python3 verify.py test
+    - python3 verify.py test --rust
   artifacts:
     when: always
     paths:
