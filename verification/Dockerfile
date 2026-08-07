@@ -27,5 +27,5 @@ WORKDIR /verification
 
 COPY . /verification
 
-ENTRYPOINT ["python3", "verify.py"]
+ENTRYPOINT ["python3", "tessla_verify.py"]
 CMD ["test"]

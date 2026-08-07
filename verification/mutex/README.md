@@ -82,12 +82,6 @@ an already-owned mutex, malformed lock lifecycle, missing `BLOCKED`, early and
 successful timeout, missing and spurious wake, wrong priority/FIFO selection,
 and monitor-bound overflow.
 
-Run the fixtures with:
-
-```bash
-python3 verify.py test mutex --tessla-jar /path/to/tessla.jar
-```
-
 ## Verification Boundaries
 
 This is runtime verification of the recorded execution, not a proof of all
