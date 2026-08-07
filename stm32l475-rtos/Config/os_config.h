@@ -124,7 +124,7 @@
 /**
  * @brief Trace mutex operations.
  */
-#define OS_TRACE_MUTEX (false)
+#define OS_TRACE_MUTEX (true)
 
 /**
  * @brief Trace semaphore operations.

@@ -27,6 +27,20 @@ java -jar ~/Desktop/tessla.jar interpreter build/combined.tessla
 The converter emits `trace_incomplete` when sequenced RTT records are missing.
 Any integrity violation makes the affected trace inconclusive.
 
+## Verification Modules
+
+| Module | Purpose |
+| --- | --- |
+| `scheduler` | Task-state transitions, scheduling priority and round-robin behavior. |
+| `delay` | Busy-delay duration and non-blocking behavior. |
+| `semaphore` | Counting/binary semaphore capacity, blocking, timeout and waiter ordering. |
+| `mutex` | Mutex ownership, non-recursive locking, blocking, timeout and waiter handoff. |
+| `integrity` | Missing or discontinuous trace-record detection. |
+
+The semaphore and mutex modules assign runtime object addresses dynamically to
+bounded monitor slots. Configure these bounds using `--max-semaphores` and
+`--max-mutexes` when generating a specification.
+
 ## Verification CLI
 
 ### List Modules
@@ -48,6 +62,7 @@ Generate a specific module:
 ```bash
 python3 verify.py generate scheduler
 python3 verify.py generate semaphore --max-semaphores 2
+python3 verify.py generate mutex --max-mutexes 2
 ```
 
 Generate one combined specification:
@@ -59,7 +74,7 @@ python3 verify.py generate --combined
 Combine selected modules:
 
 ```bash
-python3 verify.py generate scheduler delay semaphore integrity --combined
+python3 verify.py generate scheduler delay semaphore mutex integrity --combined
 ```
 
 Options:
@@ -69,6 +84,7 @@ Options:
 --combined                   Write one build/combined.tessla
 --max-tasks N                Override configured task count
 --max-semaphores N           Override tracked semaphore-instance count
+--max-mutexes N              Override tracked mutex-instance count
 --quantum N                  Override configured scheduler quantum
 ```
 
@@ -85,7 +101,7 @@ python3 verify.py test
 Run selected module tests:
 
 ```bash
-python3 verify.py test scheduler semaphore integrity
+python3 verify.py test scheduler semaphore mutex integrity
 ```
 
 Options:

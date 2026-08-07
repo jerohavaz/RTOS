@@ -23,6 +23,10 @@ from semaphore.config import EXPECTED as SEMAPHORE_EXPECTED
 from semaphore.config import GENERATOR_OPTIONS as SEMAPHORE_OPTIONS
 from semaphore.generate_tessla import generate as generate_semaphore
 
+from mutex.config import EXPECTED as MUTEX_EXPECTED
+from mutex.config import GENERATOR_OPTIONS as MUTEX_OPTIONS
+from mutex.generate_tessla import generate as generate_mutex
+
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
@@ -74,6 +78,13 @@ MODULES = {
         generator=generate_semaphore,
         generator_options=SEMAPHORE_OPTIONS,
         expected=SEMAPHORE_EXPECTED,
+    ),
+    "mutex": VerificationModule(
+        name="mutex",
+        directory=ROOT_DIR / "mutex",
+        generator=generate_mutex,
+        generator_options=MUTEX_OPTIONS,
+        expected=MUTEX_EXPECTED,
     ),
 }
 
@@ -305,6 +316,9 @@ def command_generate(
 
     if args.max_semaphores is not None:
         overrides["max_semaphores"] = args.max_semaphores
+
+    if args.max_mutexes is not None:
+        overrides["max_mutexes"] = args.max_mutexes
 
     failures = 0
 
@@ -550,6 +564,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=("Override the number of dynamically tracked " "semaphore instances."),
     )
 
+    generate_parser.add_argument(
+        "--max-mutexes",
+        type=int,
+        help=("Override the number of dynamically tracked " "mutex instances."),
+    )
+
     generate_parser.set_defaults(
         handler=command_generate,
     )
@@ -613,6 +633,10 @@ def main() -> int:
     if hasattr(args, "max_semaphores"):
         if args.max_semaphores is not None and args.max_semaphores <= 0:
             parser.error("--max-semaphores must be greater than 0")
+
+    if hasattr(args, "max_mutexes"):
+        if args.max_mutexes is not None and args.max_mutexes <= 0:
+            parser.error("--max-mutexes must be greater than 0")
 
     return args.handler(args)
 

@@ -80,6 +80,47 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
         ("sem_wake_task", int),
         ("sem_wake_prio", int),
     ],
+    "MUTEX_CREATE": [
+        ("mutex_create_id", int),
+    ],
+    "MUTEX_LOCK_ENTER": [
+        ("mutex_lock_enter_id", int),
+        ("mutex_lock_enter_task", int),
+        ("mutex_lock_enter_owner", int),
+        ("mutex_lock_enter_timeout", int),
+        ("mutex_lock_enter_finite", int),
+    ],
+    "MUTEX_LOCK_EXIT": [
+        ("mutex_lock_exit_id", int),
+        ("mutex_lock_exit_task", int),
+        ("mutex_lock_exit_owner", int),
+        ("mutex_lock_exit_succeeded", int),
+    ],
+    "MUTEX_BLOCK": [
+        ("mutex_block_id", int),
+        ("mutex_block_task", int),
+        ("mutex_block_prio", int),
+        ("mutex_block_owner", int),
+        ("mutex_block_timeout", int),
+        ("mutex_block_finite", int),
+    ],
+    "MUTEX_TIMEOUT": [
+        ("mutex_timeout_id", int),
+        ("mutex_timeout_task", int),
+        ("mutex_timeout_owner", int),
+    ],
+    "MUTEX_UNLOCK": [
+        ("mutex_unlock_id", int),
+        ("mutex_unlock_task", int),
+        ("mutex_unlock_owner_before", int),
+        ("mutex_unlock_owner_after", int),
+        ("mutex_unlock_succeeded", int),
+    ],
+    "MUTEX_WAKE": [
+        ("mutex_wake_id", int),
+        ("mutex_wake_task", int),
+        ("mutex_wake_prio", int),
+    ],
 }
 
 last_trace_sequence: int | None = None
