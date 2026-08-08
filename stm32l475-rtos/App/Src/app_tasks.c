@@ -11,6 +11,7 @@
 #include "stm32l475e_iot01_gyro.h"
 #include "stm32l4xx_hal_def.h"
 #include "stm32l4xx_hal_uart.h"
+#include "trace.h"
 
 
 
@@ -61,6 +62,7 @@ static void sensor_task(void){
         status = os_queue_send(&uart_queue, msg_buf, OS_WAIT_FOREVER); //Important info -> needs to get into the Queue
         if(status != OS_OK) test_fail();
     }
+
     if(BSP_GYRO_Init() != GYRO_OK){
         snprintf(msg_buf, sizeof(msg_buf), "GYRO init failed\r\n");
         status = os_queue_send(&uart_queue, msg_buf, OS_WAIT_FOREVER); //Important info -> needs to get into the Queue
@@ -73,6 +75,8 @@ static void sensor_task(void){
     
     
     while(1){
+
+        trace_sensor_read();
 
         BSP_ACCELERO_AccGetXYZ(acc);
         BSP_GYRO_GetXYZ(gyro);
@@ -109,6 +113,7 @@ static void uart_task(void){
         }
         else{
             HAL_UART_Transmit(&huart1, (uint8_t *) recv_buf, (uint16_t) strlen(recv_buf), HAL_MAX_DELAY);
+            trace_transmission_complete();
         }
 
     }
@@ -125,7 +130,4 @@ void app_tasks_init(void) {
     expect_status(os_queue_init(&uart_queue, queue_storage, QUEUE_MSG_SIZE, 6), OS_OK);
     expect_status(os_task_create(sensor_task, 4), OS_OK);
     expect_status(os_task_create(uart_task, 4), OS_OK);
-
-    
-
 }

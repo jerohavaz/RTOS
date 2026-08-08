@@ -19,6 +19,10 @@ from integrity.config import EXPECTED as INTEGRITY_EXPECTED
 from integrity.config import GENERATOR_OPTIONS as INTEGRITY_OPTIONS
 from integrity.generate_tessla import generate as generate_integrity
 
+from project.config import EXPECTED as PROJECT_EXPECTED
+from project.config import GENERATOR_OPTIONS as PROJECT_OPTIONS
+from project.generate_tessla import generate as generate_project
+
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
@@ -63,6 +67,13 @@ MODULES = {
         generator=generate_integrity,
         generator_options=INTEGRITY_OPTIONS,
         expected=INTEGRITY_EXPECTED,
+    ),
+    "project": VerificationModule(
+        name="project",
+        directory=ROOT_DIR / "project",
+        generator=generate_project,
+        generator_options=PROJECT_OPTIONS,
+        expected=PROJECT_EXPECTED,
     ),
 }
 

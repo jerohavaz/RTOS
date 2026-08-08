@@ -1,0 +1,5 @@
+1: tick = 10
+2: sensor_read = ()
+3: tick = 40
+4: tick = 30
+5: transmission_complete = ()

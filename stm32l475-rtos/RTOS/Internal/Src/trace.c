@@ -213,6 +213,21 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
 }
 
 /* --------------------------------------------------------------------------
+ * Project: 3D-Gyro-Accelerometer events 
+ * -------------------------------------------------------------------------- */
+ void trace_sensor_read(void){
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_PROJECT
+    trace_tessla_emit("SENSOR_READ");
+#endif
+ }
+
+ void trace_transmission_complete(void){
+    #if OS_TRACE_TESSLA_RTT && OS_TRACE_PROJECT
+    trace_tessla_emit("TRANSMISSION_COMPLETE");
+#endif
+ }
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 

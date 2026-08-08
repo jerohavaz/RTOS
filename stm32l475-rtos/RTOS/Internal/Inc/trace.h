@@ -42,6 +42,12 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
 void trace_task_delay_busy_end(TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
+ * Project: 3D-Gyro-Accelerometer events 
+ * -------------------------------------------------------------------------- */
+ void trace_sensor_read(void);
+ void trace_transmission_complete(void);
+ 
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 

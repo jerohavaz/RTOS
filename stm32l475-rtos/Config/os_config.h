@@ -27,6 +27,7 @@
 #define OS_TRACE_SEMAPHORE (false)
 #define OS_TRACE_QUEUE     (false)
 #define OS_TRACE_DELAY     (true)
+#define OS_TRACE_PROJECT   (true)
 
 // Cortex-M interrupt priorities
 #define OS_SVC_INTERRUPT_PRIORITY     (13u)

@@ -32,6 +32,7 @@ add_subdirectory(RTOS)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/app_tasks.c
     App/Src/app.c
+    App/Src/hardware.c
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

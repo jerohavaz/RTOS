@@ -38,6 +38,8 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "DELAY_BUSY_END": [
         ("delay_busy_end_id", int),
     ],
+    "SENSOR_READ": [],
+    "TRANSMISSION_COMPLETE": [],
 }
 
 last_trace_sequence: int | None = None
@@ -206,6 +208,16 @@ def convert_line(line: str, timestamp: int) -> list[str]:
 
         return [f"{timestamp}: idle = true"]
 
+    if event == "SENSOR_READ":
+        if len(parts) != 1:
+            return []
+        return [f"{timestamp}: sensor_read = ()"]
+
+    if event == "TRANSMISSION_COMPLETE":
+        if len(parts) != 1:
+            return []
+        return [f"{timestamp}: transmission_complete = ()"]
+        
     expected_length = 1 + len(mapping)
 
     if len(parts) != expected_length:
