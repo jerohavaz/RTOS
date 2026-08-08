@@ -168,8 +168,8 @@ static int cmd_mode(int argc, char **argv) {
         ctrl_reg2 = 0x40;
         shell_print("Setze Sensor auf Normal Mode (104 Hz)...\r\n");
     } else if (strcmp(argv[1], "high") == 0) {
-        ctrl_reg1 = 0x90;
-        ctrl_reg2 = 0x90;
+        ctrl_reg1 = 0x80;
+        ctrl_reg2 = 0x80;
         shell_print("Setze Sensor auf High-Performance Mode (1,66 kHz)...\r\n");
     } else {
         shell_print("Ungueltiger Modus!\r\n");
