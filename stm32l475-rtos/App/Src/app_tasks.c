@@ -6,6 +6,7 @@
 #include "os_delay.h"
 #include "os_queue.h"
 #include "os_types.h"
+#include "shell.h"
 #include "stm32l4xx_hal.h"
 #include "stm32l475e_iot01_accelero.h"
 #include "stm32l475e_iot01_gyro.h"
@@ -104,16 +105,20 @@ static void uart_task(void){
 
     os_status_t status;
     char recv_buf[QUEUE_MSG_SYMBOL_COUNT] = {0};
+    shell_init(&huart1);
 
     while(1){
+        shell_update();
 
-        status = os_queue_recv(&uart_queue, recv_buf, OS_WAIT_FOREVER);
+        status = os_queue_recv(&uart_queue, recv_buf, 10);
         if(status != OS_OK){ 
-            test_fail();
+          test_fail();
         }
         else{
+            if(is_stream_enabled()){
             HAL_UART_Transmit(&huart1, (uint8_t *) recv_buf, (uint16_t) strlen(recv_buf), HAL_MAX_DELAY);
             trace_transmission_complete();
+            }
         }
 
     }

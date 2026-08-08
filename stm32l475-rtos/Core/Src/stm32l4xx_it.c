@@ -60,6 +60,7 @@
 /* USER CODE BEGIN EV */
 extern void SVC_Handler(void);
 extern void PendSV_Handler(void);
+extern void USART1_IRQHandler(void);
 /* USER CODE END EV */
 
 /******************************************************************************/
