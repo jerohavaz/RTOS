@@ -80,69 +80,110 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
         ("sem_wake_task", int),
         ("sem_wake_prio", int),
     ],
-        "QUEUE_CREATE": [
-        ("queue_create_id", int),
-        ("queue_create_capacity", int),
+    "MUTEX_CREATE": [
+        ("mutex_create_id", int),
     ],
-    "QUEUE_SEND_ATTEMPT": [
-        ("queue_send_attempt_queue_id", int),
-        ("queue_send_attempt_task_id", int),
-        ("queue_send_attempt_task_prio", int),
-        ("queue_send_attempt_timeout", int),
-        ("queue_send_attempt_hash", int),
+    "MUTEX_LOCK_ENTER": [
+        ("mutex_lock_enter_id", int),
+        ("mutex_lock_enter_task", int),
+        ("mutex_lock_enter_owner", int),
+        ("mutex_lock_enter_timeout", int),
+        ("mutex_lock_enter_finite", int),
     ],
-    "QUEUE_SEND_SUCCESS": [
-        ("queue_send_success_queue_id", int),
-        ("queue_send_success_task_id", int),
-        ("queue_send_success_hash", int),
+    "MUTEX_LOCK_EXIT": [
+        ("mutex_lock_exit_id", int),
+        ("mutex_lock_exit_task", int),
+        ("mutex_lock_exit_owner", int),
+        ("mutex_lock_exit_succeeded", int),
     ],
-    "QUEUE_SEND_BLOCK": [
-        ("queue_send_block_queue_id", int),
-        ("queue_send_block_task_id", int),
-        ("queue_send_block_task_prio", int),
+    "MUTEX_BLOCK": [
+        ("mutex_block_id", int),
+        ("mutex_block_task", int),
+        ("mutex_block_prio", int),
+        ("mutex_block_owner", int),
+        ("mutex_block_timeout", int),
+        ("mutex_block_finite", int),
     ],
-    "QUEUE_SEND_TIMEOUT": [
-        ("queue_send_timeout_queue_id", int),
-        ("queue_send_timeout_task_id", int),
+    "MUTEX_TIMEOUT": [
+        ("mutex_timeout_id", int),
+        ("mutex_timeout_task", int),
+        ("mutex_timeout_owner", int),
     ],
-    "QUEUE_RECV_ATTEMPT": [
-        ("queue_recv_attempt_queue_id", int),
-        ("queue_recv_attempt_task_id", int),
-        ("queue_recv_attempt_task_prio", int),
-        ("queue_recv_attempt_timeout", int),
+    "MUTEX_UNLOCK": [
+        ("mutex_unlock_id", int),
+        ("mutex_unlock_task", int),
+        ("mutex_unlock_owner_before", int),
+        ("mutex_unlock_owner_after", int),
+        ("mutex_unlock_succeeded", int),
     ],
-    "QUEUE_RECV_SUCCESS": [
-        ("queue_recv_success_queue_id", int),
-        ("queue_recv_success_task_id", int),
-        ("queue_recv_success_hash", int),
+    "MUTEX_WAKE": [
+        ("mutex_wake_id", int),
+        ("mutex_wake_task", int),
+        ("mutex_wake_prio", int),
     ],
-    "QUEUE_RECV_BLOCK": [
-        ("queue_recv_block_queue_id", int),
-        ("queue_recv_block_task_id", int),
-        ("queue_recv_block_task_prio", int),
-    ],
-    "QUEUE_RECV_TIMEOUT": [
-        ("queue_recv_timeout_queue_id", int),
-        ("queue_recv_timeout_task_id", int),
-    ],
-    "QUEUE_WAKE_SEND": [
-        ("queue_wake_send_queue_id", int),
-        ("queue_wake_send_task_id", int),
-    ],
-    "QUEUE_WAKE_RECV": [
-        ("queue_wake_recv_queue_id", int),
-        ("queue_wake_recv_task_id", int),
-    ],
-    "QUEUE_HANDOFF": [
-        ("queue_handoff_queue_id", int),
-        ("queue_handoff_sender_id", int),
-        ("queue_handoff_receiver_id", int),
-        ("queue_handoff_hash", int),
-    ],
-    "QUEUE_FILL": [
-        ("queue_fill_queue_id", int),
-        ("queue_fill_value", int),
-    ],
+    "QUEUE_CREATE": [
+            ("queue_create_id", int),
+            ("queue_create_capacity", int),
+        ],
+        "QUEUE_SEND_ATTEMPT": [
+            ("queue_send_attempt_queue_id", int),
+            ("queue_send_attempt_task_id", int),
+            ("queue_send_attempt_task_prio", int),
+            ("queue_send_attempt_timeout", int),
+            ("queue_send_attempt_hash", int),
+        ],
+        "QUEUE_SEND_SUCCESS": [
+            ("queue_send_success_queue_id", int),
+            ("queue_send_success_task_id", int),
+            ("queue_send_success_hash", int),
+        ],
+        "QUEUE_SEND_BLOCK": [
+            ("queue_send_block_queue_id", int),
+            ("queue_send_block_task_id", int),
+            ("queue_send_block_task_prio", int),
+        ],
+        "QUEUE_SEND_TIMEOUT": [
+            ("queue_send_timeout_queue_id", int),
+            ("queue_send_timeout_task_id", int),
+        ],
+        "QUEUE_RECV_ATTEMPT": [
+            ("queue_recv_attempt_queue_id", int),
+            ("queue_recv_attempt_task_id", int),
+            ("queue_recv_attempt_task_prio", int),
+            ("queue_recv_attempt_timeout", int),
+        ],
+        "QUEUE_RECV_SUCCESS": [
+            ("queue_recv_success_queue_id", int),
+            ("queue_recv_success_task_id", int),
+            ("queue_recv_success_hash", int),
+        ],
+        "QUEUE_RECV_BLOCK": [
+            ("queue_recv_block_queue_id", int),
+            ("queue_recv_block_task_id", int),
+            ("queue_recv_block_task_prio", int),
+        ],
+        "QUEUE_RECV_TIMEOUT": [
+            ("queue_recv_timeout_queue_id", int),
+            ("queue_recv_timeout_task_id", int),
+        ],
+        "QUEUE_WAKE_SEND": [
+            ("queue_wake_send_queue_id", int),
+            ("queue_wake_send_task_id", int),
+        ],
+        "QUEUE_WAKE_RECV": [
+            ("queue_wake_recv_queue_id", int),
+            ("queue_wake_recv_task_id", int),
+        ],
+        "QUEUE_HANDOFF": [
+            ("queue_handoff_queue_id", int),
+            ("queue_handoff_sender_id", int),
+            ("queue_handoff_receiver_id", int),
+            ("queue_handoff_hash", int),
+        ],
+        "QUEUE_FILL": [
+            ("queue_fill_queue_id", int),
+            ("queue_fill_value", int),
+        ],
 }
 
 last_trace_sequence: int | None = None

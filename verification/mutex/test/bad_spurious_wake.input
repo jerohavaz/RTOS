@@ -1,0 +1,4 @@
+0: mutex_create_id = 100
+1: mutex_wake_id = 100
+1: mutex_wake_task = 1
+1: mutex_wake_prio = 2

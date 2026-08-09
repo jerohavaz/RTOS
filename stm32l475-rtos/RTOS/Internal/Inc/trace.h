@@ -254,6 +254,129 @@ void trace_sem_release(const void *semaphore,
 void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
+ * Mutex events
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Record initialization of an unlocked, non-recursive mutex.
+ *
+ * @param mutex Stable address of the initialized mutex object.
+ *
+ * @pre @p mutex must not be null.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_create(const void *mutex);
+
+/**
+ * @brief Record the start of a mutex-lock operation.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Task attempting to lock the mutex.
+ * @param owner Current mutex owner, or null if the mutex is unlocked.
+ * @param timeout_ticks Requested timeout in kernel ticks.
+ * @param finite_timeout Nonzero if @p timeout_ticks represents a finite
+ *        deadline; zero for a non-timed or wait-forever operation.
+ *
+ * @pre @p mutex must not be null.
+ * @note A null task or owner is encoded as task ID @c UINT8_MAX.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_lock_enter(const void *mutex,
+                            TCB_sctTCB_t *task,
+                            TCB_sctTCB_t *owner,
+                            uint32_t timeout_ticks,
+                            uint8_t finite_timeout);
+
+/**
+ * @brief Record completion of a mutex-lock operation.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Task that attempted to lock the mutex.
+ * @param owner Mutex owner after the operation, or null if it is unlocked.
+ * @param succeeded Nonzero if ownership was acquired; zero otherwise.
+ *
+ * @pre @p mutex must not be null.
+ * @note A null task or owner is encoded as task ID @c UINT8_MAX.
+ * @note A blocked operation emits this event after the task resumes.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_lock_exit(const void *mutex,
+                           TCB_sctTCB_t *task,
+                           TCB_sctTCB_t *owner,
+                           uint8_t succeeded);
+
+/**
+ * @brief Record that a mutex-lock operation queued and blocked its task.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Task added to the mutex wait queue.
+ * @param owner Task owning the mutex when the caller was blocked.
+ * @param timeout_ticks Requested timeout in kernel ticks.
+ * @param finite_timeout Nonzero if @p timeout_ticks represents a finite
+ *        deadline; zero for a wait-forever operation.
+ *
+ * @pre @p mutex must not be null.
+ * @pre @p task must not be null.
+ * @pre @p owner must not be null.
+ * @note The task priority is obtained from @p task.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_block(const void *mutex,
+                       TCB_sctTCB_t *task,
+                       TCB_sctTCB_t *owner,
+                       uint32_t timeout_ticks,
+                       uint8_t finite_timeout);
+
+/**
+ * @brief Record expiry of a finite mutex-lock timeout.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Task whose lock operation timed out.
+ * @param owner Current mutex owner, or null if the mutex is unlocked.
+ *
+ * @pre @p mutex must not be null.
+ * @pre @p task must not be null.
+ * @note A null owner is encoded as task ID @c UINT8_MAX.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner);
+
+/**
+ * @brief Record the result of a mutex-unlock operation.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Task attempting to unlock the mutex.
+ * @param owner_before Mutex owner before the operation, or null if unowned.
+ * @param owner_after Mutex owner after the operation, or null if unowned.
+ * @param succeeded Nonzero if the unlock or ownership handoff succeeded;
+ *        zero if the operation was rejected.
+ *
+ * @pre @p mutex must not be null.
+ * @note Null task or owner values are encoded as task ID @c UINT8_MAX.
+ * @note During direct handoff, @p owner_after identifies the selected waiter.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_unlock(const void *mutex,
+                        TCB_sctTCB_t *task,
+                        TCB_sctTCB_t *owner_before,
+                        TCB_sctTCB_t *owner_after,
+                        uint8_t succeeded);
+
+/**
+ * @brief Record the waiter selected for direct mutex ownership handoff.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Waiting task selected as the new mutex owner.
+ *
+ * @pre @p mutex must not be null.
+ * @pre @p task must not be null.
+ * @note The task priority is obtained from @p task so the verifier can check
+ *       priority ordering. Trace order is used to resolve FIFO ties.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
+ */
+void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task);
+
+/* --------------------------------------------------------------------------
  * Message queue events
  * -------------------------------------------------------------------------- */
 
@@ -512,9 +635,35 @@ static inline void trace_sem_release(const void *semaphore,
 static inline void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
+ * Mutex events
+ * -------------------------------------------------------------------------- */
+static inline void trace_mutex_create(const void *mutex) {}
+static inline void trace_mutex_lock_enter(const void *mutex,
+                                          TCB_sctTCB_t *task,
+                                          TCB_sctTCB_t *owner,
+                                          uint32_t timeout_ticks,
+                                          uint8_t finite_timeout) {}
+static inline void trace_mutex_lock_exit(const void *mutex,
+                                         TCB_sctTCB_t *task,
+                                         TCB_sctTCB_t *owner,
+                                         uint8_t succeeded) {}
+static inline void trace_mutex_block(const void *mutex,
+                                     TCB_sctTCB_t *task,
+                                     TCB_sctTCB_t *owner,
+                                     uint32_t timeout_ticks,
+                                     uint8_t finite_timeout) {}
+static inline void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner) {
+}
+static inline void trace_mutex_unlock(const void *mutex,
+                                      TCB_sctTCB_t *task,
+                                      TCB_sctTCB_t *owner_before,
+                                      TCB_sctTCB_t *owner_after,
+                                      uint8_t succeeded) {}
+static inline void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {}
+
+/* --------------------------------------------------------------------------
  * Message queue events
  * -------------------------------------------------------------------------- */
-
 static inline void trace_queue_create(uint32_t queue_id, uint32_t capacity) {}
 
 static inline void trace_queue_send_attempt(uint32_t queue_id,
