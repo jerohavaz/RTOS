@@ -253,7 +253,8 @@ void app_tasks_init(void) {
 
     /* --- 5. Queue Tasks Init --- */
 #if TEST_QUEUE_DELAY_ENABLE
-    if (os_queue_init(&test_queue, 1, queue_storage, sizeof(queue_msg_t), QUEUE_MSG_COUNT) != OS_OK) {
+    if (os_queue_init(&test_queue, 1, queue_storage, sizeof(queue_msg_t), QUEUE_MSG_COUNT) !=
+        OS_OK) {
         test_fail();
     }
 
