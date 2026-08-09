@@ -157,10 +157,87 @@ void trace_isr_exit_to_scheduler(void);
 /* --------------------------------------------------------------------------
  * Delay events
  * -------------------------------------------------------------------------- */
+
+/**
+ * @brief Record the start of a busy-wait delay.
+ *
+ * Marks the point at which @p task begins actively polling the kernel tick for
+ * @p delay_ticks ticks. The task remains runnable during this interval; the
+ * event does not represent a scheduler block or yield.
+ *
+ * @param task Task beginning the busy wait.
+ * @param delay_ticks Requested busy-wait duration in kernel ticks.
+ *
+ * @pre @p task must not be null.
+ * @pre @p delay_ticks must satisfy the validation performed by
+ *      @c os_delay_busy().
+ *
+ * @note Emits @c DELAY_BUSY_START with the task ID and requested tick count.
+ * @note Emitted only through the RTT text backend when
+ *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Pair this event with one later call to
+ *       @c trace_task_delay_busy_end() for the same task.
+ */
 void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
+
+/**
+ * @brief Record completion of a busy-wait delay.
+ *
+ * Marks the point at which @p task has observed the requested busy-wait
+ * interval elapse and is about to return from @c os_delay_busy().
+ *
+ * @param task Task completing the busy wait.
+ *
+ * @pre @p task must not be null.
+ * @pre A matching @c trace_task_delay_busy_start() event must already have
+ *      been emitted for @p task.
+ *
+ * @note Emits @c DELAY_BUSY_END with the task ID.
+ * @note Emitted only through the RTT text backend when
+ *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ */
 void trace_task_delay_busy_end(TCB_sctTCB_t *task);
 
+/**
+ * @brief Record the start of a scheduler-based blocking delay.
+ *
+ * Marks a successful nonzero @c os_delay() operation immediately before the
+ * calling task is blocked for @p delay_ticks ticks. This event brackets the
+ * scheduler wait; it is distinct from the CPU-consuming busy-delay events.
+ *
+ * @param task Task entering the delay wait.
+ * @param delay_ticks Requested blocking duration in kernel ticks.
+ *
+ * @pre @p task must not be null.
+ * @pre @p delay_ticks must be nonzero and must satisfy the finite-timeout
+ *      validation performed by @c os_delay().
+ *
+ * @note Emits @c DELAY_START with the task ID and requested tick count.
+ * @note Emitted only through the RTT text backend when
+ *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note A zero-tick @c os_delay(0) is a yield and must not emit this event.
+ * @note Pair this event with one later call to @c trace_task_delay_end() for
+ *       the same task after its delay expires.
+ */
 void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
+
+/**
+ * @brief Record completion of a scheduler-based blocking delay.
+ *
+ * Marks the point at which @p task resumes after its delay timeout has
+ * expired. It must not be emitted for a rejected delay request or a zero-tick
+ * yield.
+ *
+ * @param task Task whose blocking delay completed.
+ *
+ * @pre @p task must not be null.
+ * @pre A matching @c trace_task_delay_start() event must already have been
+ *      emitted for @p task.
+ *
+ * @note Emits @c DELAY_END with the task ID.
+ * @note Emitted only through the RTT text backend when
+ *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ */
 void trace_task_delay_end(TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
@@ -609,6 +686,8 @@ static inline void trace_isr_exit_to_scheduler(void) {}
  * -------------------------------------------------------------------------- */
 static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
 static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
+static inline void trace_task_delay_end(TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
  * Counting-semaphore events
