@@ -121,6 +121,69 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
         ("mutex_wake_task", int),
         ("mutex_wake_prio", int),
     ],
+    "QUEUE_CREATE": [
+            ("queue_create_id", int),
+            ("queue_create_capacity", int),
+        ],
+        "QUEUE_SEND_ATTEMPT": [
+            ("queue_send_attempt_queue_id", int),
+            ("queue_send_attempt_task_id", int),
+            ("queue_send_attempt_task_prio", int),
+            ("queue_send_attempt_timeout", int),
+            ("queue_send_attempt_hash", int),
+        ],
+        "QUEUE_SEND_SUCCESS": [
+            ("queue_send_success_queue_id", int),
+            ("queue_send_success_task_id", int),
+            ("queue_send_success_hash", int),
+        ],
+        "QUEUE_SEND_BLOCK": [
+            ("queue_send_block_queue_id", int),
+            ("queue_send_block_task_id", int),
+            ("queue_send_block_task_prio", int),
+        ],
+        "QUEUE_SEND_TIMEOUT": [
+            ("queue_send_timeout_queue_id", int),
+            ("queue_send_timeout_task_id", int),
+        ],
+        "QUEUE_RECV_ATTEMPT": [
+            ("queue_recv_attempt_queue_id", int),
+            ("queue_recv_attempt_task_id", int),
+            ("queue_recv_attempt_task_prio", int),
+            ("queue_recv_attempt_timeout", int),
+        ],
+        "QUEUE_RECV_SUCCESS": [
+            ("queue_recv_success_queue_id", int),
+            ("queue_recv_success_task_id", int),
+            ("queue_recv_success_hash", int),
+        ],
+        "QUEUE_RECV_BLOCK": [
+            ("queue_recv_block_queue_id", int),
+            ("queue_recv_block_task_id", int),
+            ("queue_recv_block_task_prio", int),
+        ],
+        "QUEUE_RECV_TIMEOUT": [
+            ("queue_recv_timeout_queue_id", int),
+            ("queue_recv_timeout_task_id", int),
+        ],
+        "QUEUE_WAKE_SEND": [
+            ("queue_wake_send_queue_id", int),
+            ("queue_wake_send_task_id", int),
+        ],
+        "QUEUE_WAKE_RECV": [
+            ("queue_wake_recv_queue_id", int),
+            ("queue_wake_recv_task_id", int),
+        ],
+        "QUEUE_HANDOFF": [
+            ("queue_handoff_queue_id", int),
+            ("queue_handoff_sender_id", int),
+            ("queue_handoff_receiver_id", int),
+            ("queue_handoff_hash", int),
+        ],
+        "QUEUE_FILL": [
+            ("queue_fill_queue_id", int),
+            ("queue_fill_value", int),
+        ],
 }
 
 last_trace_sequence: int | None = None
@@ -128,7 +191,7 @@ missing_trace_records = 0
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Convert SEGGER RTT scheduler trace lines to TeSSLa input.")
+    parser = argparse.ArgumentParser(description="Convert SEGGER RTT trace lines to TeSSLa input.")
 
     parser.add_argument(
         "--host",
@@ -360,7 +423,13 @@ def main() -> int:
     show_live_summary = args.output is not None and args.summary
 
     output_context = (
-        nullcontext(sys.stdout) if args.stdout or args.output is None else open(args.output, "w", encoding="utf-8")
+        nullcontext(sys.stdout)
+        if args.stdout or args.output is None
+        else open(
+            args.output,
+            "w",
+            encoding="utf-8",
+        )
     )
 
     try:
@@ -389,7 +458,10 @@ def main() -> int:
 
                     continue
 
-                converted_lines = convert_line(line, timestamp)
+                converted_lines = convert_line(
+                    line,
+                    timestamp,
+                )
 
                 if not converted_lines:
                     if wrote_integrity_event:

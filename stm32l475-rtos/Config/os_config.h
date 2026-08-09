@@ -134,7 +134,7 @@
 /**
  * @brief Trace message-queue operations.
  */
-#define OS_TRACE_QUEUE (false)
+#define OS_TRACE_QUEUE (true)
 
 /**
  * @brief Trace task-delay operations.

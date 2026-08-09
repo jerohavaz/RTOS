@@ -25,6 +25,7 @@
  * and must not be modified directly after initialization.
  */
 typedef struct {
+    uint32_t id;                 ///< Unique queue ID for trace events.
     ring_msgbuf_t buffer;        ///< Fixed-size message ring buffer.
     prio_waitq_t send_wait_list; ///< Tasks blocked while sending.
     prio_waitq_t recv_wait_list; ///< Tasks blocked while receiving.
@@ -34,6 +35,7 @@ typedef struct {
  * @brief Initialize a fixed-capacity message queue.
  *
  * @param queue Queue object to initialize.
+ * @param id Unique queue ID for trace events.
  * @param storage Caller-owned message storage.
  * @param msg_size Size of each message in bytes.
  * @param msg_count Number of messages that fit in @p storage.
@@ -47,7 +49,8 @@ typedef struct {
  * @note The storage must remain valid and must not be modified externally
  *       while the queue is in use.
  */
-os_status_t os_queue_init(os_queue_t *queue, void *storage, uint32_t msg_size, uint32_t msg_count);
+os_status_t os_queue_init(
+    os_queue_t *queue, uint32_t id, void *storage, uint32_t msg_size, uint32_t msg_count);
 
 /**
  * @brief Send one fixed-size message to a queue.

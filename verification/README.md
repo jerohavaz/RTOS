@@ -1,8 +1,72 @@
 # TeSSLa Verification
 
-## RTT to TeSSLa
+This directory contains tools for converting SEGGER RTT records into TeSSLa
+input, generating verification specifications, compiling native monitors, and
+running module test suites.
 
-Record RTT channel 0 to a trace file:
+## Verification Modules
+
+Each module documents its verified properties, required trace events, test
+coverage, configuration, and limitations in its own README.
+
+| Module | Description |
+| --- | --- |
+| [Scheduler](scheduler/README.md) | Task states, priorities, scheduling, and round-robin behavior |
+| [Message queues](queue/README.md) | Capacity, FIFO order, message integrity, blocking, wake-up, and timeout behavior |
+| [Semaphores](semaphore/README.md) | Counts, blocking, direct handoff, wake-up order, and timeouts |
+| [Mutexes](mutex/README.md) | Ownership, non-recursive locking, blocking, timeout, and waiter handoff |
+| [Delays](delay/README.md) | Busy-delay duration and task-state behavior |
+| [Trace integrity](integrity/README.md) | Missing or out-of-order RTT records |
+
+Semaphore and mutex objects are identified by their runtime addresses and
+assigned dynamically to bounded monitor slots.
+
+Queue IDs, capacities, and the number of modeled tasks must be known when the
+queue specification is generated.
+
+List the modules recognized by the CLI:
+
+```bash
+python3 tessla_verify.py list
+```
+
+## Requirements
+
+Base requirements:
+
+- Python 3.12 or newer
+- Java 21 or newer
+- A TeSSLa JAR
+- A SEGGER RTT connection when recording live target data
+
+Native Rust monitor compilation additionally requires:
+
+- `rustc`
+- `cargo`
+- A native linker and build toolchain
+
+The TeSSLa JAR has no built-in default path. Commands that execute TeSSLa must
+receive it through either the `TESSLA_JAR` environment variable or
+`--tessla-jar PATH`.
+
+Set the environment variable for the current shell:
+
+```bash
+export TESSLA_JAR=/path/to/tessla.jar
+```
+
+Alternatively, pass the path to an individual command:
+
+```bash
+python3 tessla_verify.py test mutex \
+    --tessla-jar /path/to/tessla.jar
+```
+
+Plain specification generation without `--rust` does not require a TeSSLa JAR.
+
+## Capture a Trace
+
+Record RTT channel 0 to a file:
 
 ```bash
 python3 rtt_to_tessla.py -o trace.input
@@ -14,34 +78,18 @@ Select another RTT channel:
 python3 rtt_to_tessla.py --channel 1 -o trace.input
 ```
 
-File output prints a received/dropped event summary by default. Disable it with
-`--no-summary`.
-
-The converter emits `trace_incomplete` when sequenced RTT records are missing.
-An integrity violation makes the affected trace inconclusive.
-
-## Verification Modules
-
-| Module | Purpose |
-| --- | --- |
-| `scheduler` | Task-state transitions, scheduling priority, and round-robin behavior. |
-| `delay` | Busy-delay duration and non-blocking behavior. |
-| `semaphore` | Counting/binary semaphore capacity, blocking, timeout, and waiter ordering. |
-| `mutex` | Mutex ownership, non-recursive locking, blocking, timeout, and waiter handoff. |
-| `integrity` | Missing or discontinuous trace-record detection. |
-
-Semaphore and mutex objects are identified by their runtime addresses and
-assigned dynamically to bounded monitor slots.
-
-## Verification CLI
-
-### List Modules
+File output prints received and dropped event totals by default. Disable the
+summary with:
 
 ```bash
-python3 tessla_verify.py list
+python3 rtt_to_tessla.py --no-summary -o trace.input
 ```
 
-### Generate Specifications
+The converter emits `trace_incomplete` when sequenced RTT records are missing.
+Verification results affected by missing events must be treated as inconclusive.
+See [Trace integrity](integrity/README.md) for details.
+
+## Generate Specifications
 
 Generation requires every configuration option used by the selected modules.
 
@@ -52,8 +100,17 @@ Generation requires every configuration option used by the selected modules.
 | `scheduler` | `--max-tasks`, `--quantum` |
 | `semaphore` | `--max-tasks`, `--max-semaphores` |
 | `mutex` | `--max-tasks`, `--max-mutexes` |
+| `queue` | `--max-tasks`, one or more `--queue QUEUE_ID:CAPACITY` options |
 
-Generate a scheduler specification:
+`--max-tasks` is the number of task IDs modeled by the monitor and includes the
+idle-task ID. If the application creates nine tasks with IDs `1..9` and the
+idle task has ID `0`, use:
+
+```text
+--max-tasks 10
+```
+
+### Scheduler
 
 ```bash
 python3 tessla_verify.py generate scheduler \
@@ -61,7 +118,14 @@ python3 tessla_verify.py generate scheduler \
     --quantum 1
 ```
 
-Generate a semaphore specification:
+### Delay
+
+```bash
+python3 tessla_verify.py generate delay \
+    --max-tasks 3
+```
+
+### Semaphore
 
 ```bash
 python3 tessla_verify.py generate semaphore \
@@ -69,7 +133,7 @@ python3 tessla_verify.py generate semaphore \
     --max-semaphores 2
 ```
 
-Generate a mutex specification:
+### Mutex
 
 ```bash
 python3 tessla_verify.py generate mutex \
@@ -77,15 +141,51 @@ python3 tessla_verify.py generate mutex \
     --max-mutexes 2
 ```
 
-Generate all modules separately:
+### Message queue
+
+Generate a queue monitor for queue `1` with capacity `2`:
+
+```bash
+python3 tessla_verify.py generate queue \
+    --max-tasks 3 \
+    --queue 1:2
+```
+
+Generate a monitor for queue `1` with capacity `2` and queue `4` with capacity
+`8`:
+
+```bash
+python3 tessla_verify.py generate queue \
+    --max-tasks 3 \
+    --queue 1:2 \
+    --queue 4:8
+```
+
+Queue IDs must be non-negative and capacities must be greater than zero.
+Duplicate queue IDs are rejected.
+
+See [Message queue verification](queue/README.md) for the queue trace contract
+and current limitations.
+
+### Integrity
+
+```bash
+python3 tessla_verify.py generate integrity
+```
+
+### Generate all modules separately
 
 ```bash
 python3 tessla_verify.py generate \
     --max-tasks 3 \
     --quantum 1 \
     --max-semaphores 2 \
-    --max-mutexes 2
+    --max-mutexes 2 \
+    --queue 1:2 \
+    --queue 4:8
 ```
+
+### Generate one combined specification
 
 Generate one combined specification containing all modules:
 
@@ -94,42 +194,76 @@ python3 tessla_verify.py generate --combined \
     --max-tasks 3 \
     --quantum 1 \
     --max-semaphores 2 \
-    --max-mutexes 2
+    --max-mutexes 2 \
+    --queue 1:2 \
+    --queue 4:8
+```
+
+This creates:
+
+```text
+build/combined.tessla
 ```
 
 Generate a combined specification containing selected modules:
 
 ```bash
-python3 tessla_verify.py generate scheduler mutex integrity \
+python3 tessla_verify.py generate scheduler queue mutex integrity \
     --combined \
     --max-tasks 3 \
     --quantum 1 \
-    --max-mutexes 2
+    --max-mutexes 2 \
+    --queue 1:2 \
+    --queue 4:8
 ```
 
-Generation options:
+## Generation Options
 
 ```text
 --mode {violations,checks}   Output mode (default: violations)
 --combined                   Write one build/combined.tessla
---max-tasks N                Configured task count
+--max-tasks N                Number of modeled task IDs, including idle
 --quantum N                  Scheduler quantum in ticks
---max-semaphores N           Tracked semaphore-instance count
---max-mutexes N              Tracked mutex-instance count
+--max-semaphores N           Number of tracked semaphore instances
+--max-mutexes N              Number of tracked mutex instances
+--queue ID:CAPACITY          Queue ID and capacity; repeat for multiple queues
 --rust                       Compile generated specifications to native monitors
---tessla-jar PATH            Path to tessla.jar used by --rust
+--tessla-jar PATH            TeSSLa JAR used by --rust
 ```
+
+Options are applied only to modules that support them.
 
 ## Compile Native Rust Monitors
 
-Compile a mutex specification to a native monitor:
+Rust compilation requires either `TESSLA_JAR` or `--tessla-jar PATH`.
+
+Compiling a Rust monitor can be slow, especially on the first build while Rust
+dependencies are prepared. Once compiled, the native monitor generally
+processes traces faster than the TeSSLa interpreter. The `test --rust` command
+compiles each selected module once and reuses that executable for all of the
+module's test traces.
+
+### Compile one module
+
+Using `TESSLA_JAR`:
+
+```bash
+export TESSLA_JAR=/path/to/tessla.jar
+
+python3 tessla_verify.py generate mutex \
+    --max-tasks 3 \
+    --max-mutexes 2 \
+    --rust
+```
+
+Using an explicit path:
 
 ```bash
 python3 tessla_verify.py generate mutex \
     --max-tasks 3 \
     --max-mutexes 2 \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar /path/to/tessla.jar
 ```
 
 This creates:
@@ -139,7 +273,25 @@ build/mutex.tessla
 build/mutex-monitor
 ```
 
-Compile one combined monitor containing all modules:
+Compile a queue specification:
+
+```bash
+python3 tessla_verify.py generate queue \
+    --max-tasks 3 \
+    --queue 1:2 \
+    --queue 4:8 \
+    --rust \
+    --tessla-jar /path/to/tessla.jar
+```
+
+This creates:
+
+```text
+build/queue.tessla
+build/queue-monitor
+```
+
+### Compile a combined monitor
 
 ```bash
 python3 tessla_verify.py generate --combined \
@@ -147,8 +299,10 @@ python3 tessla_verify.py generate --combined \
     --quantum 1 \
     --max-semaphores 2 \
     --max-mutexes 2 \
+    --queue 1:2 \
+    --queue 4:8 \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar /path/to/tessla.jar
 ```
 
 This creates:
@@ -163,38 +317,48 @@ progress and actual compiler errors.
 
 ## Run Tests
 
-Tests use the values in each module's `config.py`. Generator configuration
-options such as `--max-tasks` and `--max-mutexes` are not required for tests.
+Tests use the configuration and expected violations from each module's
+`config.py`. Generator options such as `--max-tasks`, `--max-mutexes`, and
+`--queue` are not required when running tests.
 
-Run all tests with the TeSSLa interpreter:
+Tests always require a TeSSLa JAR, supplied through `TESSLA_JAR` or
+`--tessla-jar PATH`.
+
+### Interpreter backend
+
+Using `TESSLA_JAR`:
 
 ```bash
+export TESSLA_JAR=/path/to/tessla.jar
 python3 tessla_verify.py test
 ```
 
-Run selected tests with the interpreter:
+Run selected module tests with an explicit path:
 
 ```bash
-python3 tessla_verify.py test scheduler semaphore mutex integrity
+python3 tessla_verify.py test scheduler queue mutex integrity \
+    --tessla-jar /path/to/tessla.jar
 ```
 
-Compile one Rust monitor per selected module and reuse it for all fixtures:
+Use `--verbose` to print interpreter output from passing tests:
 
 ```bash
-python3 tessla_verify.py test mutex \
+python3 tessla_verify.py test queue \
+    --verbose \
+    --tessla-jar /path/to/tessla.jar
+```
+
+### Rust backend
+
+Compile one Rust monitor per selected module and reuse it for every fixture:
+
+```bash
+python3 tessla_verify.py test queue mutex \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar /path/to/tessla.jar
 ```
 
-Test options:
-
-```text
---tessla-jar PATH   Path to tessla.jar
---verbose           Print monitor output from passing tests
---rust              Compile once per module and use the native monitor
-```
-
-The selected backend is printed before the tests start:
+The selected backend is printed before testing:
 
 ```text
 [BACKEND] TeSSLa interpreter
@@ -206,61 +370,65 @@ or:
 [BACKEND] Rust
 ```
 
-## Clean Generated Files
+Test options:
 
-```bash
-python3 tessla_verify.py clean
+```text
+--tessla-jar PATH   Path to tessla.jar; otherwise TESSLA_JAR is required
+--verbose           Print monitor output from passing tests
+--rust              Compile once per module and use the native monitor
 ```
-
-This removes generated `.tessla` specifications and compiled `*-monitor`
-executables from `build/`.
 
 ## Verify a Recorded Trace
 
-### Using the TeSSLa Interpreter
+### TeSSLa interpreter
 
-First generate the required specification:
+Generate the required specification:
 
 ```bash
 python3 tessla_verify.py generate mutex \
-    --max-tasks 3 \
+    --max-tasks 10 \
     --max-mutexes 2
 ```
 
-Run the specification against a recorded trace:
+Run it using `TESSLA_JAR`:
 
 ```bash
-java -jar ~/Desktop/tessla.jar interpreter \
+export TESSLA_JAR=/path/to/tessla.jar
+
+java -jar "$TESSLA_JAR" interpreter \
     build/mutex.tessla \
     trace.input
 ```
 
-For a combined specification:
+Generate a combined specification:
 
 ```bash
 python3 tessla_verify.py generate --combined \
-    --max-tasks 3 \
+    --max-tasks 10 \
     --quantum 1 \
-    --max-semaphores 2 \
-    --max-mutexes 2
+    --max-semaphores 10 \
+    --max-mutexes 2 \
+    --queue 536871000:4
 ```
 
+Run it with an explicit JAR path:
+
 ```bash
-java -jar ~/Desktop/tessla.jar interpreter \
+java -jar /path/to/tessla.jar interpreter \
     build/combined.tessla \
     trace.input
 ```
 
-### Using a Compiled Rust Monitor
+### Compiled Rust monitor
 
 Generate and compile a mutex monitor:
 
 ```bash
 python3 tessla_verify.py generate mutex \
-    --max-tasks 3 \
+    --max-tasks 10 \
     --max-mutexes 2 \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar /path/to/tessla.jar
 ```
 
 Run it with a trace file redirected to standard input:
@@ -269,22 +437,33 @@ Run it with a trace file redirected to standard input:
 build/mutex-monitor < trace.input
 ```
 
-The equivalent pipe is:
+Generate and compile a queue monitor:
 
 ```bash
-cat trace.input | build/mutex-monitor
+python3 tessla_verify.py generate queue \
+    --max-tasks 3 \
+    --queue 536871000:4 \
+    --rust \
+    --tessla-jar /path/to/tessla.jar
+```
+
+Run it against a recorded trace:
+
+```bash
+build/queue-monitor < trace.input
 ```
 
 Generate and compile a combined monitor:
 
 ```bash
 python3 tessla_verify.py generate --combined \
-    --max-tasks 3 \
+    --max-tasks 10 \
     --quantum 1 \
-    --max-semaphores 2 \
+    --max-semaphores 10 \
     --max-mutexes 2 \
+    --queue 536871000:4 \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar /path/to/tessla.jar
 ```
 
 Run it against a recorded trace:
@@ -293,52 +472,53 @@ Run it against a recorded trace:
 build/combined-monitor < trace.input
 ```
 
-## Process Standard Input Directly
-
-A compiled monitor reads TeSSLa input events from standard input.
-
-Example with manually supplied events:
+The compiled monitor reads TeSSLa events from standard input. This is
+equivalent:
 
 ```bash
-printf '%s\n' \
-    '0: trace_incomplete = 0' \
-    '1: MUTEX_CREATE = (100)' \
-    | build/mutex-monitor
-```
-
-Example using an existing producer:
-
-```bash
-some_trace_producer | build/mutex-monitor
+cat trace.input | build/combined-monitor
 ```
 
 ## Stream Live RTT Data
 
-### RTT Into the Interpreter
+### RTT into the TeSSLa interpreter
+
+Using `TESSLA_JAR`:
 
 ```bash
 python3 rtt_to_tessla.py --stdout | \
-java -jar ~/Desktop/tessla.jar interpreter build/mutex.tessla
+java -jar "$TESSLA_JAR" interpreter build/combined.tessla
 ```
 
-For the combined specification:
+Using an explicit JAR path:
 
 ```bash
 python3 rtt_to_tessla.py --stdout | \
-java -jar ~/Desktop/tessla.jar interpreter build/combined.tessla
+java -jar /path/to/tessla.jar interpreter build/combined.tessla
 ```
 
-### RTT Into a Compiled Monitor
+### RTT into a compiled module monitor
 
 ```bash
-python3 rtt_to_tessla.py --stdout | build/mutex-monitor
+python3 rtt_to_tessla.py --stdout | \
+build/queue-monitor
 ```
 
-For the combined monitor:
+### RTT into a compiled combined monitor
 
 ```bash
-python3 rtt_to_tessla.py --stdout | build/combined-monitor
+python3 rtt_to_tessla.py --stdout | \
+build/combined-monitor
 ```
 
 The compiled monitor and interpreter accept the same TeSSLa event format on
 standard input.
+
+## Clean Generated Files
+
+```bash
+python3 tessla_verify.py clean
+```
+
+This removes generated `.tessla` specifications and compiled `*-monitor`
+executables from `build/`.

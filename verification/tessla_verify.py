@@ -30,29 +30,20 @@ from mutex.config import EXPECTED as MUTEX_EXPECTED
 from mutex.config import GENERATOR_OPTIONS as MUTEX_OPTIONS
 from mutex.generate_tessla import generate as generate_mutex
 
+from queue.config import EXPECTED as QUEUE_EXPECTED
+from queue.config import GENERATOR_OPTIONS as QUEUE_OPTIONS
+from queue.generate_tessla import generate as generate_queue
 
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
-DEFAULT_TESSLA_JAR = (
-    Path.home() / "Desktop" / "tessla.jar"
-)
+OUTPUT_PATTERN = re.compile(r"^[^:]+:\s+([A-Za-z_][A-Za-z0-9_]*)\s*=")
 
-OUTPUT_PATTERN = re.compile(
-    r"^[^:]+:\s+([A-Za-z_][A-Za-z0-9_]*)\s*="
-)
+INPUT_PATTERN = re.compile(r"^in\s+([A-Za-z_][A-Za-z0-9_]*)\s*:")
 
-INPUT_PATTERN = re.compile(
-    r"^in\s+([A-Za-z_][A-Za-z0-9_]*)\s*:"
-)
+DEFINITION_PATTERN = re.compile(r"^def\s+([A-Za-z_][A-Za-z0-9_]*)")
 
-DEFINITION_PATTERN = re.compile(
-    r"^def\s+([A-Za-z_][A-Za-z0-9_]*)"
-)
-
-OUTPUT_DECLARATION_PATTERN = re.compile(
-    r"^out\s+([A-Za-z_][A-Za-z0-9_]*)\s*$"
-)
+OUTPUT_DECLARATION_PATTERN = re.compile(r"^out\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 
 
 @dataclass(frozen=True)
@@ -100,6 +91,13 @@ MODULES = {
         generator_options=MUTEX_OPTIONS,
         expected=MUTEX_EXPECTED,
     ),
+    "queue": VerificationModule(
+        name="queue",
+        directory=ROOT_DIR / "queue",
+        generator=generate_queue,
+        generator_options=QUEUE_OPTIONS,
+        expected=QUEUE_EXPECTED,
+    ),
 }
 
 
@@ -120,6 +118,10 @@ GENERATOR_ARGUMENTS = {
         "max_mutexes",
         "--max-mutexes",
     ),
+    "queue_capacities": (
+        "queues",
+        "--queue",
+    ),
 }
 
 
@@ -127,10 +129,7 @@ def select_modules(
     requested: list[str],
 ) -> list[VerificationModule]:
     if not requested:
-        return [
-            MODULES[name]
-            for name in sorted(MODULES)
-        ]
+        return [MODULES[name] for name in sorted(MODULES)]
 
     selected: list[VerificationModule] = []
 
@@ -140,10 +139,7 @@ def select_modules(
         if module is None:
             available = ", ".join(sorted(MODULES))
 
-            raise ValueError(
-                f"Unknown module '{name}'. "
-                f"Available modules: {available}"
-            )
+            raise ValueError(f"Unknown module '{name}'. " f"Available modules: {available}")
 
         selected.append(module)
 
@@ -164,16 +160,10 @@ def validate_generation_arguments(
 
     for module in modules:
         for option_name in module.generator_options:
-            argument = GENERATOR_ARGUMENTS.get(
-                option_name
-            )
+            argument = GENERATOR_ARGUMENTS.get(option_name)
 
             if argument is None:
-                raise ValueError(
-                    f"module '{module.name}' has "
-                    f"unsupported generator option "
-                    f"'{option_name}'"
-                )
+                raise ValueError(f"module '{module.name}' has " f"unsupported generator option " f"'{option_name}'")
 
             attribute, flag = argument
 
@@ -186,16 +176,9 @@ def validate_generation_arguments(
     if not required_by:
         return
 
-    missing = ", ".join(
-        f"{flag} ({'/'.join(module_names)})"
-        for flag, module_names
-        in required_by.items()
-    )
+    missing = ", ".join(f"{flag} ({'/'.join(module_names)})" for flag, module_names in required_by.items())
 
-    raise ValueError(
-        "missing required generation option(s): "
-        + missing
-    )
+    raise ValueError("missing required generation option(s): " + missing)
 
 
 def generate_specification(
@@ -207,20 +190,12 @@ def generate_specification(
     options["mode"] = mode
 
     if overrides:
-        options.update(
-            {
-                name: value
-                for name, value in overrides.items()
-                if name in module.generator_options
-            }
-        )
+        options.update({name: value for name, value in overrides.items() if name in module.generator_options})
 
     specification = module.generator(**options)
 
     if not isinstance(specification, str):
-        raise TypeError(
-            f"{module.name} generator must return str"
-        )
+        raise TypeError(f"{module.name} generator must return str")
 
     output_path = generated_spec_path(module)
 
@@ -261,26 +236,16 @@ def combine_specifications(
                     inputs[stream_name] = line
 
                 elif previous != line:
-                    raise ValueError(
-                        f"conflicting input "
-                        f"'{stream_name}' in module "
-                        f"'{module_name}'"
-                    )
+                    raise ValueError(f"conflicting input " f"'{stream_name}' in module " f"'{module_name}'")
 
                 continue
 
-            definition_match = (
-                DEFINITION_PATTERN.match(line)
-            )
+            definition_match = DEFINITION_PATTERN.match(line)
 
             if definition_match is not None:
-                definition_name = (
-                    definition_match.group(1)
-                )
+                definition_name = definition_match.group(1)
 
-                previous_module = definitions.get(
-                    definition_name
-                )
+                previous_module = definitions.get(definition_name)
 
                 if previous_module is not None:
                     raise ValueError(
@@ -290,13 +255,9 @@ def combine_specifications(
                         f"'{module_name}'"
                     )
 
-                definitions[definition_name] = (
-                    module_name
-                )
+                definitions[definition_name] = module_name
 
-            output_match = (
-                OUTPUT_DECLARATION_PATTERN.match(line)
-            )
+            output_match = OUTPUT_DECLARATION_PATTERN.match(line)
 
             if output_match is not None:
                 output_name = output_match.group(1)
@@ -316,14 +277,7 @@ def combine_specifications(
         "\n".join(output_lines),
     ]
 
-    return (
-        "\n\n".join(
-            section
-            for section in sections
-            if section
-        )
-        + "\n"
-    )
+    return "\n\n".join(section for section in sections if section) + "\n"
 
 
 def write_combined_specification(
@@ -337,20 +291,12 @@ def write_combined_specification(
         options = dict(module.generator_options)
         options["mode"] = mode
 
-        options.update(
-            {
-                name: value
-                for name, value in overrides.items()
-                if name in module.generator_options
-            }
-        )
+        options.update({name: value for name, value in overrides.items() if name in module.generator_options})
 
         specification = module.generator(**options)
 
         if not isinstance(specification, str):
-            raise TypeError(
-                f"{module.name} generator must return str"
-            )
+            raise TypeError(f"{module.name} generator must return str")
 
         specifications.append(
             (
@@ -413,9 +359,7 @@ def run_tessla(
 def rust_monitor_path(
     specification: Path,
 ) -> Path:
-    return specification.with_name(
-        f"{specification.stem}-monitor"
-    )
+    return specification.with_name(f"{specification.stem}-monitor")
 
 
 def compile_rust_monitor(
@@ -431,9 +375,7 @@ def compile_rust_monitor(
         "",
     ).strip()
 
-    compiler_environment["RUSTFLAGS"] = (
-        f"{existing_rustflags} -Awarnings".strip()
-    )
+    compiler_environment["RUSTFLAGS"] = f"{existing_rustflags} -Awarnings".strip()
 
     command = [
         "java",
@@ -446,9 +388,7 @@ def compile_rust_monitor(
     ]
 
     print(
-        f"[COMPILING] "
-        f"{specification.relative_to(ROOT_DIR)} -> "
-        f"{monitor.relative_to(ROOT_DIR)}",
+        f"[COMPILING] " f"{specification.relative_to(ROOT_DIR)} -> " f"{monitor.relative_to(ROOT_DIR)}",
         flush=True,
     )
 
@@ -467,9 +407,7 @@ def compile_rust_monitor(
 
     try:
         if process.stdout is None:
-            raise RuntimeError(
-                "failed to capture Rust compiler output"
-            )
+            raise RuntimeError("failed to capture Rust compiler output")
 
         for line in process.stdout:
             stripped = line.lstrip()
@@ -487,15 +425,9 @@ def compile_rust_monitor(
                 )
             )
 
-            error = (
-                stripped.startswith("error:")
-                or stripped.startswith("error[")
-            )
+            error = stripped.startswith("error:") or stripped.startswith("error[")
 
-            if (
-                stripped.startswith("warning:")
-                or stripped.startswith("warning[")
-            ):
+            if stripped.startswith("warning:") or stripped.startswith("warning["):
                 suppress_warning = True
                 continue
 
@@ -577,8 +509,7 @@ def report_compile_failure(
     result: subprocess.CompletedProcess[str],
 ) -> None:
     print(
-        f"[ERROR] {name}: "
-        f"Rust monitor compilation failed",
+        f"[ERROR] {name}: " f"Rust monitor compilation failed",
         file=sys.stderr,
     )
 
@@ -606,13 +537,9 @@ def command_list(
         module = MODULES[name]
         test_dir = module.directory / "test"
 
-        test_count = len(
-            list(test_dir.glob("*.input"))
-        )
+        test_count = len(list(test_dir.glob("*.input")))
 
-        print(
-            f"{name}: {test_count} test(s)"
-        )
+        print(f"{name}: {test_count} test(s)")
 
     return 0
 
@@ -652,54 +579,49 @@ def command_generate(
         overrides["quantum_ticks"] = args.quantum
 
     if args.max_semaphores is not None:
-        overrides["max_semaphores"] = (
-            args.max_semaphores
-        )
+        overrides["max_semaphores"] = args.max_semaphores
 
     if args.max_mutexes is not None:
-        overrides["max_mutexes"] = (
-            args.max_mutexes
-        )
+        overrides["max_mutexes"] = args.max_mutexes
+
+    if args.queues is not None:
+        queue_capacities = dict(args.queues)
+
+        if len(queue_capacities) != len(args.queues):
+            print(
+                "[ERROR] duplicate queue id",
+                file=sys.stderr,
+            )
+            return 1
+
+        overrides["queue_capacities"] = queue_capacities
 
     failures = 0
 
     if args.combined:
         try:
-            output_path = (
-                write_combined_specification(
-                    modules=modules,
-                    mode=args.mode,
-                    overrides=overrides,
-                )
+            output_path = write_combined_specification(
+                modules=modules,
+                mode=args.mode,
+                overrides=overrides,
             )
 
-            print(
-                "[GENERATED] combined: "
-                f"{output_path.relative_to(ROOT_DIR)}"
-            )
+            print("[GENERATED] combined: " f"{output_path.relative_to(ROOT_DIR)}")
 
             if args.rust:
-                monitor, result = (
-                    compile_rust_monitor(
-                        args.tessla_jar,
-                        output_path,
-                    )
+                monitor, result = compile_rust_monitor(
+                    args.tessla_jar,
+                    output_path,
                 )
 
-                if (
-                    result.returncode != 0
-                    or not monitor.is_file()
-                ):
+                if result.returncode != 0 or not monitor.is_file():
                     report_compile_failure(
                         "combined",
                         result,
                     )
                     return 1
 
-                print(
-                    "[COMPILED] combined: "
-                    f"{monitor.relative_to(ROOT_DIR)}"
-                )
+                print("[COMPILED] combined: " f"{monitor.relative_to(ROOT_DIR)}")
 
             return 0
 
@@ -718,23 +640,15 @@ def command_generate(
                 overrides=overrides,
             )
 
-            print(
-                f"[GENERATED] {module.name}: "
-                f"{output_path.relative_to(ROOT_DIR)}"
-            )
+            print(f"[GENERATED] {module.name}: " f"{output_path.relative_to(ROOT_DIR)}")
 
             if args.rust:
-                monitor, result = (
-                    compile_rust_monitor(
-                        args.tessla_jar,
-                        output_path,
-                    )
+                monitor, result = compile_rust_monitor(
+                    args.tessla_jar,
+                    output_path,
                 )
 
-                if (
-                    result.returncode != 0
-                    or not monitor.is_file()
-                ):
+                if result.returncode != 0 or not monitor.is_file():
                     report_compile_failure(
                         module.name,
                         result,
@@ -742,10 +656,7 @@ def command_generate(
                     failures += 1
                     continue
 
-                print(
-                    f"[COMPILED] {module.name}: "
-                    f"{monitor.relative_to(ROOT_DIR)}"
-                )
+                print(f"[COMPILED] {module.name}: " f"{monitor.relative_to(ROOT_DIR)}")
 
         except Exception as error:
             print(
@@ -773,67 +684,41 @@ def run_module_tests(
     monitor: Path | None = None
 
     if use_rust:
-        monitor, compile_result = (
-            compile_rust_monitor(
-                tessla_jar,
-                specification,
-            )
+        monitor, compile_result = compile_rust_monitor(
+            tessla_jar,
+            specification,
         )
 
-        if (
-            compile_result.returncode != 0
-            or not monitor.is_file()
-        ):
+        if compile_result.returncode != 0 or not monitor.is_file():
             details = compile_result.stdout.strip()
 
-            message = (
-                f"{module.name} Rust monitor "
-                f"compilation failed"
-            )
+            message = f"{module.name} Rust monitor " f"compilation failed"
 
             if details:
                 message += f"\n{details}"
 
             raise RuntimeError(message)
 
-        print(
-            f"[COMPILED] "
-            f"{monitor.relative_to(ROOT_DIR)}"
-        )
+        print(f"[COMPILED] " f"{monitor.relative_to(ROOT_DIR)}")
 
     test_dir = module.directory / "test"
 
-    existing_tests = {
-        path.name
-        for path in test_dir.glob("*.input")
-    }
+    existing_tests = {path.name for path in test_dir.glob("*.input")}
 
     configured_tests = set(module.expected)
 
     passed = 0
     failed = 0
 
-    for test_name in sorted(
-        existing_tests - configured_tests
-    ):
-        print(
-            f"[FAIL] {test_name}: "
-            f"no expected result configured"
-        )
+    for test_name in sorted(existing_tests - configured_tests):
+        print(f"[FAIL] {test_name}: " f"no expected result configured")
         failed += 1
 
-    for test_name in sorted(
-        configured_tests - existing_tests
-    ):
-        print(
-            f"[FAIL] {test_name}: "
-            f"test file not found"
-        )
+    for test_name in sorted(configured_tests - existing_tests):
+        print(f"[FAIL] {test_name}: " f"test file not found")
         failed += 1
 
-    for test_name in sorted(
-        existing_tests & configured_tests
-    ):
+    for test_name in sorted(existing_tests & configured_tests):
         trace_path = test_dir / test_name
         expected_streams = module.expected[test_name]
 
@@ -850,16 +735,9 @@ def run_module_tests(
             )
 
         if result.returncode != 0:
-            backend = (
-                "Rust monitor"
-                if monitor is not None
-                else "TeSSLa interpreter"
-            )
+            backend = "Rust monitor" if monitor is not None else "TeSSLa interpreter"
 
-            print(
-                f"[FAIL] {test_name}: "
-                f"{backend} error"
-            )
+            print(f"[FAIL] {test_name}: " f"{backend} error")
 
             if result.stdout:
                 for line in result.stdout.splitlines():
@@ -868,9 +746,7 @@ def run_module_tests(
             failed += 1
             continue
 
-        actual_streams = extract_output_streams(
-            result.stdout
-        )
+        actual_streams = extract_output_streams(result.stdout)
 
         if actual_streams == expected_streams:
             print(f"[PASS] {test_name}")
@@ -884,15 +760,9 @@ def run_module_tests(
 
         print(f"[FAIL] {test_name}")
 
-        print(
-            f"  Expected: "
-            f"{format_streams(expected_streams)}"
-        )
+        print(f"  Expected: " f"{format_streams(expected_streams)}")
 
-        print(
-            f"  Actual:   "
-            f"{format_streams(actual_streams)}"
-        )
+        print(f"  Actual:   " f"{format_streams(actual_streams)}")
 
         if result.stdout:
             print("  Output:")
@@ -911,17 +781,22 @@ def run_module_tests(
 def command_test(
     args: argparse.Namespace,
 ) -> int:
+    if args.tessla_jar is None:
+        print(
+            "[ERROR] TeSSLa JAR not specified. " "Use --tessla-jar PATH or set TESSLA_JAR.",
+            file=sys.stderr,
+        )
+        return 1
+
     if not args.tessla_jar.is_file():
         print(
-            f"[ERROR] TeSSLa JAR not found: "
-            f"{args.tessla_jar}",
+            f"[ERROR] TeSSLa JAR not found: " f"{args.tessla_jar}",
             file=sys.stderr,
         )
         return 1
 
     try:
         modules = select_modules(args.modules)
-
     except ValueError as error:
         print(
             f"[ERROR] {error}",
@@ -929,11 +804,7 @@ def command_test(
         )
         return 1
 
-    backend = (
-        "Rust"
-        if args.rust
-        else "TeSSLa interpreter"
-    )
+    backend = "Rust" if args.rust else "TeSSLa interpreter"
 
     print(f"[BACKEND] {backend}")
 
@@ -989,20 +860,34 @@ def command_clean(
     except OSError:
         pass
 
-    print(
-        f"Removed {removed} generated file(s)."
-    )
+    print(f"Removed {removed} generated file(s).")
 
     return 0
 
 
+def parse_queue(
+    value: str,
+) -> tuple[int, int]:
+    try:
+        queue_id_text, capacity_text = value.split(":", 1)
+
+        queue_id = int(queue_id_text)
+        capacity = int(capacity_text)
+
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("queue must use QUEUE_ID:CAPACITY") from error
+
+    if queue_id < 0:
+        raise argparse.ArgumentTypeError("queue id must be non-negative")
+
+    if capacity <= 0:
+        raise argparse.ArgumentTypeError("queue capacity must be greater than zero")
+
+    return queue_id, capacity
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Generate and test TeSSLa "
-            "verification modules."
-        )
-    )
+    parser = argparse.ArgumentParser(description=("Generate and test TeSSLa " "verification modules."))
 
     subparsers = parser.add_subparsers(
         dest="command",
@@ -1020,10 +905,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     generate_parser = subparsers.add_parser(
         "generate",
-        help=(
-            "Generate one or all "
-            "TeSSLa specifications."
-        ),
+        help=("Generate one or all " "TeSSLa specifications."),
     )
 
     generate_parser.add_argument(
@@ -1044,67 +926,53 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--combined",
         action="store_true",
-        help=(
-            "Generate one combined specification "
-            "for all selected modules."
-        ),
+        help=("Generate one combined specification " "for all selected modules."),
     )
 
     generate_parser.add_argument(
         "--max-tasks",
         type=int,
-        help=(
-            "Required when a selected module "
-            "uses task monitoring."
-        ),
+        help=("Required when scheduler, delay, semaphore, " "mutex, or queue is selected."),
     )
 
     generate_parser.add_argument(
         "--quantum",
         type=int,
-        help=(
-            "Required when the scheduler module "
-            "is selected."
-        ),
+        help=("Required when the scheduler module " "is selected."),
     )
 
     generate_parser.add_argument(
         "--max-semaphores",
         type=int,
-        help=(
-            "Required when the semaphore module "
-            "is selected."
-        ),
+        help=("Required when the semaphore module " "is selected."),
     )
 
     generate_parser.add_argument(
         "--max-mutexes",
         type=int,
-        help=(
-            "Required when the mutex module "
-            "is selected."
-        ),
+        help=("Required when the mutex module " "is selected."),
+    )
+
+    generate_parser.add_argument(
+        "--queue",
+        dest="queues",
+        action="append",
+        type=parse_queue,
+        metavar="QUEUE_ID:CAPACITY",
+        help=("Required when queue is selected. " "Repeat for multiple queues."),
     )
 
     generate_parser.add_argument(
         "--rust",
         action="store_true",
-        help=(
-            "Compile each generated specification "
-            "to a Rust monitor."
-        ),
+        help=("Compile each generated specification " "to a Rust monitor."),
     )
 
     generate_parser.add_argument(
         "--tessla-jar",
         type=Path,
-        default=Path(
-            os.environ.get(
-                "TESSLA_JAR",
-                DEFAULT_TESSLA_JAR,
-            )
-        ),
-        help="TeSSLa JAR used by --rust.",
+        default=(Path(os.environ["TESSLA_JAR"]) if "TESSLA_JAR" in os.environ else None),
+        help=("TeSSLa JAR used by --rust. " "Defaults to TESSLA_JAR."),
     )
 
     generate_parser.set_defaults(
@@ -1113,10 +981,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     test_parser = subparsers.add_parser(
         "test",
-        help=(
-            "Generate specifications using module "
-            "test configuration and run tests."
-        ),
+        help=("Generate specifications using module " "test configuration and run tests."),
     )
 
     test_parser.add_argument(
@@ -1128,12 +993,8 @@ def build_parser() -> argparse.ArgumentParser:
     test_parser.add_argument(
         "--tessla-jar",
         type=Path,
-        default=Path(
-            os.environ.get(
-                "TESSLA_JAR",
-                DEFAULT_TESSLA_JAR,
-            )
-        ),
+        default=(Path(os.environ["TESSLA_JAR"]) if "TESSLA_JAR" in os.environ else None),
+        help="Path to tessla.jar. Defaults to TESSLA_JAR.",
     )
 
     test_parser.add_argument(
@@ -1145,10 +1006,7 @@ def build_parser() -> argparse.ArgumentParser:
     test_parser.add_argument(
         "--rust",
         action="store_true",
-        help=(
-            "Compile one Rust monitor per module "
-            "and reuse it for all tests."
-        ),
+        help=("Compile one Rust monitor per module " "and reuse it for all tests."),
     )
 
     test_parser.set_defaults(
@@ -1171,51 +1029,28 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    if (
-        getattr(args, "rust", False)
-        and not args.tessla_jar.is_file()
-    ):
-        parser.error(
-            f"TeSSLa JAR not found: "
-            f"{args.tessla_jar}"
-        )
+    if getattr(args, "rust", False):
+        if args.tessla_jar is None:
+            parser.error("TeSSLa JAR not specified. " "Use --tessla-jar PATH or set TESSLA_JAR.")
+
+        if not args.tessla_jar.is_file():
+            parser.error(f"TeSSLa JAR not found: {args.tessla_jar}")
 
     if hasattr(args, "max_tasks"):
-        if (
-            args.max_tasks is not None
-            and args.max_tasks <= 0
-        ):
-            parser.error(
-                "--max-tasks must be greater than 0"
-            )
+        if args.max_tasks is not None and args.max_tasks <= 0:
+            parser.error("--max-tasks must be greater than 0")
 
     if hasattr(args, "quantum"):
-        if (
-            args.quantum is not None
-            and args.quantum <= 0
-        ):
-            parser.error(
-                "--quantum must be greater than 0"
-            )
+        if args.quantum is not None and args.quantum <= 0:
+            parser.error("--quantum must be greater than 0")
 
     if hasattr(args, "max_semaphores"):
-        if (
-            args.max_semaphores is not None
-            and args.max_semaphores <= 0
-        ):
-            parser.error(
-                "--max-semaphores must be "
-                "greater than 0"
-            )
+        if args.max_semaphores is not None and args.max_semaphores <= 0:
+            parser.error("--max-semaphores must be " "greater than 0")
 
     if hasattr(args, "max_mutexes"):
-        if (
-            args.max_mutexes is not None
-            and args.max_mutexes <= 0
-        ):
-            parser.error(
-                "--max-mutexes must be greater than 0"
-            )
+        if args.max_mutexes is not None and args.max_mutexes <= 0:
+            parser.error("--max-mutexes must be greater than 0")
 
     try:
         return args.handler(args)

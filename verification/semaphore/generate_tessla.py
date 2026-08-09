@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 STATE_BLOCKED = 3
 TASK_ID_NONE = 255
 
