@@ -8,7 +8,6 @@ CHECKS = [
     ("busy_delay_never_blocks", "busy_delay_blocked"),
     ("busy_delay_remains_running", "busy_delay_interrupted_state"),
     ("busy_delay_duration_respected_short", "busy_delay_too_short"),
-    
     # --- Non-Blocking os_delay Checks ---
     ("non_blocking_delay_must_block", "delay_not_blocked"),
     ("non_blocking_delay_duration_respected", "delay_too_short"),

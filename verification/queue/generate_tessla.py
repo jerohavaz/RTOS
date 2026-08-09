@@ -42,9 +42,7 @@ CHECK_TRIGGERS = {
     "read_from_empty_queue": "queue_recv_success_queue_id >= 0",
     "fifo_order": "queue_recv_success_queue_id >= 0",
     "message_integrity": "queue_recv_success_queue_id >= 0",
-    "fifo_model_bounds": (
-        "merge(queue_send_success_task_id, queue_recv_success_task_id) >= 0"
-    ),
+    "fifo_model_bounds": ("merge(queue_send_success_task_id, queue_recv_success_task_id) >= 0"),
     "queue_block_state_transition": "state_id >= 0",
     "queue_blocked_event": "blocked_id >= 0",
     "queue_block_state_missing": "tick > 0",
@@ -150,10 +148,7 @@ def emit_pass_fail_pair(
 ) -> str:
     marker_name = f"{public_name}_check_marker"
     violation_name = f"violation_{public_name}"
-    fail_condition = (
-        f"merge({violation_name} == {violation_name}, "
-        f"{marker_name} != {marker_name})"
-    )
+    fail_condition = f"merge({violation_name} == {violation_name}, " f"{marker_name} != {marker_name})"
 
     return f"""def {marker_name} :=
   if {trigger_expr} then 1
@@ -246,13 +241,8 @@ def emit_fifo_slots(queue_id: int, capacity: int) -> str:
     q = queue_id
     parts = []
     for slot in range(capacity):
-        shift = (
-            f"last(fifo_slot_q{q}_{slot + 1}, fifo_delta_q{q})"
-            if slot + 1 < capacity
-            else "-1"
-        )
-        parts.append(
-            f"""def fifo_slot_q{q}_{slot}: Events[Int] =
+        shift = f"last(fifo_slot_q{q}_{slot + 1}, fifo_delta_q{q})" if slot + 1 < capacity else "-1"
+        parts.append(f"""def fifo_slot_q{q}_{slot}: Events[Int] =
   merge(
     if fifo_delta_q{q} == 1 && last(fifo_count_q{q}, fifo_delta_q{q}) == {slot}
       then fifo_operation_hash_q{q}
@@ -265,22 +255,17 @@ def emit_fifo_slots(queue_id: int, capacity: int) -> str:
     -1
   )
 
-"""
-        )
+""")
     return "".join(parts)
 
 
 def emit_queue(queue_id: int, capacity: int, max_tasks: int) -> str:
     q = queue_id
     wait_states = "".join(
-        emit_wait_state(q, task_id, kind)
-        for task_id in range(max_tasks)
-        for kind in ("send", "recv")
+        emit_wait_state(q, task_id, kind) for task_id in range(max_tasks) for kind in ("send", "recv")
     )
     timeout_states = "".join(
-        emit_timeout_task(q, task_id, kind)
-        for task_id in range(max_tasks)
-        for kind in ("send", "recv")
+        emit_timeout_task(q, task_id, kind) for task_id in range(max_tasks) for kind in ("send", "recv")
     )
     waiting_senders = or_terms(
         [f"last(send_wait_q{q}_t{task}, queue_recv_success_hash)" for task in range(max_tasks)],
