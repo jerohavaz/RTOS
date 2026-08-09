@@ -1,0 +1,3 @@
+0: sem_create_id = 100
+0: sem_create_initial_count = 0
+0: sem_create_max_count = 0

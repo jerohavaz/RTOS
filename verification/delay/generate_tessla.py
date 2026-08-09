@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 STATE_CREATED = 0
 STATE_READY = 1
 STATE_RUNNING = 2

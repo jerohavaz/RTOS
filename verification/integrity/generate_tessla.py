@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 CHECKS = [
     ("trace_complete", "trace_incomplete"),
 ]

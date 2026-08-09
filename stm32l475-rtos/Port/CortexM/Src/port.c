@@ -1,27 +1,71 @@
+/**
+ * @file port.c
+ * @brief STM32L475 Cortex-M4 implementation of the RTOS port interface.
+ * @author Jerome
+ *
+ * @details
+ * This module configures the kernel exceptions, constructs initial task stack
+ * frames, controls interrupt masking, and provides the low-level idle and
+ * debug primitives declared in @c port.h. Context save and restore are
+ * implemented in @c portasm.s.
+ *
+ * Critical sections use BASEPRI rather than PRIMASK so interrupts with
+ * numerically lower, higher-urgency priorities can continue to execute.
+ *
+ * @warning The current context-switch assembly preserves only the core integer
+ *          registers. Floating-point task context is not supported.
+ */
+
 #include "port.h"
 #include "os_config.h"
 #include "stm32l475xx.h"
 
+/**
+ * @brief Number of 32-bit words in the initial core-register context.
+ *
+ * The frame contains eight hardware-stacked words (R0-R3, R12, LR, PC, xPSR)
+ * and eight software-saved words (R4-R11).
+ */
+#define PORT_INITIAL_CONTEXT_WORDS (16u)
+
+/**
+ * @brief Validate that the configured kernel BASEPRI threshold is representable.
+ */
 #if (OS_KERNEL_INTERRUPT_PRIORITY >= (1u << __NVIC_PRIO_BITS))
 #error "OS_KERNEL_INTERRUPT_PRIORITY is out of range"
 #endif
 
+/**
+ * @brief Reject priority zero because BASEPRI cannot mask it.
+ */
 #if (OS_KERNEL_INTERRUPT_PRIORITY == 0u)
 #error "OS_KERNEL_INTERRUPT_PRIORITY must not be 0 when using BASEPRI"
 #endif
 
+/**
+ * @brief Validate the configured PendSV logical priority.
+ */
 #if (OS_PENDSV_INTERRUPT_PRIORITY >= (1u << __NVIC_PRIO_BITS))
 #error "OS_PENDSV_INTERRUPT_PRIORITY is out of range"
 #endif
 
+/**
+ * @brief Validate the configured SysTick logical priority.
+ */
 #if (OS_SYSTICK_INTERRUPT_PRIORITY >= (1u << __NVIC_PRIO_BITS))
 #error "OS_SYSTICK_INTERRUPT_PRIORITY is out of range"
 #endif
 
+/**
+ * @brief Validate the configured SVC logical priority.
+ */
 #if (OS_SVC_INTERRUPT_PRIORITY >= (1u << __NVIC_PRIO_BITS))
 #error "OS_SVC_INTERRUPT_PRIORITY is out of range"
 #endif
 
+/**
+ * @brief Hardware-aligned BASEPRI value used by kernel critical sections.
+ */
 #define PORT_BASEPRI_VALUE (OS_KERNEL_INTERRUPT_PRIORITY << (8u - __NVIC_PRIO_BITS))
 
 /**
@@ -71,17 +115,36 @@ port_stack_t *port_init_task_stack(port_stack_t *stack_base,
                                    port_task_entry_t entry,
                                    port_task_exit_t exit_handler) {
     port_stack_t *sp;
+    uintptr_t stack_begin;
+    uintptr_t stack_end;
 
     if ((stack_base == 0) || (stack_words == 0u) || (entry == 0) || (exit_handler == 0)) {
         return 0;
     }
 
-    sp = &stack_base[stack_words];
+    stack_begin = (uintptr_t)stack_base;
+
+    if ((uintptr_t)stack_words > ((UINTPTR_MAX - stack_begin) / sizeof(port_stack_t))) {
+        return 0;
+    }
+
+    stack_end = stack_begin + ((uintptr_t)stack_words * sizeof(port_stack_t));
 
     /*
      * Cortex-M exception frames require 8-byte stack alignment.
      */
-    sp = (port_stack_t *)((uintptr_t)sp & ~(uintptr_t)0x7u);
+    stack_end &= ~(uintptr_t)0x7u;
+
+    /*
+     * Alignment may discard one word from a 4-byte-aligned buffer. Validate
+     * the usable byte range before writing the 16-word initial context.
+     */
+    if ((stack_end < stack_begin) ||
+        ((stack_end - stack_begin) < (PORT_INITIAL_CONTEXT_WORDS * sizeof(port_stack_t)))) {
+        return 0;
+    }
+
+    sp = (port_stack_t *)stack_end;
 
     /*
      * Hardware-stacked exception frame.

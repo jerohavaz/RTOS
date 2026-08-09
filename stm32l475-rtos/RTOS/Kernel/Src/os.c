@@ -1,3 +1,9 @@
+/**
+ * @file os.c
+ * @brief RTOS initialization and startup implementation.
+ * @author Jerome
+ */
+
 #include "os.h"
 #include "k_task.h"
 #include "k_sched.h"

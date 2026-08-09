@@ -1,3 +1,10 @@
+/**
+ * @file os_delay.c
+ * @brief Task delay API implementation.
+ * @author Jerome
+ * @author Martin
+ */
+
 #include "k_delay.h"
 #include "k_sched.h"
 #include "k_timeout.h"

@@ -1,3 +1,9 @@
+/**
+ * @file k_timeout.c
+ * @brief Kernel tick and task-timeout implementation.
+ * @author Jerome
+ */
+
 #include "k_timeout.h"
 #include "k_delay.h"
 #include "k_mutex.h"
