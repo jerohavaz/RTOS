@@ -13,7 +13,7 @@
 #define OS_TASK_PRIORITY_HIGHEST (OS_MAX_PRIORITIES - 1u)
 
 // Tracing master switch
-#define OS_TRACE_ENABLED (true)
+#define OS_TRACE_ENABLED (false)
 
 // Trace backends
 #define OS_TRACE_SEGGER_SYSVIEW (true)

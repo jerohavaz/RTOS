@@ -1,30 +1,24 @@
 #include "shell.h"
-#include "hardware.h" 
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "stm32l4xx_hal_i2c.h"
-#include "stm32l4xx_hal_uart.h"
 
-#define SHELL_RX_BUFFER_SIZE 128
-#define SHELL_MAX_ARGS        8
+#include "app_tasks.h"
+#include "main.h"
 
-/* --- Sensor I2C Register-Konfiguration LSM6DSL --- */
-#define SENSOR_I2C_ADDR            (0x6A << 1) // 0xD4 (LSM6DSL I2C-Adresse)
-#define SENSOR_CTRL_REG1           0x10        // CTRL1_XL (Accel Control)
-#define SENSOR_CTRL_REG2           0x11        // CTRL2_G  (Gyro Control)
-#define SENSOR_CTRL_REG3           0x12        // CTRL3_C  (SW_RESET liegt auf Bit 0)
-#define SENSOR_CTRL_RESET_BIT      (1 << 0)    // SW_RESET Bit
+#define SHELL_RX_BUFFER_SIZE 128u
+#define SHELL_MAX_ARGS       8u
 
-extern I2C_HandleTypeDef hi2c2;
-static UART_HandleTypeDef *shell_huart;
-static uint8_t rx_byte; // Directly encapsulated in module
+static uint8_t rx_byte;
 static char rx_buffer[SHELL_RX_BUFFER_SIZE];
-static uint8_t rx_index = 0;
-static volatile uint8_t line_ready = 0;
-static uint8_t stream_enabled = 0;
+static volatile uint16_t rx_index;
+static volatile uint8_t line_ready;
+static volatile uint8_t rx_overflow;
+static volatile uint8_t stream_enabled = 1u;
 
-/* --- Befehls-Prototypen & Strukturen --- */
+extern UART_HandleTypeDef huart1;
+
 static int cmd_help(int argc, char **argv);
 static int cmd_led(int argc, char **argv);
 static int cmd_mode(int argc, char **argv);
@@ -34,101 +28,137 @@ static int cmd_status(int argc, char **argv);
 
 typedef struct {
     const char *name;
-    int (*func)(int argc, char **argv);
+    int (*function)(int argc, char **argv);
     const char *help;
-} Command_t;
+} command_t;
 
-static const Command_t command_table[] = {
-    {"help",  cmd_help,  "Zeigt alle verfuegbaren Befehle"},
-    {"led",   cmd_led,   "Schaltet LED: led <on|off>"},
-    {"mode",  cmd_mode,  "Setzt Sensor-Mode: mode <low|normal|high>"},
-    {"reset", cmd_reset, "Triggert Sensor-Reset"},
-    {"stream", cmd_stream, "Schalter für Sensorwerte <on|off>"},
-    {"status", cmd_status, "Auslesen der Sensorregister"},
+static const command_t command_table[] = {
+    { "help", cmd_help, "Zeigt alle verfuegbaren Befehle" },
+    { "led", cmd_led, "Schaltet LED: led <on|off>" },
+    { "mode", cmd_mode, "Setzt Sensor-Mode: mode <low|normal|high>" },
+    { "reset", cmd_reset, "Triggert Sensor-Reset" },
+    { "stream", cmd_stream, "Sensorwerte: stream <on|off>" },
+    { "status", cmd_status, "Liest die Sensorregister aus" }
 };
 
-#define NUM_COMMANDS (sizeof(command_table) / sizeof(Command_t))
+#define NUM_COMMANDS (sizeof(command_table) / sizeof(command_table[0]))
 
-static void shell_print(const char *str) {
-    HAL_UART_Transmit(shell_huart, (uint8_t*)str, strlen(str), HAL_MAX_DELAY);
-}
-
-/* --- Initialisierung --- */
-void shell_init(UART_HandleTypeDef *huart) {
-    shell_huart = huart;
-    shell_print("\r\n--- STM32 Shell Bereit ---\r\nCLI> ");
-    
-    // Interrupt-Empfang direkt beim Start aktivieren
-    HAL_UART_Receive_IT(shell_huart, &rx_byte, 1);
-}
-
-/* --- HAL Weak-Callback Überschreibung --- */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-    if (shell_huart != NULL && huart->Instance == shell_huart->Instance) {
-        if (!line_ready) {
-            if (rx_byte == '\r' || rx_byte == '\n') {
-                if (rx_index > 0) {
-                    rx_buffer[rx_index] = '\0';
-                    line_ready = 1;
-                    shell_print("\r\n");
-                }
-            } else if (rx_byte == '\b' || rx_byte == 0x7F) {
-                if (rx_index > 0) {
-                    rx_index--;
-                    shell_print("\b \b");
-                }
-            } else if (rx_index < SHELL_RX_BUFFER_SIZE - 1) {
-                rx_buffer[rx_index++] = rx_byte;
-                HAL_UART_Transmit(shell_huart, &rx_byte, 1, HAL_MAX_DELAY); // Echo
-            }
-        }
-        // Interrupt sofort für das nächste Zeichen neu scharfschalten
-        HAL_UART_Receive_IT(shell_huart, &rx_byte, 1);
+static void shell_print(const char *text) {
+    if (text != NULL) {
+        HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
     }
 }
 
-/* --- Verarbeitungslogik im Main-Loop / RTOS-Task --- */
-void shell_update(void) {
-    if (!line_ready) return;
+static int queue_sensor_command(app_sensor_command_t command) {
+    if (app_sensor_command_submit(command) != OS_OK) {
+        shell_print("ERROR,SHELL,SENSOR_COMMAND_QUEUE_FULL\r\n");
+        return -1;
+    }
 
+    return 0;
+}
+
+void shell_init(void) {
+    rx_index = 0u;
+    line_ready = 0u;
+    rx_overflow = 0u;
+
+    shell_print("\r\n--- STM32 Shell bereit ---\r\nCLI> ");
+
+    if (HAL_UART_Receive_IT(&huart1, &rx_byte, 1u) != HAL_OK) {
+        shell_print("ERROR,UART,RX_START_FAILED\r\n");
+    }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart != &huart1) {
+        return;
+    }
+
+    if (!line_ready) {
+        if ((rx_byte == '\r') || (rx_byte == '\n')) {
+            if (rx_index > 0u) {
+                rx_buffer[rx_index] = '\0';
+                line_ready = 1u;
+            }
+        } else if ((rx_byte == '\b') || (rx_byte == 0x7fu)) {
+            if (rx_index > 0u) {
+                rx_index--;
+            }
+        } else if (rx_index < (SHELL_RX_BUFFER_SIZE - 1u)) {
+            rx_buffer[rx_index++] = (char)rx_byte;
+        } else {
+            rx_overflow = 1u;
+        }
+    }
+
+    (void)HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
+    if (huart == &huart1) {
+        __HAL_UART_CLEAR_OREFLAG(huart);
+        (void)HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
+    }
+}
+
+void shell_update(void) {
     char *argv[SHELL_MAX_ARGS];
     int argc = 0;
 
+    if (rx_overflow) {
+        rx_index = 0u;
+        line_ready = 0u;
+        rx_overflow = 0u;
+        shell_print("\r\nERROR,SHELL,LINE_TOO_LONG\r\nCLI> ");
+        return;
+    }
+
+    if (!line_ready) {
+        return;
+    }
+
+    shell_print("\r\n");
+
     char *token = strtok(rx_buffer, " ");
-    while (token != NULL && argc < SHELL_MAX_ARGS) {
+    while ((token != NULL) && (argc < (int)SHELL_MAX_ARGS)) {
         argv[argc++] = token;
         token = strtok(NULL, " ");
     }
 
     if (argc > 0) {
-        uint8_t found = 0;
-        for (size_t i = 0; i < NUM_COMMANDS; i++) {
+        uint8_t found = 0u;
+
+        for (size_t i = 0u; i < NUM_COMMANDS; i++) {
             if (strcmp(argv[0], command_table[i].name) == 0) {
-                command_table[i].func(argc, argv);
-                found = 1;
+                command_table[i].function(argc, argv);
+                found = 1u;
                 break;
             }
         }
+
         if (!found) {
-            shell_print("Unbekannter Befehl. 'help' eingeben.\r\n");
+            shell_print("ERROR,SHELL,UNKNOWN_COMMAND\r\n");
         }
     }
 
-    rx_index = 0;
-    line_ready = 0;
+    rx_index = 0u;
+    line_ready = 0u;
     shell_print("CLI> ");
 }
 
-/* --- Befehls-Implementierungen --- */
-
 static int cmd_help(int argc, char **argv) {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
+
     shell_print("Verfuegbare Befehle:\r\n");
-    for (size_t i = 0; i < NUM_COMMANDS; i++) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "  %-10s - %s\r\n", command_table[i].name, command_table[i].help);
-        shell_print(buf);
+    for (size_t i = 0u; i < NUM_COMMANDS; i++) {
+        char text[128];
+        snprintf(
+            text, sizeof(text), "  %-10s - %s\r\n", command_table[i].name, command_table[i].help);
+        shell_print(text);
     }
+
     return 0;
 }
 
@@ -137,116 +167,71 @@ static int cmd_led(int argc, char **argv) {
         shell_print("Nutzung: led <on|off>\r\n");
         return -1;
     }
+
     if (strcmp(argv[1], "on") == 0) {
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-        shell_print("LED ist AN\r\n");
+        HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
+        shell_print("RESP,LED,ON,OK\r\n");
     } else if (strcmp(argv[1], "off") == 0) {
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-        shell_print("LED ist AUS\r\n");
+        HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
+        shell_print("RESP,LED,OFF,OK\r\n");
     } else {
-        shell_print("Ungueltiger Parameter!\r\n");
+        shell_print("ERROR,SHELL,INVALID_LED_MODE\r\n");
+        return -1;
     }
+
     return 0;
 }
 
-/* --- Befehl: Sensor Mode umschalten --- */
 static int cmd_mode(int argc, char **argv) {
     if (argc < 2) {
         shell_print("Nutzung: mode <low|normal|high>\r\n");
         return -1;
     }
 
-    uint8_t ctrl_reg1 = 0;
-    uint8_t ctrl_reg2 = 0;
-
     if (strcmp(argv[1], "low") == 0) {
-        ctrl_reg1 = 0x10;
-        ctrl_reg2 = 0x10;
-        shell_print("Setze Sensor auf Low-Power Mode (12,5 Hz)...\r\n");
-    } else if (strcmp(argv[1], "normal") == 0) {
-        ctrl_reg1 = 0x40;
-        ctrl_reg2 = 0x40;
-        shell_print("Setze Sensor auf Normal Mode (104 Hz)...\r\n");
-    } else if (strcmp(argv[1], "high") == 0) {
-        ctrl_reg1 = 0x80;
-        ctrl_reg2 = 0x80;
-        shell_print("Setze Sensor auf High-Performance Mode (1,66 kHz)...\r\n");
-    } else {
-        shell_print("Ungueltiger Modus!\r\n");
-        return -1;
+        return queue_sensor_command(APP_SENSOR_CMD_MODE_LOW);
+    }
+    if (strcmp(argv[1], "normal") == 0) {
+        return queue_sensor_command(APP_SENSOR_CMD_MODE_NORMAL);
+    }
+    if (strcmp(argv[1], "high") == 0) {
+        return queue_sensor_command(APP_SENSOR_CMD_MODE_HIGH);
     }
 
-    // Register 1 & 2 über I2C2 schreiben
-    if (HAL_I2C_Mem_Write(&hi2c2, SENSOR_I2C_ADDR, SENSOR_CTRL_REG1, I2C_MEMADD_SIZE_8BIT, &ctrl_reg1, 1, 100) == HAL_OK &&
-        HAL_I2C_Mem_Write(&hi2c2, SENSOR_I2C_ADDR, SENSOR_CTRL_REG2, I2C_MEMADD_SIZE_8BIT, &ctrl_reg2, 1, 100) == HAL_OK) {
-        shell_print("Sensor-Modus erfolgreich aktualisiert.\r\n");
-    } else {
-        shell_print("Fehler beim Schreiben ueber I2C!\r\n");
-    }
-
-    return 0;
+    shell_print("ERROR,SHELL,INVALID_SENSOR_MODE\r\n");
+    return -1;
 }
 
-/* --- Befehl: Sensor Reset triggern --- */
 static int cmd_reset(int argc, char **argv) {
-    (void)argc; (void)argv;
-    
-    shell_print("Sende Soft-Reset an LSM6DSL...\r\n");
-
-    uint8_t reg3_val = SENSOR_CTRL_RESET_BIT;
-    
-    if (HAL_I2C_Mem_Write(&hi2c2, SENSOR_I2C_ADDR, SENSOR_CTRL_REG3, I2C_MEMADD_SIZE_8BIT, &reg3_val, 1, 200) == HAL_OK) {
-        shell_print("Sensor Soft-Reset erfolgreich ausgeloest.\r\n");
-    } else {
-        shell_print("Fehler beim Senden des Reset-Befehls!\r\n");
-    }
-
-    return 0;
+    (void)argc;
+    (void)argv;
+    return queue_sensor_command(APP_SENSOR_CMD_RESET);
 }
-
-
-void USART1_IRQHandler(void){
-    if(shell_huart != 0){
-    HAL_UART_IRQHandler(shell_huart);
-    }
-}
-
-
-
 
 static int cmd_stream(int argc, char **argv) {
     if (argc < 2) {
         shell_print("Nutzung: stream <on|off>\r\n");
         return -1;
     }
+
     if (strcmp(argv[1], "on") == 0) {
-        stream_enabled = 1;
-        shell_print("Sensordaten-Stream AKTIVIERT.\r\n");
+        stream_enabled = 1u;
+        shell_print("RESP,STREAM,ON,OK\r\n");
     } else if (strcmp(argv[1], "off") == 0) {
-        stream_enabled = 0;
-        shell_print("Sensordaten-Stream DEAKTIVIERT.\r\n");
+        stream_enabled = 0u;
+        shell_print("RESP,STREAM,OFF,OK\r\n");
+    } else {
+        shell_print("ERROR,SHELL,INVALID_STREAM_MODE\r\n");
+        return -1;
     }
+
     return 0;
 }
 
 static int cmd_status(int argc, char **argv) {
-    (void)argc; (void)argv;
-    
-    uint8_t reg1_val = 0;
-    uint8_t reg2_val = 0;
-
-    // Timeout leicht erhöhen (z. B. 200ms), falls sensor_task gerade sendet
-    if (HAL_I2C_Mem_Read(&hi2c2, SENSOR_I2C_ADDR, SENSOR_CTRL_REG1, I2C_MEMADD_SIZE_8BIT, &reg1_val, 1, 200) == HAL_OK &&
-        HAL_I2C_Mem_Read(&hi2c2, SENSOR_I2C_ADDR, SENSOR_CTRL_REG2, I2C_MEMADD_SIZE_8BIT, &reg2_val, 1, 200) == HAL_OK) {
-        
-        char buf[128];
-        snprintf(buf, sizeof(buf), "LSM6DSL Register-Status:\r\n  CTRL1_XL: 0x%02X\r\n  CTRL2_G:  0x%02X\r\n", reg1_val, reg2_val);
-        shell_print(buf);
-    } else {
-        shell_print("Fehler beim Lesen der I2C-Register! (Adresse/Bus blockiert)\r\n");
-    }
-
-    return 0;
+    (void)argc;
+    (void)argv;
+    return queue_sensor_command(APP_SENSOR_CMD_STATUS);
 }
 
 uint8_t is_stream_enabled(void) {

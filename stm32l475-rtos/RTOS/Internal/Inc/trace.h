@@ -42,11 +42,11 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
 void trace_task_delay_busy_end(TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
- * Project: 3D-Gyro-Accelerometer events 
+ * Project: 3D-Gyro-Accelerometer events
  * -------------------------------------------------------------------------- */
- void trace_sensor_read(void);
- void trace_transmission_complete(void);
- 
+void trace_sensor_read(void);
+void trace_transmission_complete(void);
+
 /* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
@@ -86,8 +86,15 @@ static inline void trace_isr_exit_to_scheduler(void) {}
 /* --------------------------------------------------------------------------
  * Delay events
  * -------------------------------------------------------------------------- */
-static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
 static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
+
+/* --------------------------------------------------------------------------
+ * Project: 3D-Gyro-Accelerometer events
+ * -------------------------------------------------------------------------- */
+
+static inline void trace_sensor_read(void) {}
+static inline void trace_transmission_complete(void) {}
 
 /* --------------------------------------------------------------------------
  * Generic log event

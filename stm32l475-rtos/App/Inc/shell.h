@@ -1,11 +1,10 @@
-#ifndef SHELL_H
-#define SHELL_H
+#ifndef SHELL_H_
+#define SHELL_H_
 
-#include "stm32l4xx_hal.h"
-#include "stm32l4xx_hal_uart.h"
+#include <stdint.h>
 
-void shell_init(UART_HandleTypeDef *huart);
+void shell_init(void);
 void shell_update(void);
-uint8_t is_stream_enabled();
+uint8_t is_stream_enabled(void);
 
-#endif /* SHELL_H */
+#endif
