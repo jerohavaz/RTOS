@@ -211,7 +211,7 @@ void trace_isr_exit_to_scheduler(void) {
 }
 
 /* --------------------------------------------------------------------------
- * Non-Blocking Delay events
+ * Delay events
  * -------------------------------------------------------------------------- */
 
 void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
@@ -228,6 +228,22 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task->u8TaskId);
+#endif
+}
+
+void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
+    trace_tessla_emit("DELAY_START %u %u", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
+#endif
+}
+
+void trace_task_delay_end(TCB_sctTCB_t *task) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
+    trace_tessla_emit("DELAY_END %u", (unsigned int)task->u8TaskId);
 #endif
 }
 

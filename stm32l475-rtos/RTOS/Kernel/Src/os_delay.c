@@ -44,6 +44,9 @@ os_status_t os_delay(uint32_t delay_ticks) {
     current->wait_result = OS_ERR_BUSY;
 
     k_timeout_add(current, delay_ticks);
+
+    trace_task_delay_start(&current->tcb, delay_ticks);
+
     k_sched_task_block(current);
     port_exit_critical(key);
 
@@ -88,4 +91,5 @@ void k_delay_timeout_cleanup(kernel_task_t *task) {
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;
     task->wait_result = OS_OK;
+    trace_task_delay_end(&task->tcb);
 }

@@ -237,33 +237,24 @@ def emit_slot_assignment(max_mutexes: int) -> str:
         own_before = f"default(last(mutex_slot_id_{slot}, mutex_create_id), -1)"
         prior_full = [f"default(last(mutex_slot_id_{i}, mutex_create_id), -1) >= 0" for i in range(slot)]
         new_for_prior = [
-            f"default(last(mutex_slot_id_{i}, mutex_create_id), -1) != mutex_create_id"
-            for i in range(slot)
+            f"default(last(mutex_slot_id_{i}, mutex_create_id), -1) != mutex_create_id" for i in range(slot)
         ]
         condition = and_terms([f"{own_before} < 0", *prior_full, *new_for_prior])
-        parts.append(
-            f"""def mutex_slot_id_{slot}: Events[Int] =
+        parts.append(f"""def mutex_slot_id_{slot}: Events[Int] =
   merge(if {condition} then mutex_create_id else {own_before}, -1)
-"""
-        )
+""")
 
     known = [
-        f"default(last(mutex_slot_id_{slot}, mutex_create_id), -1) == mutex_create_id"
-        for slot in range(max_mutexes)
+        f"default(last(mutex_slot_id_{slot}, mutex_create_id), -1) == mutex_create_id" for slot in range(max_mutexes)
     ]
-    empty = [
-        f"default(last(mutex_slot_id_{slot}, mutex_create_id), -1) < 0"
-        for slot in range(max_mutexes)
-    ]
-    parts.append(
-        f"""def mutex_create_exceeds_bound :=
+    empty = [f"default(last(mutex_slot_id_{slot}, mutex_create_id), -1) < 0" for slot in range(max_mutexes)]
+    parts.append(f"""def mutex_create_exceeds_bound :=
   ({or_terms(known)}) == false &&
   ({or_terms(empty)}) == false
 
 def mutex_violation_untracked_create :=
   filter(mutex_create_id, mutex_create_exceeds_bound)
-"""
-    )
+""")
 
     operation_ids = [
         "mutex_lock_enter_id",
@@ -277,25 +268,20 @@ def mutex_violation_untracked_create :=
 
     for operation_id in operation_ids:
         matches = [
-            f"default(last(mutex_slot_id_{slot}, {operation_id}), -1) == {operation_id}"
-            for slot in range(max_mutexes)
+            f"default(last(mutex_slot_id_{slot}, {operation_id}), -1) == {operation_id}" for slot in range(max_mutexes)
         ]
         suffix = operation_id.removeprefix("mutex_").removesuffix("_id")
         violation = f"mutex_violation_untracked_{suffix}"
-        parts.append(
-            f"""def mutex_unknown_{suffix} :=
+        parts.append(f"""def mutex_unknown_{suffix} :=
   ({or_terms(matches)}) == false
 
 def {violation} :=
   filter({operation_id}, mutex_unknown_{suffix})
-"""
-        )
+""")
         violations.append(violation)
 
     parts.append(
-        "def violation_mutex_untracked_mutex :=\n  "
-        + nested_merge(violations, "filter(mutex_event_id, false)")
-        + "\n"
+        "def violation_mutex_untracked_mutex :=\n  " + nested_merge(violations, "filter(mutex_event_id, false)") + "\n"
     )
     return "\n".join(parts)
 
@@ -360,9 +346,7 @@ def violation_mutex_invalid_create :=
 
 
 def emit_owner_checks(max_tasks: int, max_mutexes: int) -> str:
-    valid_owner = " || ".join(
-        [f"OWNER == {task}" for task in task_ids(max_tasks)] + [f"OWNER == {TASK_ID_NONE}"]
-    )
+    valid_owner = " || ".join([f"OWNER == {task}" for task in task_ids(max_tasks)] + [f"OWNER == {TASK_ID_NONE}"])
     continuity_streams: list[str] = []
     parts = ["# ---------------- Ownership checks ----------------"]
 
@@ -411,14 +395,12 @@ def emit_owner_checks(max_tasks: int, max_mutexes: int) -> str:
 
         for suffix, (stream, condition) in checks.items():
             name = f"mutex_violation_owner_{suffix}_{slot}"
-            parts.append(
-                f"""def mutex_owner_bad_{suffix}_{slot} :=
+            parts.append(f"""def mutex_owner_bad_{suffix}_{slot} :=
   {condition}
 
 def {name} :=
   filter({stream}, mutex_owner_bad_{suffix}_{slot})
-"""
-            )
+""")
             continuity_streams.append(name)
 
     owner_fields = [
@@ -433,14 +415,12 @@ def {name} :=
     for suffix, stream, field in owner_fields:
         expression = valid_owner.replace("OWNER", field)
         name = f"mutex_violation_owner_id_{suffix}"
-        parts.append(
-            f"""def mutex_owner_id_bad_{suffix} :=
+        parts.append(f"""def mutex_owner_id_bad_{suffix} :=
   ({expression}) == false
 
 def {name} :=
   filter({stream}, mutex_owner_id_bad_{suffix})
-"""
-        )
+""")
         continuity_streams.append(name)
 
     parts.append(
@@ -561,8 +541,7 @@ def emit_blocking_state_checks(max_tasks: int) -> str:
         for task in task_ids(max_tasks)
     ]
     unresolved_wake = [
-        f"(mutex_wake_task == {task} && "
-        f"default(last(mutex_block_unconfirmed_task_{task}, mutex_wake_id), false))"
+        f"(mutex_wake_task == {task} && " f"default(last(mutex_block_unconfirmed_task_{task}, mutex_wake_id), false))"
         for task in task_ids(max_tasks)
     ]
     unresolved_timeout = [
@@ -754,8 +733,7 @@ def emit_outputs(mode: str) -> str:
                 f"default(last(time(violation_{internal}), {trigger}), -1))"
             )
             lines.append(
-                f"def PASS_{public} := filter({trigger}, "
-                f"time({trigger}) != mutex_last_failure_time_{internal})"
+                f"def PASS_{public} := filter({trigger}, " f"time({trigger}) != mutex_last_failure_time_{internal})"
             )
             lines.append(f"out FAIL_{public}")
             lines.append(f"out PASS_{public}")

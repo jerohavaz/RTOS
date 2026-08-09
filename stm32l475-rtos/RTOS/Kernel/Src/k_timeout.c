@@ -14,6 +14,7 @@
 #include "port.h"
 #include "timeout_list.h"
 #include "os_types.h"
+#include "trace.h"
 #include <stdbool.h>
 
 static volatile uint32_t g_tick = 0u;
