@@ -123,8 +123,8 @@ verification:
     entrypoint: [""]
   script:
     - cd verification
-    - python3 verify.py list
-    - python3 verify.py test
+    - python3 tessla_verify.py list
+    - python3 tessla_verify.py test --rust
   artifacts:
     when: always
     paths:

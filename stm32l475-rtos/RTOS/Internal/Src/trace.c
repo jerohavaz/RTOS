@@ -338,6 +338,134 @@ void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {
 }
 
 /* --------------------------------------------------------------------------
+ * Mutex events
+ * -------------------------------------------------------------------------- */
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+/**
+ * @brief Convert a mutex address to its numeric trace identifier.
+ *
+ * The mutex object address is stable for the object's lifetime and allows the
+ * verifier to correlate all events belonging to the same mutex. The verifier
+ * may map this runtime address to a bounded internal monitor slot.
+ *
+ * @param mutex Mutex object whose trace identifier is required.
+ *
+ * @return Address of @p mutex represented as an unsigned integer.
+ *
+ * @pre @p mutex must not be null.
+ */
+static unsigned long trace_mutex_id(const void *mutex) {
+    KERNEL_REQUIRE(mutex != 0);
+    return (unsigned long)(uintptr_t)mutex;
+}
+
+/**
+ * @brief Convert an optional task control block to its numeric trace ID.
+ *
+ * A null task represents an unowned mutex or an operation without an owning
+ * task. Such cases are encoded as @c UINT8_MAX so they remain distinguishable
+ * from every valid kernel task ID.
+ *
+ * @param task Task control block to encode, or null when no task is present.
+ *
+ * @return @p task's kernel task ID, or @c UINT8_MAX when @p task is null.
+ */
+static unsigned int trace_mutex_task_id(const TCB_sctTCB_t *task) {
+    return (task != 0) ? (unsigned int)task->u8TaskId : (unsigned int)UINT8_MAX;
+}
+#endif
+
+void trace_mutex_create(const void *mutex) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_CREATE %lu", trace_mutex_id(mutex));
+#endif
+}
+
+void trace_mutex_lock_enter(const void *mutex,
+                            TCB_sctTCB_t *task,
+                            TCB_sctTCB_t *owner,
+                            uint32_t timeout_ticks,
+                            uint8_t finite_timeout) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_LOCK_ENTER %lu %u %u %lu %u",
+                      trace_mutex_id(mutex),
+                      trace_mutex_task_id(task),
+                      trace_mutex_task_id(owner),
+                      (unsigned long)timeout_ticks,
+                      (unsigned int)(finite_timeout != 0u));
+#endif
+}
+
+void trace_mutex_lock_exit(const void *mutex,
+                           TCB_sctTCB_t *task,
+                           TCB_sctTCB_t *owner,
+                           uint8_t succeeded) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_LOCK_EXIT %lu %u %u %u",
+                      trace_mutex_id(mutex),
+                      trace_mutex_task_id(task),
+                      trace_mutex_task_id(owner),
+                      (unsigned int)(succeeded != 0u));
+#endif
+}
+
+void trace_mutex_block(const void *mutex,
+                       TCB_sctTCB_t *task,
+                       TCB_sctTCB_t *owner,
+                       uint32_t timeout_ticks,
+                       uint8_t finite_timeout) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_BLOCK %lu %u %u %u %lu %u",
+                      trace_mutex_id(mutex),
+                      (unsigned int)task->u8TaskId,
+                      (unsigned int)task->u8TaskPrio,
+                      trace_mutex_task_id(owner),
+                      (unsigned long)timeout_ticks,
+                      (unsigned int)(finite_timeout != 0u));
+#endif
+}
+
+void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_TIMEOUT %lu %u %u",
+                      trace_mutex_id(mutex),
+                      (unsigned int)task->u8TaskId,
+                      trace_mutex_task_id(owner));
+#endif
+}
+
+void trace_mutex_unlock(const void *mutex,
+                        TCB_sctTCB_t *task,
+                        TCB_sctTCB_t *owner_before,
+                        TCB_sctTCB_t *owner_after,
+                        uint8_t succeeded) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_UNLOCK %lu %u %u %u %u",
+                      trace_mutex_id(mutex),
+                      trace_mutex_task_id(task),
+                      trace_mutex_task_id(owner_before),
+                      trace_mutex_task_id(owner_after),
+                      (unsigned int)(succeeded != 0u));
+#endif
+}
+
+void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {
+    KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+    trace_tessla_emit("MUTEX_WAKE %lu %u %u",
+                      trace_mutex_id(mutex),
+                      (unsigned int)task->u8TaskId,
+                      (unsigned int)task->u8TaskPrio);
+#endif
+}
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
