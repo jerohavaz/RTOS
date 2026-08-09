@@ -212,7 +212,6 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
 #endif
 }
 
-
 void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY

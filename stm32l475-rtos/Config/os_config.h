@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 // Tasks
-#define OS_MAX_TASKS       (3u)
+#define OS_MAX_TASKS       (9u)
 #define OS_TASK_STACK_SIZE (512u)
 
 // Priorities

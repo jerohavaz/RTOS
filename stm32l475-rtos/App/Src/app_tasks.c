@@ -10,20 +10,20 @@
 /* ==========================================================================
  * Test Feature Switches (0u = Deaktiviert, 1u = Aktiviert)
  * ========================================================================== */
-#define TEST_BUSY_DELAY_ENABLE          (1u)    //PASS
-#define TEST_NON_BLOCKING_DELAY_ENABLE  (1u)    //PASS
-#define TEST_SEMAPHORE_DELAY_ENABLE     (1u)    //PASS    
-#define TEST_MUTEX_DELAY_ENABLE         (1u)    //PASS
-#define TEST_QUEUE_DELAY_ENABLE         (1u)    //PASS
+#define TEST_BUSY_DELAY_ENABLE         (1u) // PASS
+#define TEST_NON_BLOCKING_DELAY_ENABLE (1u) // PASS
+#define TEST_SEMAPHORE_DELAY_ENABLE    (1u) // PASS
+#define TEST_MUTEX_DELAY_ENABLE        (1u) // PASS
+#define TEST_QUEUE_DELAY_ENABLE        (1u) // PASS
 
 /* ==========================================================================
  * Configuration & Delay Defines
  * ========================================================================== */
 
 /* Priorities */
-#define PRIO_HIGH                   4u
-#define PRIO_MEDIUM                 3u
-#define PRIO_LOW                    2u
+#define PRIO_HIGH   4u
+#define PRIO_MEDIUM 3u
+#define PRIO_LOW    2u
 
 /* Delays & Timeouts in Ticks */
 #define BUSY_DELAY_TICKS            30u
@@ -36,9 +36,9 @@
 #define QUEUE_CONSUME_TIMEOUT_TICKS 10u
 
 /* Object Configurations */
-#define SEM_INITIAL_COUNT           0u
-#define SEM_MAX_COUNT               1u
-#define QUEUE_MSG_COUNT             2u
+#define SEM_INITIAL_COUNT 0u
+#define SEM_MAX_COUNT     1u
+#define QUEUE_MSG_COUNT   2u
 
 /* Global Error Tracking */
 volatile uint32_t test_error_count = 0u;
@@ -69,13 +69,11 @@ static os_queue_t test_queue;
 static queue_msg_t queue_storage[QUEUE_MSG_COUNT];
 #endif
 
-
 /* ==========================================================================
  * 1. Busy Delay Task (Aktives Warten)
  * ========================================================================== */
 #if TEST_BUSY_DELAY_ENABLE
 static void busy_delay_task(void) {
-
     while (1) {
         /* os_delay_busy blockiert die CPU aktiv und bleibt im Zustand RUNNING */
         os_status_t status = os_delay_busy(BUSY_DELAY_TICKS);
@@ -89,13 +87,11 @@ static void busy_delay_task(void) {
 }
 #endif
 
-
 /* ==========================================================================
  * 2. Standard Non-Blocking Delay Task
  * ========================================================================== */
 #if TEST_NON_BLOCKING_DELAY_ENABLE
 static void non_blocking_delay_task(void) {
-
     while (1) {
         /* os_delay versetzt den Task in den Zustand BLOCKED */
         os_status_t status = os_delay(1u);
@@ -106,17 +102,15 @@ static void non_blocking_delay_task(void) {
 }
 #endif
 
-
 /* ==========================================================================
  * 3. Semaphore Delay & Timeout Tasks
  * ========================================================================== */
 #if TEST_SEMAPHORE_DELAY_ENABLE
 static void sem_delay_task(void) {
-
     while (1) {
         /* Versuche Semaphore mit Timeout zu erwerben. */
         os_status_t status = os_sem_acquire(&test_sem, SEM_TIMEOUT_TICKS);
-        
+
         if (status == OS_ERR_TIMEOUT) {
             /* Erwarteter Timeout-Fall */
         } else if (status == OS_OK) {
@@ -130,7 +124,6 @@ static void sem_delay_task(void) {
 }
 
 static void sem_releaser_task(void) {
-
     while (1) {
         os_delay(SEM_RELEASE_INTERVAL_TICKS);
         os_sem_release(&test_sem);
@@ -138,13 +131,11 @@ static void sem_releaser_task(void) {
 }
 #endif
 
-
 /* ==========================================================================
  * 4. Mutex Delay & Lock Timeout Tasks
  * ========================================================================== */
 #if TEST_MUTEX_DELAY_ENABLE
 static void mutex_holder_task(void) {
-
     while (1) {
         if (os_mutex_lock(&test_mutex, OS_WAIT_FOREVER) == OS_OK) {
             /* Halte den Mutex während eines Delays */
@@ -159,11 +150,10 @@ static void mutex_holder_task(void) {
 }
 
 static void mutex_delay_task(void) {
-
     while (1) {
         /* Versuche den Mutex zu sperren, während der Holder ihn noch hält */
         os_status_t status = os_mutex_lock(&test_mutex, MUTEX_LOCK_TIMEOUT_TICKS);
-        
+
         if (status == OS_ERR_TIMEOUT) {
             /* Erwartetes Verhalten: Mutex war belegt */
         } else if (status == OS_OK) {
@@ -177,7 +167,6 @@ static void mutex_delay_task(void) {
 }
 #endif
 
-
 /* ==========================================================================
  * 5. Message Queue Delay Tasks (Producer & Consumer)
  * ========================================================================== */
@@ -186,10 +175,7 @@ static void queue_delay_producer_task(void) {
     uint32_t seq = 0;
 
     while (1) {
-        queue_msg_t msg = {
-            .sender_id = 1u,
-            .payload = seq++
-        };
+        queue_msg_t msg = { .sender_id = 1u, .payload = seq++ };
 
         /* Sende Nachricht in die Queue. Wenn voll, warte maximal QUEUE_PRODUCE_DELAY_TICKS */
         os_status_t status = os_queue_send(&test_queue, &msg, QUEUE_PRODUCE_DELAY_TICKS);
@@ -202,7 +188,6 @@ static void queue_delay_producer_task(void) {
 }
 
 static void queue_delay_consumer_task(void) {
-
     while (1) {
         queue_msg_t msg;
 
@@ -218,12 +203,10 @@ static void queue_delay_consumer_task(void) {
 }
 #endif
 
-
 /* ==========================================================================
  * Application Setup / Init
  * ========================================================================== */
 void app_tasks_init(void) {
-
     /* --- 1. Busy Delay Task Init --- */
 #if TEST_BUSY_DELAY_ENABLE
     if (os_task_create(busy_delay_task, PRIO_MEDIUM) != OS_OK) {
