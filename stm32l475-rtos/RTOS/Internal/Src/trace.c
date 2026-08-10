@@ -283,12 +283,35 @@ void trace_task_delay_end(TCB_sctTCB_t *task) {
  * -------------------------------------------------------------------------- */
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+/**
+ * @brief Convert a semaphore address to its numeric trace identifier.
+ *
+ * The semaphore address remains stable for the object's lifetime and allows
+ * the verifier to correlate events belonging to the same semaphore.
+ *
+ * @param semaphore Semaphore object whose trace identifier is required.
+ *
+ * @return Address of @p semaphore represented as an unsigned integer.
+ *
+ * @pre @p semaphore must not be null.
+ */
 static unsigned long trace_sem_id(const void *semaphore) {
     KERNEL_REQUIRE(semaphore != 0);
     return (unsigned long)(uintptr_t)semaphore;
 }
 
-/** Task-ID value used when an acquire has no owning task. */
+/**
+ * @brief Convert an optional task control block to its numeric trace ID.
+ *
+ * A null task represents an operation without an associated task, such as an
+ * acquire attempted from exception context. It is encoded as @c UINT8_MAX so
+ * it remains distinguishable from every valid kernel task ID.
+ *
+ * @param task Task control block to encode, or null when no task is associated
+ *             with the operation.
+ *
+ * @return @p task's kernel task ID, or @c UINT8_MAX when @p task is null.
+ */
 static unsigned int trace_sem_task_id(const TCB_sctTCB_t *task) {
     return (task != 0) ? (unsigned int)task->u8TaskId : (unsigned int)UINT8_MAX;
 }
