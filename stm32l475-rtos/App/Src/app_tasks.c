@@ -237,13 +237,13 @@ static void sensor_report_status(void) {
     uint8_t ctrl2;
 
     if (sensor_reg_read(LSM6DSL_ACC_GYRO_CTRL1_XL, &ctrl1) != HAL_OK) {
-        uart_queue_text("ERROR,SENSOR,CTRL1_READ_FAILED\r\n");
+        uart_queue_text("ERROR,SENSOR,CTRL1_READ_FAILED\r\nCLI>");
 
         return;
     }
 
     if (sensor_reg_read(LSM6DSL_ACC_GYRO_CTRL2_G, &ctrl2) != HAL_OK) {
-        uart_queue_text("ERROR,SENSOR,CTRL2_READ_FAILED\r\n");
+        uart_queue_text("ERROR,SENSOR,CTRL2_READ_FAILED\r\nCLI>");
 
         return;
     }
@@ -253,7 +253,7 @@ static void sensor_report_status(void) {
                     "CTRL2_G=0x%02X,"
                     "IRQ=%lu,"
                     "READ=%lu,"
-                    "DROPPED=%lu\r\n",
+                    "DROPPED=%lu\r\nCLI>",
                     ctrl1,
                     ctrl2,
                     (unsigned long)sensor_interrupt_count,
@@ -266,7 +266,7 @@ static void sensor_reset(void) {
     uint32_t start;
 
     if (sensor_reg_read(LSM6DSL_ACC_GYRO_CTRL3_C, &ctrl3) != HAL_OK) {
-        uart_queue_text("ERROR,SENSOR,RESET_READ_FAILED\r\n");
+        uart_queue_text("ERROR,SENSOR,RESET_READ_FAILED\r\nCLI>");
 
         return;
     }
@@ -274,7 +274,7 @@ static void sensor_reset(void) {
     ctrl3 |= LSM6DSL_SW_RESET_BIT;
 
     if (sensor_reg_write(LSM6DSL_ACC_GYRO_CTRL3_C, ctrl3) != HAL_OK) {
-        uart_queue_text("ERROR,SENSOR,RESET_WRITE_FAILED\r\n");
+        uart_queue_text("ERROR,SENSOR,RESET_WRITE_FAILED\r\nCLI>");
 
         return;
     }
@@ -283,7 +283,7 @@ static void sensor_reset(void) {
 
     do {
         if (sensor_reg_read(LSM6DSL_ACC_GYRO_CTRL3_C, &ctrl3) != HAL_OK) {
-            uart_queue_text("ERROR,SENSOR,RESET_POLL_FAILED\r\n");
+            uart_queue_text("ERROR,SENSOR,RESET_POLL_FAILED\r\nCLI>");
 
             return;
         }
@@ -297,7 +297,7 @@ static void sensor_reset(void) {
     } while ((HAL_GetTick() - start) < 20u);
 
     if ((ctrl3 & LSM6DSL_SW_RESET_BIT) != 0u) {
-        uart_queue_text("ERROR,SENSOR,RESET_TIMEOUT\r\n");
+        uart_queue_text("ERROR,SENSOR,RESET_TIMEOUT\r\nCLI>");
 
         return;
     }
@@ -305,9 +305,9 @@ static void sensor_reset(void) {
     sensor_available = (sensor_hardware_init() == HAL_OK);
 
     if (sensor_available) {
-        uart_queue_text("RESP,RESET,OK\r\n");
+        uart_queue_text("RESP,RESET,OK\r\nCLI>");
     } else {
-        uart_queue_text("ERROR,SENSOR,REINIT_FAILED\r\n");
+        uart_queue_text("ERROR,SENSOR,REINIT_FAILED\r\nCLI>");
     }
 }
 
@@ -324,9 +324,9 @@ static void sensor_process_commands(void) {
                                                                              : "HIGH";
 
                 if (sensor_apply_profile(command) == HAL_OK) {
-                    uart_queue_text("RESP,MODE,%s,OK\r\n", name);
+                    uart_queue_text("RESP,MODE,%s,OK\r\nCLI>", name);
                 } else {
-                    uart_queue_text("ERROR,SENSOR,MODE_%s_FAILED\r\n", name);
+                    uart_queue_text("ERROR,SENSOR,MODE_%s_FAILED\r\nCLI>", name);
                 }
                 break;
             }
@@ -340,7 +340,7 @@ static void sensor_process_commands(void) {
                 break;
 
             default:
-                uart_queue_text("ERROR,SENSOR,UNKNOWN_COMMAND\r\n");
+                uart_queue_text("ERROR,SENSOR,UNKNOWN_COMMAND\r\nCLI>");
                 break;
         }
     }

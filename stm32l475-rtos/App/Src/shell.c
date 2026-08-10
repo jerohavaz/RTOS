@@ -9,6 +9,7 @@
 
 #define SHELL_RX_BUFFER_SIZE 128u
 #define SHELL_MAX_ARGS       8u
+#define SHELL_CMD_ASYNC      4u
 
 static uint8_t rx_byte;
 static char rx_buffer[SHELL_RX_BUFFER_SIZE];
@@ -55,7 +56,7 @@ static int queue_sensor_command(app_sensor_command_t command) {
         return -1;
     }
 
-    return 0;
+    return SHELL_CMD_ASYNC;
 }
 
 void shell_init(void) {
@@ -126,12 +127,14 @@ void shell_update(void) {
         token = strtok(NULL, " ");
     }
 
+    int cmd_result = 0;
+
     if (argc > 0) {
         uint8_t found = 0u;
 
         for (size_t i = 0u; i < NUM_COMMANDS; i++) {
             if (strcmp(argv[0], command_table[i].name) == 0) {
-                command_table[i].function(argc, argv);
+                cmd_result = command_table[i].function(argc, argv);
                 found = 1u;
                 break;
             }
@@ -144,7 +147,9 @@ void shell_update(void) {
 
     rx_index = 0u;
     line_ready = 0u;
+    if(cmd_result != SHELL_CMD_ASYNC){
     shell_print("CLI> ");
+    }
 }
 
 static int cmd_help(int argc, char **argv) {
