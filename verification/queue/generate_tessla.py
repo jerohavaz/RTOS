@@ -1,10 +1,9 @@
 from typing import Mapping
 
-# TODO: check on queue integration tests
-
 CHECKS = [
     "queue_configuration",
     "queue_fill_bounds",
+    "queue_fill_consistency",
     "direct_send_consistency",
     "direct_receive_consistency",
     "write_to_full_queue",
@@ -21,6 +20,7 @@ CHECKS = [
     "queue_wake_state_missing",
     "queue_ready_event_missing",
     "waiting_sender_not_woken",
+    "waiting_receiver_not_handed_off",
     "waiting_receiver_not_woken",
     "receive_timeout_too_early",
     "send_timeout_too_early",
@@ -36,6 +36,9 @@ CHECKS = [
 CHECK_TRIGGERS = {
     "queue_configuration": "queue_create_id >= 0",
     "queue_fill_bounds": "queue_fill_queue_id >= 0",
+    "queue_fill_consistency": (
+        "merge(queue_send_success_queue_id, " "merge(queue_recv_success_queue_id, queue_handoff_queue_id)) >= 0"
+    ),
     "direct_send_consistency": "queue_send_success_queue_id >= 0",
     "direct_receive_consistency": "queue_recv_success_queue_id >= 0",
     "write_to_full_queue": "queue_send_success_queue_id >= 0",
@@ -52,6 +55,7 @@ CHECK_TRIGGERS = {
     "queue_wake_state_missing": "tick > 0",
     "queue_ready_event_missing": "tick > 0",
     "waiting_sender_not_woken": "tick > 0",
+    "waiting_receiver_not_handed_off": ("merge(queue_send_success_queue_id, tick) >= 0"),
     "waiting_receiver_not_woken": "tick > 0",
     "receive_timeout_too_early": "queue_recv_timeout_queue_id >= 0",
     "send_timeout_too_early": "queue_send_timeout_queue_id >= 0",
@@ -271,6 +275,17 @@ def emit_queue(queue_id: int, capacity: int, max_tasks: int) -> str:
         [f"last(send_wait_q{q}_t{task}, queue_recv_success_hash)" for task in range(max_tasks)],
         "   ",
     )
+    waiting_receivers_at_send = or_terms(
+        [f"last(recv_wait_q{q}_t{task}, queue_send_attempt_queue_id)" for task in range(max_tasks)],
+        "   ",
+    )
+    handoff_receiver_waiting = or_terms(
+        [
+            f"(queue_handoff_receiver_id == {task} && " f"last(recv_wait_q{q}_t{task}, queue_handoff_receiver_id))"
+            for task in range(max_tasks)
+        ],
+        "   ",
+    )
     fifo_later_terms = [
         f"(last(fifo_count_q{q}, queue_recv_success_hash) > {slot} && "
         f"queue_recv_success_hash == last(fifo_slot_q{q}_{slot}, queue_recv_success_hash))"
@@ -410,6 +425,39 @@ def fifo_operation_hash_q{q} :=
 def fifo_count_q{q}: Events[Int] =
   merge(last(fifo_count_q{q}, fifo_delta_q{q}) + fifo_delta_q{q}, 0)
 
+def violation_queue_fill_consistency_send_q{q} :=
+  filter(
+    queue_send_success_task_id,
+    buffered_send_q{q} &&
+    (default(last(time(queue_fill_q{q}), queue_send_success_task_id), -2) + 1 !=
+       time(queue_send_success_task_id) ||
+     default(last(queue_fill_q{q}, queue_send_success_task_id), -1) !=
+       default(last(fifo_count_q{q}, queue_send_success_task_id), 0) + 1)
+  )
+
+def violation_queue_fill_consistency_receive_q{q} :=
+  filter(
+    queue_recv_success_task_id,
+    buffered_recv_q{q} &&
+    (default(last(time(queue_fill_q{q}), queue_recv_success_task_id), -2) + 1 !=
+       time(queue_recv_success_task_id) ||
+     default(last(queue_fill_q{q}, queue_recv_success_task_id), -1) !=
+       default(last(fifo_count_q{q}, queue_recv_success_task_id), 0) - 1)
+  )
+
+def violation_queue_fill_consistency_handoff_q{q} :=
+  filter(
+    queue_handoff_queue_id,
+    queue_handoff_queue_id == {q} &&
+    default(last(queue_fill_q{q}, queue_handoff_queue_id), -1) !=
+      default(last(fifo_count_q{q}, queue_handoff_queue_id), 0)
+  )
+
+def violation_queue_fill_consistency_q{q} :=
+  merge(violation_queue_fill_consistency_send_q{q},
+        merge(violation_queue_fill_consistency_receive_q{q},
+              violation_queue_fill_consistency_handoff_q{q}))
+
 {emit_fifo_slots(q, capacity)}def fifo_later_match_q{q} :=
   {fifo_later_match}
 
@@ -545,11 +593,53 @@ def violation_queue_ready_event_missing_q{q} :=
 def sender_wake_requirement_time_q{q}: Events[Int] =
   merge(time(filter(queue_recv_success_task_id, waiting_sender_at_receive_q{q})), -100)
 
+def waiting_receiver_at_send_q{q} :=
+  queue_send_attempt_queue_id == {q} &&
+  ({waiting_receivers_at_send})
+
+def receiver_handoff_requirement_time_q{q}: Events[Int] =
+  merge(time(filter(queue_send_attempt_queue_id, waiting_receiver_at_send_q{q})), -100)
+
+def receiver_handoff_required_sender_q{q}: Events[Int] =
+  merge(filter(queue_send_attempt_task_id, waiting_receiver_at_send_q{q}), -1)
+
+def receiver_handoff_matches_requirement_q{q} :=
+  queue_handoff_queue_id == {q} &&
+  ({handoff_receiver_waiting}) &&
+  queue_handoff_sender_id ==
+    default(last(receiver_handoff_required_sender_q{q}, queue_handoff_queue_id), -1)
+
+def matching_receiver_handoff_time_q{q}: Events[Int] =
+  merge(time(filter(queue_handoff_queue_id, receiver_handoff_matches_requirement_q{q})), -100)
+
+def receiver_wake_requirement_time_q{q}: Events[Int] =
+  merge(
+    time(filter(queue_handoff_queue_id,
+                queue_handoff_queue_id == {q} && ({handoff_receiver_waiting}))),
+    -100
+  )
+
 def violation_waiting_sender_not_woken_q{q} :=
   filter(tick, last(sender_wake_requirement_time_q{q}, tick) > last(sender_wake_time_q{q}, tick))
 
+def receiver_handoff_missing_at_send_success_q{q} :=
+  queue_send_success_queue_id == {q} &&
+  default(last(receiver_handoff_requirement_time_q{q}, queue_send_success_queue_id), -100) >
+    default(last(matching_receiver_handoff_time_q{q}, queue_send_success_queue_id), -100)
+
+def receiver_handoff_missing_at_tick_q{q} :=
+  default(last(receiver_handoff_requirement_time_q{q}, tick), -100) >
+    default(last(matching_receiver_handoff_time_q{q}, tick), -100)
+
+def violation_waiting_receiver_not_handed_off_q{q} :=
+  merge(
+    filter(queue_send_success_queue_id, receiver_handoff_missing_at_send_success_q{q}),
+    filter(tick, receiver_handoff_missing_at_tick_q{q})
+  )
+
 def violation_waiting_receiver_not_woken_q{q} :=
-  filter(tick, last(handoff_time_q{q}, tick) > last(receiver_wake_time_q{q}, tick))
+  filter(tick,
+    last(receiver_wake_requirement_time_q{q}, tick) > last(receiver_wake_time_q{q}, tick))
 
 {timeout_states}def violation_send_timeout_too_early_q{q} :=
   filter(

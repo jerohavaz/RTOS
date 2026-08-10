@@ -106,10 +106,6 @@ GENERATOR_ARGUMENTS = {
         "max_tasks",
         "--max-tasks",
     ),
-    "quantum_ticks": (
-        "quantum",
-        "--quantum",
-    ),
     "max_semaphores": (
         "max_semaphores",
         "--max-semaphores",
@@ -575,9 +571,6 @@ def command_generate(
     if args.max_tasks is not None:
         overrides["max_tasks"] = args.max_tasks
 
-    if args.quantum is not None:
-        overrides["quantum_ticks"] = args.quantum
-
     if args.max_semaphores is not None:
         overrides["max_semaphores"] = args.max_semaphores
 
@@ -936,12 +929,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
-        "--quantum",
-        type=int,
-        help=("Required when the scheduler module " "is selected."),
-    )
-
-    generate_parser.add_argument(
         "--max-semaphores",
         type=int,
         help=("Required when the semaphore module " "is selected."),
@@ -1039,10 +1026,6 @@ def main() -> int:
     if hasattr(args, "max_tasks"):
         if args.max_tasks is not None and args.max_tasks <= 0:
             parser.error("--max-tasks must be greater than 0")
-
-    if hasattr(args, "quantum"):
-        if args.quantum is not None and args.quantum <= 0:
-            parser.error("--quantum must be greater than 0")
 
     if hasattr(args, "max_semaphores"):
         if args.max_semaphores is not None and args.max_semaphores <= 0:

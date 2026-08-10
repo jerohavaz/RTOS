@@ -97,7 +97,7 @@ Generation requires every configuration option used by the selected modules.
 | --- | --- |
 | `integrity` | None |
 | `delay` | `--max-tasks` |
-| `scheduler` | `--max-tasks`, `--quantum` |
+| `scheduler` | `--max-tasks` |
 | `semaphore` | `--max-tasks`, `--max-semaphores` |
 | `mutex` | `--max-tasks`, `--max-mutexes` |
 | `queue` | `--max-tasks`, one or more `--queue QUEUE_ID:CAPACITY` options |
@@ -113,9 +113,7 @@ idle task has ID `0`, use:
 ### Scheduler
 
 ```bash
-python3 tessla_verify.py generate scheduler \
-    --max-tasks 3 \
-    --quantum 1
+python3 tessla_verify.py generate scheduler --max-tasks 3
 ```
 
 ### Delay
@@ -178,7 +176,6 @@ python3 tessla_verify.py generate integrity
 ```bash
 python3 tessla_verify.py generate \
     --max-tasks 3 \
-    --quantum 1 \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
@@ -192,7 +189,6 @@ Generate one combined specification containing all modules:
 ```bash
 python3 tessla_verify.py generate --combined \
     --max-tasks 3 \
-    --quantum 1 \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
@@ -211,7 +207,6 @@ Generate a combined specification containing selected modules:
 python3 tessla_verify.py generate scheduler queue mutex integrity \
     --combined \
     --max-tasks 3 \
-    --quantum 1 \
     --max-mutexes 2 \
     --queue 1:2 \
     --queue 4:8
@@ -223,7 +218,6 @@ python3 tessla_verify.py generate scheduler queue mutex integrity \
 --mode {violations,checks}   Output mode (default: violations)
 --combined                   Write one build/combined.tessla
 --max-tasks N                Number of modeled task IDs, including idle
---quantum N                  Scheduler quantum in ticks
 --max-semaphores N           Number of tracked semaphore instances
 --max-mutexes N              Number of tracked mutex instances
 --queue ID:CAPACITY          Queue ID and capacity; repeat for multiple queues
@@ -296,7 +290,6 @@ build/queue-monitor
 ```bash
 python3 tessla_verify.py generate --combined \
     --max-tasks 3 \
-    --quantum 1 \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
@@ -405,7 +398,6 @@ Generate a combined specification:
 ```bash
 python3 tessla_verify.py generate --combined \
     --max-tasks 10 \
-    --quantum 1 \
     --max-semaphores 10 \
     --max-mutexes 2 \
     --queue 536871000:4
@@ -458,7 +450,6 @@ Generate and compile a combined monitor:
 ```bash
 python3 tessla_verify.py generate --combined \
     --max-tasks 10 \
-    --quantum 1 \
     --max-semaphores 10 \
     --max-mutexes 2 \
     --queue 536871000:4 \

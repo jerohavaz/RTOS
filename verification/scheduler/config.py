@@ -1,6 +1,5 @@
 GENERATOR_OPTIONS = {
     "max_tasks": 3,
-    "quantum_ticks": 1,
 }
 
 
@@ -18,22 +17,32 @@ EXPECTED = {
     "bad_invalid_transition.input": {
         "violation_invalid_state_transition",
     },
+    "bad_fifo_order.input": {
+        "violation_round_robin",
+    },
     "bad_priority.input": {
         "violation_priority",
+    },
+    "bad_priority_field.input": {
+        "violation_task_priority_inconsistent",
     },
     "bad_ready_event_inconsistent.input": {
         "violation_ready_event_inconsistent",
     },
-    "bad_rr_quantum.input": {
-        "violation_quantum",
+    "bad_tick_rotation.input": {
         "violation_round_robin",
+        "violation_tick_rotation",
+    },
+    "bad_state_discontinuity.input": {
+        "violation_state_discontinuity",
     },
     "bad_running_event_inconsistent.input": {
         "violation_running_event_inconsistent",
     },
     "bad_running_id_out_of_range.input": {
-        "violation_running_id_out_of_range",
+        "violation_task_id_out_of_range",
     },
     "valid_baseline.input": set(),
     "valid_round_robin.input": set(),
+    "valid_three_task_round_robin.input": set(),
 }

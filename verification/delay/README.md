@@ -1,35 +1,22 @@
-# Delay TeSSLa Verification
+# Delay Verification
 
-This monitor verifies both non-blocking (`os_delay`) and blocking (`os_delay_busy`) delay requirements using TeSSLa. Verification is based on emitted delay, task state, and tick events to ensure correct timing and execution state behavior.
+Verifies observed `os_delay` and `os_delay_busy` executions.
 
-## Verified Properties
+## Checks
 
-### Non-Blocking Delay (`os_delay`)
-* **State Transition to Blocked:** Calling a non-zero delay must immediately transition the task from `RUNNING` to `BLOCKED`.
-* **Timeout List Registration:** A non-blocking delay must register a timeout event with the specified tick duration.
-* **Minimum Duration Respected:** A task must not be unblocked before the requested delay ticks have elapsed.
-* **Yield on Zero Delay:** Calling `os_delay(0)` must request a scheduler yield without blocking or adding a timeout.
+- A nonzero `os_delay` must be followed by `RUNNING -> BLOCKED` and the matching `BLOCKED` event.
+- `DELAY_END` cannot occur before the requested ticks and must be followed by `BLOCKED -> READY` and the matching `READY` event.
+- `os_delay_busy` must start while the task is `RUNNING`.
+- A busy delay cannot enter `BLOCKED` or finish before the requested ticks.
 
-### Blocking Delay (`os_delay_busy`)
-* **Never Blocks:** Active delays must never trigger a task state transition to `BLOCKED`.
-* **Execution State Retention:** A task invoking a busy delay must be in the `RUNNING` state when the delay starts.
-* **Minimum Duration Respected:** A task must not complete its busy delay before the requested number of system ticks has elapsed.
+## Implementation Trace
 
-## Test Suite
+- A nonzero `os_delay` emits `DELAY_START`, its block transition, and `BLOCKED`; timeout cleanup emits `DELAY_END`, its ready transition, and `READY`.
+- `os_delay_busy` polls the kernel tick without blocking and remains preemptible.
+- `os_delay(0)` requests a scheduler yield and emits no delay event.
 
-The delay test suite provides dedicated traces for:
+## Limits
 
-* Valid non-blocking delay execution (`os_delay`)
-* Valid blocking delay execution (`os_delay_busy`)
-* Premature unblock violations for `os_delay`
-* Invalid state transitions to `BLOCKED` during `os_delay_busy`
-* Premature completion violations before time expiration for `os_delay_busy`
-* Zero-tick yield handling (`os_delay(0)`)
-
-## State Encoding
-
-```text
-0 = CREATED
-1 = READY
-2 = RUNNING
-3 = BLOCKED
+- A final missing block or ready sequence cannot be classified without a later delay, state, scheduler, or tick event.
+- Busy-delay preemption and transitions through `READY` are allowed; only entry into `BLOCKED` is rejected.
+- Durations use emitted kernel ticks, and task IDs are bounded by `max_tasks`.

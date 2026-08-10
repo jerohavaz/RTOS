@@ -1,39 +1,28 @@
-# Message Queue TeSSLa Verification
+# Message Queue Verification
 
-This monitor verifies the project’s message queue requirements from emitted queue, scheduler and task events. It generates independent state for every configured queue.
+Verifies configured queues from queue and task events.
 
-## Verified Properties
+## Checks
 
-* Fill remains between `0` and the configured capacity.
-* Buffered reads from an empty queue and writes to a full queue cannot succeed.
-* Buffered messages are received unchanged and in FIFO order.
-* Direct handoffs preserve the message and do not change the fill level.
-* Blocking operations transition the task from `RUNNING` to `BLOCKED` and emit `BLOCKED`.
-* Woken tasks transition from `BLOCKED` to `READY` and emit `READY`.
-* A waiting sender is awakened after a slot becomes free.
-* A waiting receiver is awakened after a direct handoff.
-* Finite timeouts do not occur early.
-* `OS_NO_WAIT` never blocks or times out; `OS_WAIT_FOREVER` never times out.
+- Observed fill and the internal FIFO model remain within `0..capacity`.
+- Each buffered send or receive has the expected immediately preceding `QUEUE_FILL` value; direct handoff preserves fill.
+- Buffered reads from empty queues and writes to full queues cannot succeed.
+- Buffered messages preserve their 32-bit hash and FIFO order.
+- Direct-handoff success events match the sender, receiver, and message hash.
+- Blocking and waking are followed by the matching state transition and scheduler event.
+- A send to a waiting receiver requires direct handoff and receiver wakeup.
+- Freeing a buffered slot while a sender waits requires sender completion and wakeup.
+- Finite timeout events cannot occur early; `OS_NO_WAIT` cannot block or time out, and `OS_WAIT_FOREVER` cannot time out.
 
-Timeout duration is calculated from `TICK dt`, not TeSSLa input timestamps.
+## Implementation Trace
 
-## Test Suite
+- Sending to a waiting receiver emits handoff, send success, receive success, receiver wake, and its ready sequence.
+- A buffered receive may refill the freed slot from a waiting sender before emitting sender success and wake.
+- Buffered push and pop emit `QUEUE_FILL` before success. Message hashes are 32-bit FNV-1a.
 
-The tests cover valid buffered FIFO operation, direct handoff and receive timeout, plus isolated violations of capacity, FIFO order, message integrity, empty/full access, block/wake transitions, timeout timing and required wake events.
+## Limits
 
-`max_tasks` is the task count, allowing IDs `0..max_tasks - 1`. Queue IDs may be non-contiguous and may have different capacities.
-
-## Trace Requirements
-
-`QUEUE_FILL` must follow every ring-buffer push or pop. `QUEUE_HANDOFF` must precede its send/receive success pair and must not change fill. Block and wake events must be followed immediately by their matching task-state and scheduler events.
-
-ISR operations use task ID `255`. They may complete immediately but must not block or time out.
-
-## Limitations
-
-* Integrity uses 32-bit hashes, so collisions are possible.
-* Complete, ordered RTT events are required.
-* Missing block/wake events are reported on the next `TICK`; an earlier trace end hides the violation.
-* Only configured queues and task IDs are monitored.
-* Timeout checks reject early completion but allow late completion.
-* Wait-queue priority ordering is not verified.
+- The monitor does not require a finite timeout event eventually to occur.
+- Final missing block, ready, handoff, or wake obligations need a later event or `TICK` to be classified.
+- Hash collisions are possible, so message equality is probabilistic rather than byte-exact.
+- Only configured queue IDs, capacities, and task IDs are modeled; waiter priority order is not checked.

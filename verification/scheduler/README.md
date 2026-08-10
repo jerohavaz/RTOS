@@ -1,56 +1,26 @@
-# Scheduler / Task TeSSLa Verification
+# Scheduler Verification
 
-This monitor verifies the scheduler and task requirements defined in the project specification using TeSSLa. Verification is based solely on the emitted scheduler and task events and is therefore independent of the kernel object (e.g. delays, mutexes, semaphores or message queues) causing a scheduling decision.
+Verifies task-state history and fixed-priority scheduling with a one-tick time slice.
 
-## Verified Properties
+## Checks
 
-### Scheduler
+- Task IDs are within `0..max_tasks - 1`.
+- Every `STATE.old` equals the previously modeled state, and the transition to `STATE.new` is valid.
+- `READY`, `RUNNING`, and `BLOCKED` events match the immediately preceding state transition.
+- Event priorities match `TASK_CREATE` when creation data is present.
+- A blocked task cannot run, and idle cannot run while a task is `READY`.
+- The running task is the head of the highest-priority ready queue.
+- Ready tasks of equal priority are selected in FIFO order.
+- After a positive `TICK`, a running task with an equal-priority ready peer cannot be selected again; a scheduling decision must appear before the next tick.
 
-* Higher-priority tasks are always scheduled before lower-priority tasks.
-* Tasks of equal priority are scheduled according to the Round-Robin algorithm.
-* A task must not exceed its configured time quantum.
-* The Idle task may only execute if no task is in the READY state.
-* Only valid task state transitions are permitted.
+## Implementation Trace
 
-### Tasks
+- The implementation inserts ready tasks at the back and removes the front task from the highest numeric priority.
+- A context switch requeues a still-running task before selecting the next task.
+- Each `STATE` event precedes its matching scheduler event.
 
-* A BLOCKED task must never be scheduled.
-* READY, RUNNING and BLOCKED events must be consistent with the monitored task state.
-* Running task identifiers must remain within the configured task range.
+## Limits
 
-Each task is represented by exactly one state (`CREATED`, `READY`, `RUNNING` or `BLOCKED`). Consequently, the requirements *"A task may only be in one state"* and *"A task must not be READY and BLOCKED simultaneously"* are inherently satisfied by the monitored state model.
-
-The ISR requirement is not verified explicitly. Interrupt handlers always return to the interrupted execution context, while all subsequent scheduling decisions are verified through the scheduler properties (priority scheduling, Round-Robin, quantum handling and state transitions).
-
-## Test Suite
-
-The scheduler test suite provides dedicated traces for:
-
-* Valid scheduler execution
-* Valid Round-Robin scheduling
-* Priority scheduling violations
-* Round-Robin / quantum violations
-* Idle execution while READY tasks exist
-* Invalid task state transitions
-* Invalid running task identifiers
-* BLOCKED task execution
-* READY event inconsistencies
-* RUNNING event inconsistencies
-* BLOCKED event inconsistencies
-
-These properties were additionally validated during integration tests of delays, mutexes, binary semaphores and message queues, where no scheduler or task-state violations were detected.
-
-## State Encoding
-
-```text
-0 = CREATED
-1 = READY
-2 = RUNNING
-3 = BLOCKED
-```
-
-## Priority Convention
-
-```text
-Higher numeric value = higher priority.
-```
+- A final pending tick-rotation obligation cannot be classified without a later decision or tick.
+- One integer state per task makes simultaneous states unrepresentable; continuity and event consistency are checked explicitly.
+- ISR events are not present in the TeSSLa RTT stream.

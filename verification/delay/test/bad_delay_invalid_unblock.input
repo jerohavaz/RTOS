@@ -16,11 +16,13 @@
 4: state_old = 2
 4: state_new = 3
 
-5: tick = 1
+5: blocked_id = 1
+
 6: tick = 1
+7: tick = 1
 
-7: delay_end_id = 1
+8: delay_end_id = 1
 
-8: state_id = 1
-8: state_old = 3
-8: state_new = 2
+9: state_id = 1
+9: state_old = 3
+9: state_new = 2

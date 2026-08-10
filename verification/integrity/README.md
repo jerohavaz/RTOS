@@ -1,27 +1,17 @@
-# Trace Integrity TeSSLa Verification
+# Trace Integrity Verification
 
-This monitor verifies that the recorded trace contains no detected event loss. Verification is based on sequence gaps reported by the RTT-to-TeSSLa converter.
+Detects record loss reported by the RTT-to-TeSSLa converter.
 
-## Verified Properties
+## Checks
 
-### Trace Integrity
+- A positive `trace_incomplete` value emits `violation_trace_incomplete` and gives the number of missing records.
 
-* Every emitted trace record must be received in sequence.
-* A positive `trace_incomplete` value indicates one or more missing records.
-* A trace containing missing records is considered incomplete.
+## Implementation Trace
 
-If `violation_trace_incomplete` is emitted, the verification result is inconclusive. Other property results from the same trace must not be treated as valid passes or failures.
+- Verifier-relevant RTT events use the sequenced `TRACE` emitter. A dropped non-blocking write leaves a detectable sequence gap.
 
-## Test Suite
+## Limits
 
-The integrity test suite provides dedicated traces for:
-
-* A complete trace without detected drops
-* A single sequence gap
-* Multiple sequence gaps
-
-## Integrity Event
-
-```text
-trace_incomplete = number of missing trace records
-```
+- The monitor detects only gaps reported through `trace_incomplete`.
+- A final dropped record has no later sequence number to expose the gap.
+- Results from a trace with reported loss are inconclusive.

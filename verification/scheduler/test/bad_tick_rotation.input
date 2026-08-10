@@ -21,5 +21,16 @@
 
 6: tick = 1
 
-7: running_id = 1
-7: running_prio = 2
+7: state_id = 1
+7: state_old = 2
+7: state_new = 1
+
+8: ready_id = 1
+8: ready_prio = 2
+
+9: state_id = 1
+9: state_old = 1
+9: state_new = 2
+
+10: running_id = 1
+10: running_prio = 2
