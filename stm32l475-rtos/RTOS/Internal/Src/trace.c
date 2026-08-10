@@ -526,8 +526,8 @@ void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_pri
 
 void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(
-        0, "QUEUE_SEND_TIMEOUT %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_emit(
+        "QUEUE_SEND_TIMEOUT %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
 }
 
@@ -564,22 +564,20 @@ void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_
 
 void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(
-        0, "QUEUE_RECV_TIMEOUT %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_emit(
+        "QUEUE_RECV_TIMEOUT %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
 }
 
 void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(
-        0, "QUEUE_WAKE_SEND %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_emit("QUEUE_WAKE_SEND %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
 }
 
 void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    SEGGER_RTT_printf(
-        0, "QUEUE_WAKE_RECV %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_emit("QUEUE_WAKE_RECV %lu %u\n", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
 }
 
