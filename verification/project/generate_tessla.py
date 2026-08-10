@@ -2,8 +2,8 @@
 
 CHECKS = [
     (
-        "sensor_read_to_transmission_within_100ms",
-        "sensor_timeout",
+        "sensor_read_to_transmission_within_interval",
+        "sensor_interval_deviation",
     ),
 ]
 
@@ -38,7 +38,10 @@ def PASS_{public_name} :=
 """
 
 
-def emit_latency_check(max_latency_ticks: int) -> str:
+def emit_latency_check(target_interval_ticks: int, tolerance_ticks: int) -> str:
+    min_ticks = target_interval_ticks - tolerance_ticks
+    max_ticks = target_interval_ticks + tolerance_ticks
+
     return f"""# ==================== Sensor Latency Check ====================
 # Speichert den Tick-Stand beim Auslösen von sensor_read
 def last_read_tick: Events[Int] =
@@ -51,18 +54,18 @@ def last_read_tick: Events[Int] =
 def elapsed_ticks: Events[Int] =
   last(tick_sum, transmission_complete) - last(last_read_tick, transmission_complete)
 
-# Bedingung für PASS / FAIL Prüfung
-def is_timeout_violation: Events[Bool] = elapsed_ticks > {max_latency_ticks}
+# Bedingung für Intervallabweichung (Erlaubter Bereich: [{min_ticks}, {max_ticks}] Ticks)
+def is_interval_violation: Events[Bool] = elapsed_ticks < {min_ticks} || elapsed_ticks > {max_ticks}
 
 # Violation: Nimmt das Event 'transmission_complete' und filtert es basierend auf der Boolean-Bedingung
-def violation_sensor_timeout :=
-  filter(transmission_complete, is_timeout_violation)
+def violation_sensor_interval_deviation :=
+  filter(transmission_complete, is_interval_violation)
 
 {emit_pass_fail_pair(
-    "sensor_read_to_transmission_within_100ms",
-    "sensor_timeout",
+    "sensor_read_to_transmission_within_interval",
+    "sensor_interval_deviation",
     "transmission_complete",
-    "is_timeout_violation",
+    "is_interval_violation",
 )}
 """
 
@@ -86,12 +89,13 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(
-    max_latency_ticks: int,
+    target_interval_ticks: int,
+    tolerance_ticks: int,
     mode: str = "violations",
 ) -> str:
     parts = [
         emit_header(),
-        emit_latency_check(max_latency_ticks),
+        emit_latency_check(target_interval_ticks, tolerance_ticks),
         emit_outputs(mode),
     ]
 
