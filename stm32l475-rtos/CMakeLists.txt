@@ -29,8 +29,12 @@ add_subdirectory(Port/CortexM)
 add_subdirectory(RTOS)
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    App/Src/app_tasks.c
     App/Src/app.c
+    App/Src/integration_delay.c
+    App/Src/integration_mutex.c
+    App/Src/integration_queue.c
+    App/Src/integration_scheduler.c
+    App/Src/integration_semaphore.c
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

@@ -104,7 +104,7 @@
  * Requires the SEGGER RTT sources, headers, and target configuration. This
  * option is meaningful only when @ref OS_TRACE_ENABLED is @c true.
  */
-#define OS_TRACE_TESSLA_RTT (false)
+#define OS_TRACE_TESSLA_RTT (true)
 
 /**
  * @brief Trace scheduler decisions and task scheduling-state transitions.
