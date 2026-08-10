@@ -132,8 +132,7 @@ static void semaphore_low_waiter_task(void) {
  *       overflow rejection, token consumption, and empty rejection succeed.
  */
 static void semaphore_control_task(void) {
-    integration_test_check(os_sem_acquire(&g_binary_semaphore, OS_NO_WAIT) ==
-                           OS_ERR_WOULD_BLOCK);
+    integration_test_check(os_sem_acquire(&g_binary_semaphore, OS_NO_WAIT) == OS_ERR_WOULD_BLOCK);
     integration_test_check(os_sem_release(&g_binary_semaphore) == OS_OK);
     integration_test_check(os_sem_release(&g_binary_semaphore) == OS_ERR_FULL);
     integration_test_check(os_sem_acquire(&g_binary_semaphore, OS_NO_WAIT) == OS_OK);
@@ -167,8 +166,7 @@ static void semaphore_control_task(void) {
     integration_test_check(os_sem_acquire(&g_counting_semaphore, OS_NO_WAIT) == OS_OK);
     integration_test_check(os_sem_acquire(&g_counting_semaphore, OS_NO_WAIT) == OS_OK);
     integration_test_check(os_sem_acquire(&g_counting_semaphore, OS_NO_WAIT) == OS_OK);
-    integration_test_check(os_sem_acquire(&g_counting_semaphore, OS_NO_WAIT) ==
-                           OS_ERR_WOULD_BLOCK);
+    integration_test_check(os_sem_acquire(&g_counting_semaphore, OS_NO_WAIT) == OS_ERR_WOULD_BLOCK);
 
     integration_test_pass();
     semaphore_park();
@@ -183,9 +181,7 @@ void integration_semaphore_init(void) {
     g_semaphore_test_observation.acquisition_count = 0u;
 
     integration_test_check(os_sem_init(&g_binary_semaphore, 0u, SEM_BINARY_MAX_COUNT) == OS_OK);
-    integration_test_check(os_sem_init(&g_counting_semaphore,
-                                       0u,
-                                       SEM_COUNTING_MAX_COUNT) == OS_OK);
+    integration_test_check(os_sem_init(&g_counting_semaphore, 0u, SEM_COUNTING_MAX_COUNT) == OS_OK);
     integration_test_check(os_task_create(semaphore_control_task, SEM_CONTROL_PRIORITY) == OS_OK);
     integration_test_check(os_task_create(semaphore_high_waiter_task, SEM_HIGH_PRIORITY) == OS_OK);
     integration_test_check(os_task_create(semaphore_low_waiter_task, SEM_LOW_PRIORITY) == OS_OK);

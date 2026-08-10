@@ -160,8 +160,7 @@ static void queue_producer_task(void) {
     integration_test_check(os_queue_is_full(&g_test_queue));
 
     /* Full queue: first prove no-wait rejection, then block on the same data. */
-    integration_test_check(os_queue_send(&g_test_queue, &second, OS_NO_WAIT) ==
-                           OS_ERR_WOULD_BLOCK);
+    integration_test_check(os_queue_send(&g_test_queue, &second, OS_NO_WAIT) == OS_ERR_WOULD_BLOCK);
     g_queue_test_observation.full_sender_stage = QUEUE_STAGE_WAITING;
     integration_test_check(os_queue_send(&g_test_queue, &second, OS_WAIT_FOREVER) == OS_OK);
     g_queue_test_observation.full_sender_stage = QUEUE_STAGE_COMPLETE;
