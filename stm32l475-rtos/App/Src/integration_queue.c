@@ -20,6 +20,7 @@
  * 5. The freed slot accepts the blocked send and wakes the producer.
  * 6. The drainer receives the second message and verifies FIFO and integrity.
  * 7. A non-blocking read verifies rejection on the empty queue.
+ * 8. The drainer exercises finite receive-on-empty and send-on-full timeouts.
  */
 
 #include "integration_test.h"
@@ -41,6 +42,7 @@
 #define QUEUE_RECEIVER_PRIORITY (6u)          /**< Empty-queue receiver priority. */
 #define QUEUE_PRODUCER_PRIORITY (5u)          /**< Message producer priority. */
 #define QUEUE_DRAINER_PRIORITY  (4u)          /**< Buffered-message consumer priority. */
+#define QUEUE_TIMEOUT_TICKS     (2u)          /**< Finite send/receive timeout. */
 #define QUEUE_PARK_TICKS        (1000000u)    /**< Long delay after task completion. */
 #define QUEUE_MESSAGE_MAGIC     (0x51A7E123u) /**< Salt used by the integrity checksum. */
 
@@ -65,6 +67,8 @@ typedef struct {
     volatile queue_test_stage_t full_sender_stage;    /**< Full-queue sender progress. */
     volatile uint32_t direct_handoff_valid;           /**< Direct message passed integrity. */
     volatile uint32_t buffered_messages_valid;        /**< Buffered FIFO messages passed. */
+    volatile uint32_t receive_timeout_valid;          /**< Empty receive timed out. */
+    volatile uint32_t send_timeout_valid;             /**< Full send timed out. */
 } queue_test_observation_t;
 
 /** @brief Live queue observations for debugger inspection. */
@@ -182,6 +186,8 @@ static void queue_drainer_task(void) {
     queue_test_message_t received;
     queue_test_message_t first = queue_make_message(2u, 0x55667788u);
     queue_test_message_t second = queue_make_message(3u, 0xA5A55A5Au);
+    queue_test_message_t timeout_buffered = queue_make_message(4u, 0x0BADCAFEu);
+    queue_test_message_t timeout_rejected = queue_make_message(5u, 0xC001D00Du);
 
     /* This task runs only after the higher-priority sender has blocked. */
     integration_test_check(g_queue_test_observation.full_sender_stage == QUEUE_STAGE_WAITING);
@@ -199,6 +205,22 @@ static void queue_drainer_task(void) {
     integration_test_check(os_queue_recv(&g_test_queue, &received, OS_NO_WAIT) ==
                            OS_ERR_WOULD_BLOCK);
 
+    /* Empty blocking receive must leave by its finite timeout. */
+    integration_test_check(os_queue_recv(&g_test_queue, &received, QUEUE_TIMEOUT_TICKS) ==
+                           OS_ERR_TIMEOUT);
+    g_queue_test_observation.receive_timeout_valid = 1u;
+
+    /* Full blocking send must time out without changing the buffered item. */
+    integration_test_check(os_queue_send(&g_test_queue, &timeout_buffered, OS_NO_WAIT) == OS_OK);
+    integration_test_check(os_queue_is_full(&g_test_queue));
+    integration_test_check(os_queue_send(&g_test_queue, &timeout_rejected, QUEUE_TIMEOUT_TICKS) ==
+                           OS_ERR_TIMEOUT);
+    g_queue_test_observation.send_timeout_valid = 1u;
+
+    integration_test_check(os_queue_recv(&g_test_queue, &received, OS_NO_WAIT) == OS_OK);
+    integration_test_check(queue_message_matches(&received, &timeout_buffered));
+    integration_test_check(os_queue_is_empty(&g_test_queue));
+
     g_queue_test_observation.buffered_messages_valid = 1u;
     integration_test_check(g_queue_test_observation.direct_handoff_valid != 0u);
     integration_test_pass();
@@ -211,6 +233,8 @@ void integration_queue_init(void) {
     g_queue_test_observation.full_sender_stage = QUEUE_STAGE_NOT_STARTED;
     g_queue_test_observation.direct_handoff_valid = 0u;
     g_queue_test_observation.buffered_messages_valid = 0u;
+    g_queue_test_observation.receive_timeout_valid = 0u;
+    g_queue_test_observation.send_timeout_valid = 0u;
 
     integration_test_check(os_queue_init(&g_test_queue,
                                          QUEUE_TEST_ID,

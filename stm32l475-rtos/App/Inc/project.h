@@ -39,7 +39,7 @@
  * change the value below to build another scenario.
  */
 #ifndef PROJECT
-#define PROJECT PROJECT_SCHEDULER
+#define PROJECT PROJECT_QUEUE
 #endif
 
 #if (PROJECT < PROJECT_SCHEDULER) || (PROJECT > PROJECT_QUEUE)

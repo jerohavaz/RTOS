@@ -10,10 +10,10 @@ The application builds exactly one RTOS integration test. Select it by changing
 | Selection | Coverage |
 | --- | --- |
 | `PROJECT_SCHEDULER` | Strict priority order, several tick-driven round-robin handshakes between two CPU-bound READY peers, then lower-priority progress |
-| `PROJECT_DELAY` | Busy delay keeps a lower-priority task from running; blocking delay lets it run |
-| `PROJECT_SEMAPHORE` | Binary count bounds plus priority-ordered waiters, and a separate greater-than-one counting range including full/empty errors |
-| `PROJECT_MUTEX` | Active-owner exclusion, blocking ownership handoff in priority order, recursive-lock rejection, and non-owner unlock rejection |
-| `PROJECT_QUEUE` | Direct handoff, explicit full no-wait rejection followed by blocking send of the same message, FIFO refill, exact integrity, and empty no-wait rejection |
+| `PROJECT_DELAY` | One measured busy delay and one scheduler-aware delay, including observer exclusion/progress |
+| `PROJECT_SEMAPHORE` | Binary empty/full/success paths, low-first contention with high-priority wake-up, finite timeout, and counting range |
+| `PROJECT_MUTEX` | Low-first contention with high-priority handoff, one-owner invariant, recursive/non-owner rejection, finite timeout, and reuse |
+| `PROJECT_QUEUE` | Empty receive and full send blocking, direct handoff, FIFO refill, exact integrity, no-wait rejection, and both finite timeout paths |
 
 Each test has its own source file under `Src/`. Tests are intentionally small
 and use only public RTOS APIs.
@@ -52,14 +52,15 @@ The C assertions check API return values and data observations directly:
 
 - scheduler startup order, four peer handshakes, and low-task progress only
   after both peers enter their blocking park;
-- binary semaphore empty/full/consume behavior, priority-ordered waiter
-  wake-up, counting to three, overflow, complete token removal, and empty
-  no-wait rejection;
-- mutex owner-only unlock, non-recursive rejection, blocking wake-up order,
-  and `active_owners == 1` after every successful lock (including while the
-  original owner deliberately blocks);
-- queue direct handoff, full no-wait rejection, blocking send wake-up, FIFO,
-  full comparison of all message fields, and empty no-wait rejection;
+- binary semaphore empty/full/consume behavior, low-first concurrent blocking,
+  high-priority wake-up, finite acquire timeout, counting to three, overflow,
+  complete token removal, and empty no-wait rejection;
+- mutex owner-only unlock, non-recursive rejection, finite lock timeout,
+  low-first concurrent blocking, high-priority ownership handoff, reuse, and
+  `active_owners == 1` after every successful lock;
+- queue direct handoff, empty blocking receive, full no-wait rejection,
+  blocking send wake-up, FIFO, full comparison of all message fields, empty
+  no-wait rejection, and finite send/receive timeouts;
 - no observer progress during `os_delay_busy()` and observer progress during
   `os_delay()`.
 

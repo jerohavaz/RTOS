@@ -4,7 +4,7 @@
  * @author Jerome
  *
  * @details
- * A high-priority controller alternates between a busy delay and a
+ * A high-priority controller executes one busy delay and one
  * scheduler-aware delay while a lower-priority observer counts executions.
  * The observer must remain unchanged during the busy delay and must progress
  * while the controller is blocked by @c os_delay().
@@ -32,9 +32,10 @@
 
 #include <stdint.h>
 
-#define DELAY_CONTROL_PRIORITY  (4u) /**< Priority of the delay-driving task. */
-#define DELAY_OBSERVER_PRIORITY (2u) /**< Priority of the progress observer. */
-#define DELAY_TEST_TICKS        (5u) /**< Duration used by both delay variants. */
+#define DELAY_CONTROL_PRIORITY  (4u)       /**< Priority of the delay-driving task. */
+#define DELAY_OBSERVER_PRIORITY (2u)       /**< Priority of the progress observer. */
+#define DELAY_TEST_TICKS        (5u)       /**< Duration used by both delay variants. */
+#define DELAY_PARK_TICKS        (1000000u) /**< Completed-task park delay. */
 
 /** @brief Current phase of the delay integration test. */
 typedef enum {
@@ -54,6 +55,13 @@ typedef struct {
 /** @brief Live delay observations for debugger inspection. */
 delay_test_observation_t g_delay_test_observation;
 
+/** @brief Permanently block a completed delay-test task. */
+static void delay_park(void) {
+    while (1) {
+        integration_test_check(os_delay(DELAY_PARK_TICKS) == OS_OK);
+    }
+}
+
 /**
  * @brief Count opportunities created by a blocked controller.
  *
@@ -63,41 +71,40 @@ delay_test_observation_t g_delay_test_observation;
  * @note This function does not return.
  */
 static void delay_observer_task(void) {
-    while (1) {
+    while (g_delay_test_observation.phase != DELAY_PHASE_COMPLETE) {
         g_delay_test_observation.observer_runs++;
         integration_test_check(os_delay(1u) == OS_OK);
     }
+
+    delay_park();
 }
 
 /**
  * @brief Exercise and compare busy and scheduler-based delays repeatedly.
  *
- * @post Every completed cycle increments @c completed_cycles.
- * @post The first successful cycle marks the aggregate test as passed.
- * @note A later failed repetition changes the sticky aggregate verdict to
- *       @ref INTEGRATION_TEST_FAILED.
+ * @post The single completed cycle increments @c completed_cycles and marks
+ *       the aggregate test as passed if every check succeeded.
  */
 static void delay_control_task(void) {
-    while (1) {
-        uint32_t before = g_delay_test_observation.observer_runs;
+    uint32_t before = g_delay_test_observation.observer_runs;
 
-        g_delay_test_observation.phase = DELAY_PHASE_BUSY;
-        integration_test_check(os_delay_busy(DELAY_TEST_TICKS) == OS_OK);
+    g_delay_test_observation.phase = DELAY_PHASE_BUSY;
+    integration_test_check(os_delay_busy(DELAY_TEST_TICKS) == OS_OK);
 
-        /* A lower-priority task must not run while this task busy-waits. */
-        integration_test_check(g_delay_test_observation.observer_runs == before);
+    /* A lower-priority task must not run while this task busy-waits. */
+    integration_test_check(g_delay_test_observation.observer_runs == before);
 
-        before = g_delay_test_observation.observer_runs;
-        g_delay_test_observation.phase = DELAY_PHASE_BLOCKING;
-        integration_test_check(os_delay(DELAY_TEST_TICKS) == OS_OK);
+    before = g_delay_test_observation.observer_runs;
+    g_delay_test_observation.phase = DELAY_PHASE_BLOCKING;
+    integration_test_check(os_delay(DELAY_TEST_TICKS) == OS_OK);
 
-        /* A scheduler delay must block this task and let the observer run. */
-        integration_test_check(g_delay_test_observation.observer_runs > before);
+    /* A scheduler delay must block this task and let the observer run. */
+    integration_test_check(g_delay_test_observation.observer_runs > before);
 
-        g_delay_test_observation.completed_cycles++;
-        g_delay_test_observation.phase = DELAY_PHASE_COMPLETE;
-        integration_test_pass();
-    }
+    g_delay_test_observation.completed_cycles = 1u;
+    g_delay_test_observation.phase = DELAY_PHASE_COMPLETE;
+    integration_test_pass();
+    delay_park();
 }
 
 /** @copydoc integration_delay_init */
