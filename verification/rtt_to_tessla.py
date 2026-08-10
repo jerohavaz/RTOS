@@ -1,3 +1,10 @@
+"""Convert sequenced SEGGER RTT records into TeSSLa input.
+
+For live RTT capture, ``TESSLA_START`` defines the beginning of a firmware
+session. Input received before the marker is discarded. A later marker resets
+the sequence state and replaces file output with the new session.
+"""
+
 import argparse
 import socket
 import sys
@@ -197,6 +204,21 @@ last_trace_sequence: int | None = None
 missing_trace_records = 0
 
 
+def reset_trace_state(*, expect_sequence_zero: bool) -> None:
+    """Reset sequence tracking for a new target session.
+
+    Args:
+        expect_sequence_zero: Require the first sequenced record to have
+            sequence number zero. This is enabled after ``TESSLA_START`` and
+            disabled for legacy input without a session marker.
+    """
+    global last_trace_sequence
+    global missing_trace_records
+
+    last_trace_sequence = 0xFFFFFFFF if expect_sequence_zero else None
+    missing_trace_records = 0
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert SEGGER RTT trace lines to TeSSLa input.")
 
@@ -385,6 +407,11 @@ def read_from_socket(
         config = f"$$SEGGER_TELNET_ConfigStr=RTTCh;{channel}$$\n"
         sock.sendall(config.encode("ascii"))
 
+        print(
+            f"Connected to RTT channel {channel} at {host}:{port}. " "Reset the STM32 now; waiting for TESSLA_START.",
+            file=sys.stderr,
+        )
+
         with sock.makefile(
             "r",
             encoding="utf-8",
@@ -427,7 +454,11 @@ def main() -> int:
 
     timestamp = 0
     received_events = 0
+    session_started = args.stdin
+    session_count = 0
     show_live_summary = args.output is not None and args.summary
+
+    reset_trace_state(expect_sequence_zero=False)
 
     output_context = (
         nullcontext(sys.stdout)
@@ -442,6 +473,34 @@ def main() -> int:
     try:
         with output_context as output_stream:
             for raw_line in source:
+                if raw_line.strip() == "TESSLA_START":
+                    replacing_session = session_started
+                    session_started = True
+                    session_count += 1
+                    timestamp = 0
+                    received_events = 0
+                    reset_trace_state(expect_sequence_zero=True)
+
+                    if args.output is not None:
+                        output_stream.seek(0)
+                        output_stream.truncate()
+                        output_stream.flush()
+                    elif replacing_session:
+                        print(
+                            "Target restarted: stdout consumers have already "
+                            "received the previous session and must also be restarted.",
+                            file=sys.stderr,
+                        )
+
+                    print(
+                        f"Trace session {session_count} started.",
+                        file=sys.stderr,
+                    )
+                    continue
+
+                if not session_started:
+                    continue
+
                 event_line, missing = parse_trace_record(raw_line)
 
                 if event_line is None:

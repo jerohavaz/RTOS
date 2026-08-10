@@ -66,6 +66,29 @@ Plain specification generation without `--rust` does not require a TeSSLa JAR.
 
 ## Capture a Trace
 
+### Restart the target after connecting
+
+RTT and its host connection can still contain records from an earlier firmware
+run. Start the collector first and reset the STM32 only after the collector
+reports that it is connected and waiting for `TESSLA_START`:
+
+1. Start `rtt_to_tessla.py`.
+2. Wait for `Reset the STM32 now; waiting for TESSLA_START.`
+3. Reset the STM32.
+4. Capture begins when the firmware emits `TESSLA_START` from `trace_init()`.
+
+For RTT socket input, the converter discards everything before
+`TESSLA_START`. Every later `TESSLA_START` begins a new target session, resets
+sequence and timestamp tracking, and truncates file output so the file contains
+only the newest session. The firmware already calls `SEGGER_RTT_Init()` before
+creating tasks or starting the scheduler; it must not reinitialize RTT during
+normal execution.
+
+Standard output cannot be truncated. If live output has already been piped into
+a TeSSLa interpreter or compiled monitor when the target restarts, restart the
+downstream monitor as well. Use file capture followed by offline verification
+when a clean restart boundary must be guaranteed.
+
 Record RTT channel 0 to a file:
 
 ```bash
