@@ -173,7 +173,8 @@ def emit_event_consistency(max_tasks: int) -> str:
     ready_terms = []
     running_terms = []
     blocked_terms = []
-    priority_terms = []
+    ready_priority_terms = []
+    running_priority_terms = []
 
     for task_id in range(max_tasks):
         ready_terms.append(
@@ -198,12 +199,12 @@ def emit_event_consistency(max_tasks: int) -> str:
             f"default(last(state_new, blocked_id), -1) != {STATE_BLOCKED} || "
             f"default(last(time(state_id), blocked_id), -2) + 1 != time(blocked_id)))"
         )
-        priority_terms.append(
+        ready_priority_terms.append(
             f"(ready_id == {task_id} && "
             f"default(last(task_created_priority_{task_id}, ready_id), -1) >= 0 && "
             f"ready_prio != default(last(task_created_priority_{task_id}, ready_id), -1))"
         )
-        priority_terms.append(
+        running_priority_terms.append(
             f"(running_id == {task_id} && "
             f"default(last(task_created_priority_{task_id}, running_id), -1) >= 0 && "
             f"running_prio != default(last(task_created_priority_{task_id}, running_id), -1))"
@@ -218,8 +219,14 @@ def running_event_inconsistent :=
 def blocked_event_inconsistent :=
   {or_terms(blocked_terms)}
 
+def scheduler_ready_priority_inconsistent :=
+  {or_terms(ready_priority_terms)}
+
+def scheduler_running_priority_inconsistent :=
+  {or_terms(running_priority_terms)}
+
 def scheduler_task_priority_inconsistent :=
-  {or_terms(priority_terms)}
+  merge(scheduler_ready_priority_inconsistent, scheduler_running_priority_inconsistent)
 
 def violation_ready_event_inconsistent :=
   filter(ready_id, ready_event_inconsistent)
