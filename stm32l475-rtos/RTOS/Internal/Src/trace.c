@@ -80,9 +80,39 @@ static void trace_tessla_emit(const char *format, ...) {
  */
 static U32 sv_task_id(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
-    return (U32)task->u8TaskId;
+    return (U32)(uintptr_t)task;
 }
 #endif
+
+/**
+ * @brief Send task metadata to SEGGER SystemView.
+ *
+ * Reports the task's SystemView identifier, numeric task ID as its display
+ * name, priority, and stack bounds. Stack usage is reported as unknown because
+ * the kernel does not currently track the stack high-water mark.
+ *
+ * @param task Task control block whose metadata will be reported.
+ *
+ * @pre @p task must not be null.
+ * @note SEGGER_SYSVIEW_SendTaskInfo() encodes the task name immediately, so the
+ *       local name buffer does not need to persist after this function returns.
+ */
+static void sv_send_task_info(TCB_sctTCB_t *task) {
+    char name[4]; /* "255" plus '\0' */
+
+    snprintf(name, sizeof(name), "%u", (unsigned int)task->u8TaskId);
+
+    const SEGGER_SYSVIEW_TASKINFO info = {
+        .TaskID = sv_task_id(task),
+        .sName = name,
+        .Prio = task->u8TaskPrio,
+        .StackBase = (U32)(uintptr_t)task->au32TaskStack,
+        .StackSize = (U32)sizeof(task->au32TaskStack),
+        .StackUsage = 0u,
+    };
+
+    SEGGER_SYSVIEW_SendTaskInfo(&info);
+}
 
 void trace_init(void) {
 #if OS_TRACE_TESSLA_RTT
@@ -106,6 +136,7 @@ void trace_task_create(TCB_sctTCB_t *task) {
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_TASKS
     SEGGER_SYSVIEW_OnTaskCreate(sv_task_id(task));
+    sv_send_task_info(task);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
