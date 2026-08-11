@@ -16,6 +16,103 @@ The application builds exactly one RTOS integration test. Select it by changing 
 
 Each test has its own source file under `Src/`. Tests are intentionally small and use only public RTOS APIs.
 
+## Prebuilt TeSSLa monitors
+
+> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/1htq_5S8_92rzDWVeMwq0ZCNn7coaiBaC/view?usp=sharing)**
+
+The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, and verification modules used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
+
+The filename identifies the integration-test project for which the combined monitor was generated. For example, `mutex.tessla` is the combined monitor for `PROJECT_MUTEX`; it contains every module listed in the corresponding command below, not only the mutex module.
+
+```text
+monitors/
+├── checks/
+│   ├── delay-monitor
+│   ├── delay.tessla
+│   ├── mutex-monitor
+│   ├── mutex.tessla
+│   ├── queue-monitor
+│   ├── queue.tessla
+│   ├── scheduler-monitor
+│   ├── scheduler.tessla
+│   ├── semaphore-monitor
+│   └── semaphore.tessla
+└── violations/
+    ├── delay-monitor
+    ├── delay.tessla
+    ├── mutex-monitor
+    ├── mutex.tessla
+    ├── queue-monitor
+    ├── queue.tessla
+    ├── scheduler-monitor
+    ├── scheduler.tessla
+    ├── semaphore-monitor
+    └── semaphore.tessla
+```
+
+The files under `checks/` were generated with `--mode checks`. The files under `violations/` were generated with `--mode violations`. Each command below was run once for each mode by replacing `MODE` with `checks` and then `violations`. The resulting `build/combined.tessla` and `build/combined-monitor` were renamed to the project-specific filenames shown above.
+
+### `PROJECT_SCHEDULER`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler \
+    --max-tasks 5 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar ~/Desktop/tessla.jar
+```
+
+### `PROJECT_DELAY`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler \
+    --max-tasks 3 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar ~/Desktop/tessla.jar
+```
+
+### `PROJECT_SEMAPHORE`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler semaphore \
+    --max-tasks 5 \
+    --max-semaphores 3 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar ~/Desktop/tessla.jar
+```
+
+### `PROJECT_MUTEX`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler semaphore mutex \
+    --max-tasks 6 \
+    --max-semaphores 2 \
+    --max-mutexes 1 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar ~/Desktop/tessla.jar
+```
+
+### `PROJECT_QUEUE`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler queue \
+    --max-tasks 4 \
+    --queue 1:1 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar ~/Desktop/tessla.jar
+```
+
+For monitor generation, trace capture, test execution, and interpretation of verification results, see [verification/README.md](../../verification/README.md).
+
 ## Result
 
 Inspect `g_integration_test_result` in the debugger:
