@@ -1,0 +1,42 @@
+# PE5001_RTOS - custom OS API events
+# Must match O=PE5001_RTOS from SEGGER_SYSVIEW_SendSysDesc().
+# Event IDs 32..511 are reserved by SystemView for custom OS API calls.
+
+# Delays
+32 DELAY_BUSY_START Task=%u Ticks=%u
+33 DELAY_BUSY_END Task=%u
+34 DELAY_START Task=%u Ticks=%u
+35 DELAY_END Task=%u
+
+# Semaphores
+36 SEM_CREATE Sem=%p Initial=%u Max=%u
+37 SEM_ACQUIRE_ENTER Sem=%p Task=%u Count=%u Timeout=%u Finite=%u
+38 SEM_ACQUIRE_EXIT Sem=%p Task=%u Count=%u Success=%u
+39 SEM_BLOCK Sem=%p Task=%u Prio=%u Timeout=%u Finite=%u
+40 SEM_TIMEOUT Sem=%p Task=%u Count=%u
+41 SEM_RELEASE Sem=%p Before=%u After=%u Max=%u Success=%u
+42 SEM_WAKE Sem=%p Task=%u Prio=%u
+
+# Mutexes
+43 MUTEX_CREATE Mutex=%p
+44 MUTEX_LOCK_ENTER Mutex=%p Task=%u Owner=%u Timeout=%u Finite=%u
+45 MUTEX_LOCK_EXIT Mutex=%p Task=%u Owner=%u Success=%u
+46 MUTEX_BLOCK Mutex=%p Task=%u Prio=%u Owner=%u Timeout=%u Finite=%u
+47 MUTEX_TIMEOUT Mutex=%p Task=%u Owner=%u
+48 MUTEX_UNLOCK Mutex=%p Task=%u Before=%u After=%u Success=%u
+49 MUTEX_WAKE Mutex=%p Task=%u Prio=%u
+
+# Message queues
+50 QUEUE_CREATE Queue=%u Capacity=%u
+51 QUEUE_SEND_ATTEMPT Queue=%u Task=%u Prio=%u Timeout=%u Hash=%x
+52 QUEUE_SEND_SUCCESS Queue=%u Task=%u Hash=%x
+53 QUEUE_SEND_BLOCK Queue=%u Task=%u Prio=%u
+54 QUEUE_SEND_TIMEOUT Queue=%u Task=%u
+55 QUEUE_RECV_ATTEMPT Queue=%u Task=%u Prio=%u Timeout=%u
+56 QUEUE_RECV_SUCCESS Queue=%u Task=%u Hash=%x
+57 QUEUE_RECV_BLOCK Queue=%u Task=%u Prio=%u
+58 QUEUE_RECV_TIMEOUT Queue=%u Task=%u
+59 QUEUE_WAKE_SEND Queue=%u Task=%u
+60 QUEUE_WAKE_RECV Queue=%u Task=%u
+61 QUEUE_HANDOFF Queue=%u Sender=%u Receiver=%u Hash=%x
+62 QUEUE_FILL Queue=%u Fill=%u

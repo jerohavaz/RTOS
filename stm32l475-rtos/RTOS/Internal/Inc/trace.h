@@ -8,7 +8,19 @@
  * When @c OS_TRACE_ENABLED is true, calls are implemented by @c trace.c and
  * routed according to the backend and category switches in @c os_config.h.
  * The current implementation supports SEGGER SystemView and a
- * Tessla-compatible text stream over SEGGER RTT.
+ * TeSSLa-compatible text stream over SEGGER RTT.
+ *
+ * SystemView uses its native task, scheduler, idle, and ISR events wherever
+ * possible. Delay, semaphore, mutex, and message-queue operations are recorded
+ * as compact custom OS-API events with fixed IDs in the SystemView user-event
+ * range 32..511. Human-readable names and parameter formats are kept host-side
+ * in @c SYSVIEW_CustomRTOS.txt, so no description callback runs on the target
+ * during timing measurements.
+ *
+ * Explicit task-state and kernel-tick records are emitted only to the TeSSLa
+ * RTT stream. SystemView already represents task state through its native task
+ * events and SysTick timing through native ISR timestamps, so mirroring those
+ * records would only duplicate information and increase trace traffic.
  *
  * When tracing is disabled, this header supplies type-safe inline no-op
  * functions. Kernel call sites therefore require no conditional compilation
@@ -32,7 +44,9 @@
  * @brief Initialize every enabled trace backend.
  *
  * The RTT backend is initialized and emits @c TESSLA_START. SystemView is
- * configured and receives a startup message.
+ * configured and started. Custom delay/semaphore/mutex/queue events use fixed
+ * OS-API event IDs and are decoded by the host-side
+ * @c SYSVIEW_PE5001_RTOS.txt description file.
  *
  * @pre Call once during @c os_init() before task creation and scheduler start.
  */
@@ -61,8 +75,10 @@ void trace_task_create(TCB_sctTCB_t *task);
  * @param old_state Previous task-state value.
  * @param new_state New task-state value.
  *
- * @note The current implementation emits this event only through the RTT text
- *       backend when @c OS_TRACE_TASKS is enabled.
+ * @note Emitted to the TeSSLa RTT backend when @c OS_TRACE_TESSLA_RTT and
+ *       @c OS_TRACE_TASKS are enabled.
+ * @note SystemView does not receive a duplicate custom state event; its native
+ *       task Ready/Run/Block events provide the corresponding visualization.
  */
 void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state);
 
@@ -119,8 +135,10 @@ void trace_idle(void);
  *
  * @param dt Number of elapsed kernel ticks represented by the event.
  *
- * @note The current implementation emits this event through the RTT text
- *       backend when @c OS_TRACE_SCHEDULER is enabled.
+ * @note Emitted to the TeSSLa RTT backend when @c OS_TRACE_TESSLA_RTT and
+ *       @c OS_TRACE_SCHEDULER are enabled.
+ * @note SystemView does not receive a custom tick event; SysTick timing is
+ *       already visible through native ISR entry/exit events.
  */
 void trace_tick(uint32_t dt);
 
@@ -173,8 +191,8 @@ void trace_isr_exit_to_scheduler(void);
  *      @c os_delay_busy().
  *
  * @note Emits @c DELAY_BUSY_START with the task ID and requested tick count.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Mirrored to every enabled trace backend when @c OS_TRACE_DELAY is
+ *       enabled. SystemView records the corresponding structured OS-API event.
  * @note Pair this event with one later call to
  *       @c trace_task_delay_busy_end() for the same task.
  */
@@ -193,8 +211,8 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
  *      been emitted for @p task.
  *
  * @note Emits @c DELAY_BUSY_END with the task ID.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Mirrored to every enabled trace backend when @c OS_TRACE_DELAY is
+ *       enabled. SystemView records the corresponding structured OS-API event.
  */
 void trace_task_delay_busy_end(TCB_sctTCB_t *task);
 
@@ -213,8 +231,8 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task);
  *      validation performed by @c os_delay().
  *
  * @note Emits @c DELAY_START with the task ID and requested tick count.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Mirrored to every enabled trace backend when @c OS_TRACE_DELAY is
+ *       enabled. SystemView records the corresponding structured OS-API event.
  * @note A zero-tick @c os_delay(0) is a yield and must not emit this event.
  * @note Pair this event with one later call to @c trace_task_delay_end() for
  *       the same task after its delay expires.
@@ -235,8 +253,8 @@ void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
  *      emitted for @p task.
  *
  * @note Emits @c DELAY_END with the task ID.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Mirrored to every enabled trace backend when @c OS_TRACE_DELAY is
+ *       enabled. SystemView records the corresponding structured OS-API event.
  */
 void trace_task_delay_end(TCB_sctTCB_t *task);
 
@@ -267,7 +285,7 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
  * @param finite_timeout Nonzero if @p timeout_ticks is a finite deadline;
  *                       zero for a non-timed/block-forever operation.
  *
- * @note A null @p task is encoded as task ID @c UINT8_MAX in the RTT event.
+ * @note A null @p task is encoded as task ID @c UINT8_MAX in each enabled backend event.
  */
 void trace_sem_acquire_enter(const void *semaphore,
                              TCB_sctTCB_t *task,
@@ -287,7 +305,7 @@ void trace_sem_acquire_enter(const void *semaphore,
  * Emit this event on every normal return, including non-blocking failure and
  * timeout. A blocked acquire that is later released emits it only after the
  * task resumes and the acquire actually completes.
- * A null @p task is encoded as task ID @c UINT8_MAX in the RTT event.
+ * A null @p task is encoded as task ID @c UINT8_MAX in each enabled backend event.
  */
 void trace_sem_acquire_exit(const void *semaphore,
                             TCB_sctTCB_t *task,
@@ -469,8 +487,9 @@ void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task);
  * The identifier and capacity must match the queue configuration used to
  * generate the TeSSLa monitor.
  *
- * @note Emitted only when both @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_QUEUE
- *       are enabled.
+ * @note Mirrored to every enabled trace backend when @c OS_TRACE_QUEUE is
+ *       enabled. SystemView records the same numeric fields as a structured
+ *       user event.
  */
 void trace_queue_create(uint32_t queue_id, uint32_t capacity);
 
@@ -488,8 +507,9 @@ void trace_queue_create(uint32_t queue_id, uint32_t capacity);
  * Emit before determining whether the message is buffered, handed directly to
  * a receiver, rejected, or must block.
  *
- * @note Emitted only when both @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_QUEUE
- *       are enabled.
+ * @note Mirrored to every enabled trace backend when @c OS_TRACE_QUEUE is
+ *       enabled. SystemView records the same numeric fields as a structured
+ *       user event.
  */
 void trace_queue_send_attempt(uint32_t queue_id,
                               uint8_t task_id,

@@ -18,6 +18,55 @@
 
 #if OS_TRACE_SEGGER_SYSVIEW
 #include "SEGGER_SYSVIEW.h"
+
+/**
+ * @brief Custom SystemView OS-API event identifiers.
+ *
+ * SystemView reserves IDs 0..31 for built-in events. IDs 32..511 are
+ * available for OS API instrumentation and are decoded on the host using
+ * @c SYSVIEW_CustomRTOS.txt. Keeping the descriptions host-side avoids
+ * target-side description callbacks and their measurement jitter.
+ *
+ * Task state changes and SysTick are intentionally not duplicated here:
+ * SystemView already represents task Ready/Run/Block/Idle and ISR timing with
+ * native events. TeSSLa still receives explicit STATE and TICK records.
+ */
+typedef enum {
+    TRACE_SV_EVT_DELAY_BUSY_START = 32u,
+    TRACE_SV_EVT_DELAY_BUSY_END,
+    TRACE_SV_EVT_DELAY_START,
+    TRACE_SV_EVT_DELAY_END,
+
+    TRACE_SV_EVT_SEM_CREATE,
+    TRACE_SV_EVT_SEM_ACQUIRE_ENTER,
+    TRACE_SV_EVT_SEM_ACQUIRE_EXIT,
+    TRACE_SV_EVT_SEM_BLOCK,
+    TRACE_SV_EVT_SEM_TIMEOUT,
+    TRACE_SV_EVT_SEM_RELEASE,
+    TRACE_SV_EVT_SEM_WAKE,
+
+    TRACE_SV_EVT_MUTEX_CREATE,
+    TRACE_SV_EVT_MUTEX_LOCK_ENTER,
+    TRACE_SV_EVT_MUTEX_LOCK_EXIT,
+    TRACE_SV_EVT_MUTEX_BLOCK,
+    TRACE_SV_EVT_MUTEX_TIMEOUT,
+    TRACE_SV_EVT_MUTEX_UNLOCK,
+    TRACE_SV_EVT_MUTEX_WAKE,
+
+    TRACE_SV_EVT_QUEUE_CREATE,
+    TRACE_SV_EVT_QUEUE_SEND_ATTEMPT,
+    TRACE_SV_EVT_QUEUE_SEND_SUCCESS,
+    TRACE_SV_EVT_QUEUE_SEND_BLOCK,
+    TRACE_SV_EVT_QUEUE_SEND_TIMEOUT,
+    TRACE_SV_EVT_QUEUE_RECV_ATTEMPT,
+    TRACE_SV_EVT_QUEUE_RECV_SUCCESS,
+    TRACE_SV_EVT_QUEUE_RECV_BLOCK,
+    TRACE_SV_EVT_QUEUE_RECV_TIMEOUT,
+    TRACE_SV_EVT_QUEUE_WAKE_SEND,
+    TRACE_SV_EVT_QUEUE_WAKE_RECV,
+    TRACE_SV_EVT_QUEUE_HANDOFF,
+    TRACE_SV_EVT_QUEUE_FILL
+} trace_sysview_event_id_t;
 #endif
 
 #if OS_TRACE_TESSLA_RTT
@@ -136,7 +185,6 @@ void trace_init(void) {
 #if OS_TRACE_SEGGER_SYSVIEW
     SEGGER_SYSVIEW_Conf();
     SEGGER_SYSVIEW_Start();
-    SEGGER_SYSVIEW_Print("SYSVIEW started");
 #endif
 }
 
@@ -162,6 +210,10 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
     trace_tessla_emit(
         "STATE %u %u %u", (unsigned int)task_id, (unsigned int)old_state, (unsigned int)new_state);
+#else
+    (void)task_id;
+    (void)old_state;
+    (void)new_state;
 #endif
 }
 
@@ -229,6 +281,8 @@ void trace_idle(void) {
 void trace_tick(uint32_t dt) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     trace_tessla_emit("TICK %lu", (unsigned long)dt);
+#else
+    (void)dt;
 #endif
 }
 
@@ -261,6 +315,11 @@ void trace_isr_exit_to_scheduler(void) {
 void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
+    SEGGER_SYSVIEW_RecordU32x2(
+        TRACE_SV_EVT_DELAY_BUSY_START, (U32)task->u8TaskId, (U32)delay_ticks);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit(
         "DELAY_BUSY_START %u %u", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
@@ -270,6 +329,10 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
 void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
+    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_DELAY_BUSY_END, (U32)task->u8TaskId);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task->u8TaskId);
 #endif
@@ -278,6 +341,10 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
 void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_DELAY_START, (U32)task->u8TaskId, (U32)delay_ticks);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_START %u %u", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
 #endif
@@ -285,6 +352,10 @@ void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
 
 void trace_task_delay_end(TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
+    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_DELAY_END, (U32)task->u8TaskId);
+#endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_END %u", (unsigned int)task->u8TaskId);
@@ -295,7 +366,7 @@ void trace_task_delay_end(TCB_sctTCB_t *task) {
  * Counting-semaphore events
  * -------------------------------------------------------------------------- */
 
-#if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
+#if (OS_TRACE_SEGGER_SYSVIEW || OS_TRACE_TESSLA_RTT) && OS_TRACE_SEMAPHORE
 /**
  * @brief Convert a semaphore address to its numeric trace identifier.
  *
@@ -331,6 +402,11 @@ static unsigned int trace_sem_task_id(const TCB_sctTCB_t *task) {
 #endif
 
 void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t max_count) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_SEM_CREATE, (U32)trace_sem_id(semaphore), (U32)initial_count, (U32)max_count);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_CREATE %lu %lu %lu",
                       trace_sem_id(semaphore),
@@ -344,6 +420,15 @@ void trace_sem_acquire_enter(const void *semaphore,
                              uint32_t count,
                              uint32_t timeout_ticks,
                              uint8_t finite_timeout) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_SEM_ACQUIRE_ENTER,
+                               (U32)trace_sem_id(semaphore),
+                               (U32)trace_sem_task_id(task),
+                               (U32)count,
+                               (U32)timeout_ticks,
+                               (U32)(finite_timeout != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_ACQUIRE_ENTER %lu %u %lu %lu %u",
                       trace_sem_id(semaphore),
@@ -358,6 +443,14 @@ void trace_sem_acquire_exit(const void *semaphore,
                             TCB_sctTCB_t *task,
                             uint32_t count,
                             uint8_t succeeded) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_SEM_ACQUIRE_EXIT,
+                               (U32)trace_sem_id(semaphore),
+                               (U32)trace_sem_task_id(task),
+                               (U32)count,
+                               (U32)(succeeded != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_ACQUIRE_EXIT %lu %u %lu %u",
                       trace_sem_id(semaphore),
@@ -373,6 +466,15 @@ void trace_sem_block(const void *semaphore,
                      uint8_t finite_timeout) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_SEM_BLOCK,
+                               (U32)trace_sem_id(semaphore),
+                               (U32)task->u8TaskId,
+                               (U32)task->u8TaskPrio,
+                               (U32)timeout_ticks,
+                               (U32)(finite_timeout != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_BLOCK %lu %u %u %lu %u",
                       trace_sem_id(semaphore),
@@ -385,6 +487,11 @@ void trace_sem_block(const void *semaphore,
 
 void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count) {
     KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_SEM_TIMEOUT, (U32)trace_sem_id(semaphore), (U32)task->u8TaskId, (U32)count);
+#endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_TIMEOUT %lu %u %lu",
@@ -399,6 +506,15 @@ void trace_sem_release(const void *semaphore,
                        uint32_t count_after,
                        uint32_t max_count,
                        uint8_t succeeded) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_SEM_RELEASE,
+                               (U32)trace_sem_id(semaphore),
+                               (U32)count_before,
+                               (U32)count_after,
+                               (U32)max_count,
+                               (U32)(succeeded != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_RELEASE %lu %lu %lu %lu %u",
                       trace_sem_id(semaphore),
@@ -412,6 +528,13 @@ void trace_sem_release(const void *semaphore,
 void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
+    SEGGER_SYSVIEW_RecordU32x3(TRACE_SV_EVT_SEM_WAKE,
+                               (U32)trace_sem_id(semaphore),
+                               (U32)task->u8TaskId,
+                               (U32)task->u8TaskPrio);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_WAKE %lu %u %u",
                       trace_sem_id(semaphore),
@@ -424,7 +547,7 @@ void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {
  * Mutex events
  * -------------------------------------------------------------------------- */
 
-#if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
+#if (OS_TRACE_SEGGER_SYSVIEW || OS_TRACE_TESSLA_RTT) && OS_TRACE_MUTEX
 /**
  * @brief Convert a mutex address to its numeric trace identifier.
  *
@@ -460,6 +583,10 @@ static unsigned int trace_mutex_task_id(const TCB_sctTCB_t *task) {
 #endif
 
 void trace_mutex_create(const void *mutex) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_MUTEX_CREATE, (U32)trace_mutex_id(mutex));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_CREATE %lu", trace_mutex_id(mutex));
 #endif
@@ -470,6 +597,15 @@ void trace_mutex_lock_enter(const void *mutex,
                             TCB_sctTCB_t *owner,
                             uint32_t timeout_ticks,
                             uint8_t finite_timeout) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_MUTEX_LOCK_ENTER,
+                               (U32)trace_mutex_id(mutex),
+                               (U32)trace_mutex_task_id(task),
+                               (U32)trace_mutex_task_id(owner),
+                               (U32)timeout_ticks,
+                               (U32)(finite_timeout != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_LOCK_ENTER %lu %u %u %lu %u",
                       trace_mutex_id(mutex),
@@ -484,6 +620,14 @@ void trace_mutex_lock_exit(const void *mutex,
                            TCB_sctTCB_t *task,
                            TCB_sctTCB_t *owner,
                            uint8_t succeeded) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_MUTEX_LOCK_EXIT,
+                               (U32)trace_mutex_id(mutex),
+                               (U32)trace_mutex_task_id(task),
+                               (U32)trace_mutex_task_id(owner),
+                               (U32)(succeeded != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_LOCK_EXIT %lu %u %u %u",
                       trace_mutex_id(mutex),
@@ -500,6 +644,16 @@ void trace_mutex_block(const void *mutex,
                        uint8_t finite_timeout) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32x6(TRACE_SV_EVT_MUTEX_BLOCK,
+                               (U32)trace_mutex_id(mutex),
+                               (U32)task->u8TaskId,
+                               (U32)task->u8TaskPrio,
+                               (U32)trace_mutex_task_id(owner),
+                               (U32)timeout_ticks,
+                               (U32)(finite_timeout != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_BLOCK %lu %u %u %u %lu %u",
                       trace_mutex_id(mutex),
@@ -514,6 +668,13 @@ void trace_mutex_block(const void *mutex,
 void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner) {
     KERNEL_REQUIRE(task != 0);
 
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32x3(TRACE_SV_EVT_MUTEX_TIMEOUT,
+                               (U32)trace_mutex_id(mutex),
+                               (U32)task->u8TaskId,
+                               (U32)trace_mutex_task_id(owner));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_TIMEOUT %lu %u %u",
                       trace_mutex_id(mutex),
@@ -527,6 +688,15 @@ void trace_mutex_unlock(const void *mutex,
                         TCB_sctTCB_t *owner_before,
                         TCB_sctTCB_t *owner_after,
                         uint8_t succeeded) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_MUTEX_UNLOCK,
+                               (U32)trace_mutex_id(mutex),
+                               (U32)trace_mutex_task_id(task),
+                               (U32)trace_mutex_task_id(owner_before),
+                               (U32)trace_mutex_task_id(owner_after),
+                               (U32)(succeeded != 0u));
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_UNLOCK %lu %u %u %u %u",
                       trace_mutex_id(mutex),
@@ -539,6 +709,13 @@ void trace_mutex_unlock(const void *mutex,
 
 void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
+
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
+    SEGGER_SYSVIEW_RecordU32x3(TRACE_SV_EVT_MUTEX_WAKE,
+                               (U32)trace_mutex_id(mutex),
+                               (U32)task->u8TaskId,
+                               (U32)task->u8TaskPrio);
+#endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_WAKE %lu %u %u",
@@ -553,6 +730,10 @@ void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {
  * -------------------------------------------------------------------------- */
 
 void trace_queue_create(uint32_t queue_id, uint32_t capacity) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_QUEUE_CREATE, (U32)queue_id, (U32)capacity);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_CREATE %lu %lu", (unsigned long)queue_id, (unsigned long)capacity);
 #endif
@@ -563,6 +744,15 @@ void trace_queue_send_attempt(uint32_t queue_id,
                               uint8_t task_priority,
                               uint32_t timeout_ticks,
                               uint32_t message_hash) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_QUEUE_SEND_ATTEMPT,
+                               (U32)queue_id,
+                               (U32)task_id,
+                               (U32)task_priority,
+                               (U32)timeout_ticks,
+                               (U32)message_hash);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_SEND_ATTEMPT %lu %u %u %lu %lu",
                       (unsigned long)queue_id,
@@ -574,6 +764,11 @@ void trace_queue_send_attempt(uint32_t queue_id,
 }
 
 void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_QUEUE_SEND_SUCCESS, (U32)queue_id, (U32)task_id, (U32)message_hash);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_SEND_SUCCESS %lu %u %lu",
                       (unsigned long)queue_id,
@@ -583,6 +778,11 @@ void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t messa
 }
 
 void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_QUEUE_SEND_BLOCK, (U32)queue_id, (U32)task_id, (U32)task_priority);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_SEND_BLOCK %lu %u %u",
                       (unsigned long)queue_id,
@@ -592,6 +792,10 @@ void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_pri
 }
 
 void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_QUEUE_SEND_TIMEOUT, (U32)queue_id, (U32)task_id);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_SEND_TIMEOUT %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
@@ -601,6 +805,14 @@ void trace_queue_receive_attempt(uint32_t queue_id,
                                  uint8_t task_id,
                                  uint8_t task_priority,
                                  uint32_t timeout_ticks) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_QUEUE_RECV_ATTEMPT,
+                               (U32)queue_id,
+                               (U32)task_id,
+                               (U32)task_priority,
+                               (U32)timeout_ticks);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_RECV_ATTEMPT %lu %u %u %lu",
                       (unsigned long)queue_id,
@@ -611,6 +823,11 @@ void trace_queue_receive_attempt(uint32_t queue_id,
 }
 
 void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_QUEUE_RECV_SUCCESS, (U32)queue_id, (U32)task_id, (U32)message_hash);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_RECV_SUCCESS %lu %u %lu",
                       (unsigned long)queue_id,
@@ -620,6 +837,11 @@ void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t me
 }
 
 void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_QUEUE_RECV_BLOCK, (U32)queue_id, (U32)task_id, (U32)task_priority);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_RECV_BLOCK %lu %u %u",
                       (unsigned long)queue_id,
@@ -629,18 +851,30 @@ void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_
 }
 
 void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_QUEUE_RECV_TIMEOUT, (U32)queue_id, (U32)task_id);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_RECV_TIMEOUT %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
 }
 
 void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_QUEUE_WAKE_SEND, (U32)queue_id, (U32)task_id);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_WAKE_SEND %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
 }
 
 void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_QUEUE_WAKE_RECV, (U32)queue_id, (U32)task_id);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_WAKE_RECV %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
 #endif
@@ -650,6 +884,14 @@ void trace_queue_handoff(uint32_t queue_id,
                          uint8_t sender_id,
                          uint8_t receiver_id,
                          uint32_t message_hash) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_QUEUE_HANDOFF,
+                               (U32)queue_id,
+                               (U32)sender_id,
+                               (U32)receiver_id,
+                               (U32)message_hash);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_HANDOFF %lu %u %u %lu",
                       (unsigned long)queue_id,
@@ -660,6 +902,10 @@ void trace_queue_handoff(uint32_t queue_id,
 }
 
 void trace_queue_fill(uint32_t queue_id, uint32_t fill) {
+#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_QUEUE
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_QUEUE_FILL, (U32)queue_id, (U32)fill);
+#endif
+
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
     trace_tessla_emit("QUEUE_FILL %lu %lu", (unsigned long)queue_id, (unsigned long)fill);
 #endif
