@@ -30,6 +30,7 @@ default:
 .docker_login: &docker_login
   - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
 
+
 build_image:
   stage: docker
   image: docker
@@ -37,17 +38,23 @@ build_image:
     - docker:dind
   tags:
     - runner
+
   before_script:
     - *docker_login
+
   script:
     - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/Dockerfile .
     - docker push "$STM32_CI_IMAGE"
+
   rules:
     - changes:
         - gitlab-runner/Dockerfile
         - .gitlab-ci.yml
       when: on_success
+
     - when: manual
+      allow_failure: true
+
 
 verification_image:
   stage: docker
@@ -56,18 +63,23 @@ verification_image:
     - docker:dind
   tags:
     - runner
+
   before_script:
     - *docker_login
+
   script:
     - docker build --pull -t "$VERIFICATION_CI_IMAGE" -f verification/Dockerfile verification
     - docker push "$VERIFICATION_CI_IMAGE"
+
   rules:
     - changes:
         - verification/Dockerfile
         - verification/**/*
         - .gitlab-ci.yml
       when: on_success
+
     - when: manual
+      allow_failure: true
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +88,7 @@ verification_image:
 
 format:
   stage: prepare
+
   script:
     - cd "$FIRMWARE_DIR"
     - >
@@ -91,6 +104,7 @@ format:
 
 build:
   stage: build
+
   parallel:
     matrix:
       - VARIANT: "queue"
@@ -119,12 +133,15 @@ build:
 
   script:
     - cd "$FIRMWARE_DIR"
+
     - >
       cmake --preset Debug
       -B "build/ci-${VARIANT}"
       -DRTOS_PROJECT="${RTOS_PROJECT}"
       -DRTOS_TRACE_ENABLED="${RTOS_TRACE_ENABLED}"
+
     - cmake --build "build/ci-${VARIANT}" --parallel
+
     - arm-none-eabi-size "build/ci-${VARIANT}"/*.elf
 
 
@@ -134,9 +151,15 @@ build:
 
 cppcheck:
   stage: analyze
+
   script:
     - cd "$FIRMWARE_DIR"
-    - cmake --preset Debug -DRTOS_PROJECT=PROJECT_QUEUE -DRTOS_TRACE_ENABLED=1
+
+    - >
+      cmake --preset Debug
+      -DRTOS_PROJECT=PROJECT_QUEUE
+      -DRTOS_TRACE_ENABLED=1
+
     - >
       cppcheck
       --project=build/Debug/compile_commands.json
@@ -154,18 +177,22 @@ cppcheck:
 
 verification:
   stage: analyze
+
   image:
     name: "$VERIFICATION_CI_IMAGE"
     entrypoint: [""]
+
   script:
     - cd verification
     - python3 tessla_verify.py list
     - python3 tessla_verify.py test --rust
+
   rules:
     - changes:
         - verification/**/*
         - .gitlab-ci.yml
       when: on_success
+
     - when: never
 
 
@@ -175,9 +202,11 @@ verification:
 
 pages:
   stage: pages
+
   image:
     name: nakatt/doxygen:1.11
     entrypoint: [""]
+
   script:
     - cd "$FIRMWARE_DIR"
     - doxygen Doxyfile
@@ -185,8 +214,10 @@ pages:
     - rm -rf public
     - cp -r "$FIRMWARE_DIR/docs/html" public
     - test -f public/index.html
+
   artifacts:
     paths:
       - public
+
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
