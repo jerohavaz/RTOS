@@ -1,223 +1,107 @@
-# STM32L475 RTOS
+# STM32L475 Bare-Metal RTOS
 
-A small bare-metal RTOS for the STM32L475VG (Arm Cortex-M4), built with CMake
-and the GNU Arm Embedded toolchain. The repository includes the firmware,
-SEGGER tracing, TeSSLa runtime verification, Doxygen documentation, and a
-GitLab CI pipeline.
+A small, statically allocated RTOS for the STM32L475VG (Arm Cortex-M4), built
+with CMake and the GNU Arm Embedded toolchain. The repository includes
+on-target integration tests, SEGGER tracing, TeSSLa runtime verification,
+Doxygen documentation, and GitLab CI.
 
 ## Features
 
-- Static task and stack allocation; no kernel heap allocation
-- Preemptive fixed-priority scheduling
-- Round-robin scheduling for equal-priority tasks on tick or yield
-- Blocking and busy-wait delays with wrap-safe 32-bit timeouts
-- Non-recursive mutexes, bounded counting semaphores, and fixed-size queues
-- Priority-ordered wait queues with FIFO ordering inside each priority
-- Cortex-M context switching through SVC, PendSV, PSP, and SysTick
-- SEGGER SystemView and TeSSLa-compatible RTT tracing
-- Doxygen API documentation and GitLab CI checks
+- Preemptive fixed-priority scheduling; larger numbers mean higher priority
+- FIFO round-robin between equal-priority tasks on SysTick or explicit yield
+- Static task table and per-task stacks; no kernel heap allocation
+- Blocking and busy-wait delays with wrap-safe finite timeouts
+- Non-recursive mutexes and bounded counting semaphores with direct handoff
+- Caller-backed, fixed-capacity FIFO message queues with direct handoff
+- Priority-ordered waiters with FIFO ordering at equal priority
+- Cortex-M context switching through PSP, SVC, PendSV, SysTick, and `BASEPRI`
+- SEGGER SystemView and TeSSLa-compatible trace events over RTT
 
-Mutexes currently do not implement priority inheritance.
-
-## Repository Layout
-
-```text
-.
-├── stm32l475-rtos/     # Firmware, RTOS kernel, Cortex-M port, and application
-├── verification/       # RTT capture and TeSSLa specifications/tests
-├── gitlab-runner/      # Local GitLab runner setup
-├── .gitlab-ci.yml
-└── README.md
-```
-
-Run firmware commands from:
-
-```bash
-cd stm32l475-rtos
-```
-
-## Setup
-
-Install the build and development tools:
-
-```bash
-sudo apt update
-sudo apt install cmake ninja-build gcc-arm-none-eabi gdb-multiarch \
-  clang-format cppcheck doxygen
-```
-
-Install the SEGGER J-Link Software and Documentation Pack separately and ensure
-these commands are available on `PATH`:
-
-```text
-JLinkExe
-JLinkGDBServer
-```
+Mutexes do not implement priority inheritance. Tasks must be created before
+`os_start()` and cannot be deleted. Compile-time limits and trace options are
+in [`stm32l475-rtos/Config/os_config.h`](stm32l475-rtos/Config/os_config.h).
 
 ## Build
 
+Install CMake, Ninja, and `gcc-arm-none-eabi`, then run:
+
 ```bash
+cd stm32l475-rtos
 cmake --preset Debug
 cmake --build --preset Debug
 ```
 
-The main artifact is:
+The build produces `build/Debug/rtos.elf` and `build/Debug/rtos.map`. Use the
+`Release` preset for an optimized build.
 
-```text
-build/Debug/rtos.elf
-```
+For complete prerequisites, flashing, GDB debugging, formatting, Doxygen,
+VS Code, and the local GitLab runner, see **[SETUP.md](SETUP.md)**.
 
-For an optimized build, replace `Debug` with `Release`.
-
-## Flash and Debug
-
-Flash the target and start the firmware:
+Flash with the supplied J-Link script:
 
 ```bash
 JLinkExe -device STM32L475VG -if SWD -speed 4000 \
   -CommanderScript scripts/flash.jlink
 ```
 
-For a GDB session, start the server:
+## Integration tests
 
-```bash
-JLinkGDBServer -device STM32L475VG -if SWD -speed 4000 -port 50000
+The firmware builds one on-target scenario at a time. Select it in
+[`stm32l475-rtos/App/Inc/project.h`](stm32l475-rtos/App/Inc/project.h):
+
+```c
+#define PROJECT PROJECT_QUEUE
 ```
 
-Then connect from another terminal:
+Available scenarios cover the scheduler, delays, semaphores, mutexes, and
+queues. Inspect `g_integration_test_result` in the debugger for the verdict.
+See the [application test guide](stm32l475-rtos/App/README.md) for exact checks.
+
+## Runtime verification
+
+TeSSLa monitors check temporal properties that the C assertions cannot prove
+alone. Modules cover scheduler behavior, delay timing, semaphores, mutexes,
+queues, and trace integrity.
 
 ```bash
-gdb-multiarch build/Debug/rtos.elf \
-  -ex "set pagination off" \
-  -ex "target extended-remote localhost:50000" \
-  -ex "monitor reset 0" \
-  -ex "load" \
-  -ex "monitor reset 0" \
-  -ex "continue"
+cd verification
+python3 tessla_verify.py list
 ```
 
-## RTOS Structure
+See the **[verification guide](verification/README.md)** for RTT capture,
+monitor generation, fixture tests, recorded-trace verification, and known
+limitations.
 
-The implementation is split into small layers:
+## GitLab CI
 
-| Path | Responsibility |
+The root [`.gitlab-ci.yml`](.gitlab-ci.yml) defines:
+
+| Job | Check |
 | --- | --- |
-| `RTOS/Public` | Application-facing task, delay, mutex, semaphore, queue, and ISR APIs |
-| `RTOS/Kernel` | Scheduler, task lifecycle, timeout handling, and idle task |
-| `RTOS/Internal` | Intrusive lists, priority wait queues, ring buffer, tracing, and panic handling |
-| `Port/CortexM` | Cortex-M stack setup, critical sections, SVC startup, and PendSV switching |
-| `Config/os_config.h` | Task limits, stack size, priorities, tracing, and exception priorities |
-| `App` | Example and stress-test tasks |
-| `Core` | STM32 startup, HAL initialization, and interrupt integration |
+| `build_image`, `verification_image` | Rebuild and publish CI images when their inputs change, with manual fallbacks |
+| `format` | `clang-format --dry-run --Werror` |
+| `configure`, `build` | Configure and build the Debug preset; retain firmware artifacts for one week |
+| `cppcheck` | Warning, style, performance, and portability analysis |
+| `verification` | Run all verification fixtures with compiled Rust monitors when verification files change |
+| `pages` | Publish Doxygen HTML from the default branch |
 
-Higher numeric task priorities run first. Equal-priority tasks rotate on a
-yield or SysTick. When no application task is ready, the separately managed
-idle task runs.
+Merge-request-event pipelines are disabled by the current workflow rule. The
+verification job is change-gated, and Pages runs only on the default branch.
 
-Kernel objects use caller-provided or static storage. Blocked tasks can wait
-forever, return immediately with `OS_NO_WAIT`, or use a finite timeout below
-`2^31` ticks so comparisons remain valid across tick-counter wraparound.
+## Layout
 
-## Configuration and Tracing
-
-Edit `Config/os_config.h` to configure task capacity, per-task stack size,
-priority levels, exception priorities, trace backends, and trace categories.
-
-Tracing supports:
-
-- SEGGER SystemView events over RTT
-- Text events over RTT for TeSSLa verification
-
-The idle task remains awake while tracing is enabled to keep RTT/debug access
-responsive.
-
-See [verification/README.md](verification/README.md) for RTT capture, TeSSLa
-generation, monitor tests, and recorded-trace verification. The monitors cover
-scheduler behavior, delay timing, and trace integrity.
-
-## Formatting and Documentation
-
-Check formatting without changing files:
-
-```bash
-find App Config Core Port RTOS -type f \( -name '*.c' -o -name '*.h' \) \
-  -print0 | xargs -0 clang-format --dry-run --Werror
+```text
+.
+├── stm32l475-rtos/
+│   ├── RTOS/Public/     Public API
+│   ├── RTOS/Kernel/     Scheduler and kernel services
+│   ├── RTOS/Internal/   Lists, wait queues, tracing, and panic handling
+│   ├── Port/CortexM/    Cortex-M port
+│   ├── Config/          Compile-time configuration
+│   └── App/             Integration-test application
+├── verification/       RTT and TeSSLa tooling
+├── gitlab-runner/      Local runner setup
+└── .gitlab-ci.yml
 ```
 
-Apply formatting:
-
-```bash
-find App Config Core Port RTOS -type f \( -name '*.c' -o -name '*.h' \) \
-  -print0 | xargs -0 clang-format -i
-```
-
-Generate and open the Doxygen documentation:
-
-```bash
-doxygen Doxyfile
-xdg-open docs/html/index.html
-```
-
-## CI/CD
-
-GitLab push pipelines check formatting, configure and build the Debug preset,
-run `cppcheck`, test the TeSSLa verification tooling when it changes, and
-publish Doxygen HTML through GitLab Pages from the default branch. Build
-artifacts include ELF, map, and binary files.
-
-The repository also contains Docker definitions for the firmware and
-verification CI images. To start the supplied local GitLab runner from the
-repository root:
-
-```bash
-cd gitlab-runner
-docker compose up -d --build
-```
-
-## VS Code
-
-Recommended extensions:
-
-- CMake Tools
-- clangd, or Microsoft C/C++
-- Cortex-Debug
-
-The STM32Cube extension is not required.
-
-Example `.vscode/settings.json`:
-
-```json
-{
-  "cmake.sourceDirectory": "${workspaceFolder}/stm32l475-rtos",
-  "cmake.useCMakePresets": "always",
-  "clangd.arguments": [
-    "--compile-commands-dir=${workspaceFolder}/stm32l475-rtos/build/Debug",
-    "--query-driver=/usr/bin/arm-none-eabi-gcc,/usr/bin/arm-none-eabi-g++",
-    "--background-index"
-  ],
-  "C_Cpp.intelliSenseEngine": "disabled"
-}
-```
-
-Example `.vscode/launch.json`:
-
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Debug STM32L475",
-      "type": "cortex-debug",
-      "request": "launch",
-      "servertype": "jlink",
-      "device": "STM32L475VG",
-      "interface": "swd",
-      "cwd": "${workspaceFolder}/stm32l475-rtos",
-      "executable": "${workspaceFolder}/stm32l475-rtos/build/Debug/rtos.elf",
-      "gdbPath": "gdb-multiarch",
-      "objdumpPath": "arm-none-eabi-objdump",
-      "runToEntryPoint": "main"
-    }
-  ]
-}
-```
+Generate API documentation from `stm32l475-rtos/` with `doxygen Doxyfile`.
