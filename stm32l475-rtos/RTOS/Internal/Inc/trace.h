@@ -66,7 +66,7 @@ void trace_init(void);
  *
  * @note Emitted only when @c OS_TRACE_TASKS is enabled.
  */
-void trace_task_create(TCB_sctTCB_t *task);
+void trace_task_create(const TCB_sctTCB_t *task);
 
 /**
  * @brief Record a task-state transition.
@@ -94,7 +94,7 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state);
  * @pre @p task must not be null.
  * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
  */
-void trace_task_ready(TCB_sctTCB_t *task);
+void trace_task_ready(const TCB_sctTCB_t *task);
 
 /**
  * @brief Record that the scheduler started executing a task.
@@ -104,7 +104,7 @@ void trace_task_ready(TCB_sctTCB_t *task);
  * @pre @p task must not be null.
  * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
  */
-void trace_task_run(TCB_sctTCB_t *task);
+void trace_task_run(const TCB_sctTCB_t *task);
 
 /**
  * @brief Record that execution of the current task stopped.
@@ -121,7 +121,7 @@ void trace_task_stop_run(void);
  * @pre @p task must not be null.
  * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
  */
-void trace_task_block(TCB_sctTCB_t *task);
+void trace_task_block(const TCB_sctTCB_t *task);
 
 /**
  * @brief Record that the scheduler selected the idle task.
@@ -196,7 +196,7 @@ void trace_isr_exit_to_scheduler(void);
  * @note Pair this event with one later call to
  *       @c trace_task_delay_busy_end() for the same task.
  */
-void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
+void trace_task_delay_busy_start(const TCB_sctTCB_t *task, uint32_t delay_ticks);
 
 /**
  * @brief Record completion of a busy-wait delay.
@@ -214,7 +214,7 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
  * @note Mirrored to every enabled trace backend when @c OS_TRACE_DELAY is
  *       enabled. SystemView records the corresponding structured OS-API event.
  */
-void trace_task_delay_busy_end(TCB_sctTCB_t *task);
+void trace_task_delay_busy_end(const TCB_sctTCB_t *task);
 
 /**
  * @brief Record the start of a scheduler-based blocking delay.
@@ -237,7 +237,7 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task);
  * @note Pair this event with one later call to @c trace_task_delay_end() for
  *       the same task after its delay expires.
  */
-void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
+void trace_task_delay_start(const TCB_sctTCB_t *task, uint32_t delay_ticks);
 
 /**
  * @brief Record completion of a scheduler-based blocking delay.
@@ -256,7 +256,7 @@ void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
  * @note Mirrored to every enabled trace backend when @c OS_TRACE_DELAY is
  *       enabled. SystemView records the corresponding structured OS-API event.
  */
-void trace_task_delay_end(TCB_sctTCB_t *task);
+void trace_task_delay_end(const TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
  * Counting-semaphore events
@@ -288,7 +288,7 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
  * @note A null @p task is encoded as task ID @c UINT8_MAX in each enabled backend event.
  */
 void trace_sem_acquire_enter(const void *semaphore,
-                             TCB_sctTCB_t *task,
+                             const TCB_sctTCB_t *task,
                              uint32_t count,
                              uint32_t timeout_ticks,
                              uint8_t finite_timeout);
@@ -308,7 +308,7 @@ void trace_sem_acquire_enter(const void *semaphore,
  * A null @p task is encoded as task ID @c UINT8_MAX in each enabled backend event.
  */
 void trace_sem_acquire_exit(const void *semaphore,
-                            TCB_sctTCB_t *task,
+                            const TCB_sctTCB_t *task,
                             uint32_t count,
                             uint8_t succeeded);
 
@@ -316,14 +316,14 @@ void trace_sem_acquire_exit(const void *semaphore,
  * @brief Record that an acquire operation queued and blocked its task.
  */
 void trace_sem_block(const void *semaphore,
-                     TCB_sctTCB_t *task,
+                     const TCB_sctTCB_t *task,
                      uint32_t timeout_ticks,
                      uint8_t finite_timeout);
 
 /**
  * @brief Record expiry of a finite semaphore-acquire timeout.
  */
-void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count);
+void trace_sem_timeout(const void *semaphore, const TCB_sctTCB_t *task, uint32_t count);
 
 /**
  * @brief Record the result of a release operation.
@@ -349,7 +349,7 @@ void trace_sem_release(const void *semaphore,
  * The task priority is taken from the TCB so the verifier can check that the
  * highest-priority waiter was selected. Trace sequence order breaks ties.
  */
-void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task);
+void trace_sem_wake(const void *semaphore, const TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
  * Mutex events
@@ -380,8 +380,8 @@ void trace_mutex_create(const void *mutex);
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_lock_enter(const void *mutex,
-                            TCB_sctTCB_t *task,
-                            TCB_sctTCB_t *owner,
+                            const TCB_sctTCB_t *task,
+                            const TCB_sctTCB_t *owner,
                             uint32_t timeout_ticks,
                             uint8_t finite_timeout);
 
@@ -399,8 +399,8 @@ void trace_mutex_lock_enter(const void *mutex,
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_lock_exit(const void *mutex,
-                           TCB_sctTCB_t *task,
-                           TCB_sctTCB_t *owner,
+                           const TCB_sctTCB_t *task,
+                           const TCB_sctTCB_t *owner,
                            uint8_t succeeded);
 
 /**
@@ -420,8 +420,8 @@ void trace_mutex_lock_exit(const void *mutex,
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_block(const void *mutex,
-                       TCB_sctTCB_t *task,
-                       TCB_sctTCB_t *owner,
+                       const TCB_sctTCB_t *task,
+                       const TCB_sctTCB_t *owner,
                        uint32_t timeout_ticks,
                        uint8_t finite_timeout);
 
@@ -437,7 +437,7 @@ void trace_mutex_block(const void *mutex,
  * @note A null owner is encoded as task ID @c UINT8_MAX.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
-void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner);
+void trace_mutex_timeout(const void *mutex, const TCB_sctTCB_t *task, const TCB_sctTCB_t *owner);
 
 /**
  * @brief Record the result of a mutex-unlock operation.
@@ -455,9 +455,9 @@ void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *ow
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_unlock(const void *mutex,
-                        TCB_sctTCB_t *task,
-                        TCB_sctTCB_t *owner_before,
-                        TCB_sctTCB_t *owner_after,
+                        const TCB_sctTCB_t *task,
+                        const TCB_sctTCB_t *owner_before,
+                        const TCB_sctTCB_t *owner_after,
                         uint8_t succeeded);
 
 /**
@@ -472,7 +472,7 @@ void trace_mutex_unlock(const void *mutex,
  *       priority ordering. Trace order is used to resolve FIFO ties.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
-void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task);
+void trace_mutex_wake(const void *mutex, const TCB_sctTCB_t *task);
 
 /* --------------------------------------------------------------------------
  * Message queue events
@@ -679,17 +679,17 @@ static inline void trace_init(void) {}
  * Task events
  * -------------------------------------------------------------------------- */
 
-static inline void trace_task_create(TCB_sctTCB_t *task) {}
+static inline void trace_task_create(const TCB_sctTCB_t *task) {}
 static inline void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {}
 
 /* --------------------------------------------------------------------------
  * Scheduler events
  * -------------------------------------------------------------------------- */
 
-static inline void trace_task_ready(TCB_sctTCB_t *task) {}
-static inline void trace_task_run(TCB_sctTCB_t *task) {}
+static inline void trace_task_ready(const TCB_sctTCB_t *task) {}
+static inline void trace_task_run(const TCB_sctTCB_t *task) {}
 static inline void trace_task_stop_run(void) {}
-static inline void trace_task_block(TCB_sctTCB_t *task) {}
+static inline void trace_task_block(const TCB_sctTCB_t *task) {}
 static inline void trace_idle(void) {}
 static inline void trace_tick(uint32_t dt) {}
 
@@ -704,10 +704,10 @@ static inline void trace_isr_exit_to_scheduler(void) {}
 /* --------------------------------------------------------------------------
  * Delay events
  * -------------------------------------------------------------------------- */
-static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
-static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
-static inline void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
-static inline void trace_task_delay_end(TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_busy_start(const TCB_sctTCB_t *task, uint32_t delay_ticks) {}
+static inline void trace_task_delay_busy_end(const TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_start(const TCB_sctTCB_t *task, uint32_t delay_ticks) {}
+static inline void trace_task_delay_end(const TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
  * Counting-semaphore events
@@ -716,52 +716,55 @@ static inline void trace_sem_create(const void *semaphore,
                                     uint32_t initial_count,
                                     uint32_t max_count) {}
 static inline void trace_sem_acquire_enter(const void *semaphore,
-                                           TCB_sctTCB_t *task,
+                                           const TCB_sctTCB_t *task,
                                            uint32_t count,
                                            uint32_t timeout_ticks,
                                            uint8_t finite_timeout) {}
 static inline void trace_sem_acquire_exit(const void *semaphore,
-                                          TCB_sctTCB_t *task,
+                                          const TCB_sctTCB_t *task,
                                           uint32_t count,
                                           uint8_t succeeded) {}
 static inline void trace_sem_block(const void *semaphore,
-                                   TCB_sctTCB_t *task,
+                                   const TCB_sctTCB_t *task,
                                    uint32_t timeout_ticks,
                                    uint8_t finite_timeout) {}
-static inline void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count) {}
+static inline void trace_sem_timeout(const void *semaphore,
+                                     const TCB_sctTCB_t *task,
+                                     uint32_t count) {}
 static inline void trace_sem_release(const void *semaphore,
                                      uint32_t count_before,
                                      uint32_t count_after,
                                      uint32_t max_count,
                                      uint8_t succeeded) {}
-static inline void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {}
+static inline void trace_sem_wake(const void *semaphore, const TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
  * Mutex events
  * -------------------------------------------------------------------------- */
 static inline void trace_mutex_create(const void *mutex) {}
 static inline void trace_mutex_lock_enter(const void *mutex,
-                                          TCB_sctTCB_t *task,
-                                          TCB_sctTCB_t *owner,
+                                          const TCB_sctTCB_t *task,
+                                          const TCB_sctTCB_t *owner,
                                           uint32_t timeout_ticks,
                                           uint8_t finite_timeout) {}
 static inline void trace_mutex_lock_exit(const void *mutex,
-                                         TCB_sctTCB_t *task,
-                                         TCB_sctTCB_t *owner,
+                                         const TCB_sctTCB_t *task,
+                                         const TCB_sctTCB_t *owner,
                                          uint8_t succeeded) {}
 static inline void trace_mutex_block(const void *mutex,
-                                     TCB_sctTCB_t *task,
-                                     TCB_sctTCB_t *owner,
+                                     const TCB_sctTCB_t *task,
+                                     const TCB_sctTCB_t *owner,
                                      uint32_t timeout_ticks,
                                      uint8_t finite_timeout) {}
-static inline void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner) {
-}
+static inline void trace_mutex_timeout(const void *mutex,
+                                       const TCB_sctTCB_t *task,
+                                       const TCB_sctTCB_t *owner) {}
 static inline void trace_mutex_unlock(const void *mutex,
-                                      TCB_sctTCB_t *task,
-                                      TCB_sctTCB_t *owner_before,
-                                      TCB_sctTCB_t *owner_after,
+                                      const TCB_sctTCB_t *task,
+                                      const TCB_sctTCB_t *owner_before,
+                                      const TCB_sctTCB_t *owner_after,
                                       uint8_t succeeded) {}
-static inline void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {}
+static inline void trace_mutex_wake(const void *mutex, const TCB_sctTCB_t *task) {}
 
 /* --------------------------------------------------------------------------
  * Message queue events

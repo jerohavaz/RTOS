@@ -149,7 +149,7 @@ static U32 sv_task_id(const TCB_sctTCB_t *task) {
  * @note SEGGER_SYSVIEW_SendTaskInfo() encodes the task name immediately, so the
  *       local name buffer does not need to persist after this function returns.
  */
-static void sv_send_task_info(TCB_sctTCB_t *task) {
+static void sv_send_task_info(const TCB_sctTCB_t *task) {
     char name[4]; /* "255" plus '\0' */
 
     snprintf(name, sizeof(name), "%u", (unsigned int)task->u8TaskId);
@@ -192,7 +192,7 @@ void trace_init(void) {
  * Task events
  * -------------------------------------------------------------------------- */
 
-void trace_task_create(TCB_sctTCB_t *task) {
+void trace_task_create(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_TASKS
@@ -221,7 +221,7 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
  * Scheduler events
  * -------------------------------------------------------------------------- */
 
-void trace_task_ready(TCB_sctTCB_t *task) {
+void trace_task_ready(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
@@ -233,7 +233,7 @@ void trace_task_ready(TCB_sctTCB_t *task) {
 #endif
 }
 
-void trace_task_run(TCB_sctTCB_t *task) {
+void trace_task_run(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
@@ -256,7 +256,7 @@ void trace_task_stop_run(void) {
 #endif
 }
 
-void trace_task_block(TCB_sctTCB_t *task) {
+void trace_task_block(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
@@ -312,7 +312,7 @@ void trace_isr_exit_to_scheduler(void) {
  * Delay events
  * -------------------------------------------------------------------------- */
 
-void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
+void trace_task_delay_busy_start(const TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
@@ -326,7 +326,7 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
 #endif
 }
 
-void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
+void trace_task_delay_busy_end(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
@@ -338,7 +338,7 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task) {
 #endif
 }
 
-void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
+void trace_task_delay_start(const TCB_sctTCB_t *task, uint32_t delay_ticks) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
@@ -350,7 +350,7 @@ void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {
 #endif
 }
 
-void trace_task_delay_end(TCB_sctTCB_t *task) {
+void trace_task_delay_end(const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
@@ -416,7 +416,7 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
 }
 
 void trace_sem_acquire_enter(const void *semaphore,
-                             TCB_sctTCB_t *task,
+                             const TCB_sctTCB_t *task,
                              uint32_t count,
                              uint32_t timeout_ticks,
                              uint8_t finite_timeout) {
@@ -440,7 +440,7 @@ void trace_sem_acquire_enter(const void *semaphore,
 }
 
 void trace_sem_acquire_exit(const void *semaphore,
-                            TCB_sctTCB_t *task,
+                            const TCB_sctTCB_t *task,
                             uint32_t count,
                             uint8_t succeeded) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
@@ -461,7 +461,7 @@ void trace_sem_acquire_exit(const void *semaphore,
 }
 
 void trace_sem_block(const void *semaphore,
-                     TCB_sctTCB_t *task,
+                     const TCB_sctTCB_t *task,
                      uint32_t timeout_ticks,
                      uint8_t finite_timeout) {
     KERNEL_REQUIRE(task != 0);
@@ -485,7 +485,7 @@ void trace_sem_block(const void *semaphore,
 #endif
 }
 
-void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count) {
+void trace_sem_timeout(const void *semaphore, const TCB_sctTCB_t *task, uint32_t count) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
@@ -525,7 +525,7 @@ void trace_sem_release(const void *semaphore,
 #endif
 }
 
-void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {
+void trace_sem_wake(const void *semaphore, const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
@@ -593,8 +593,8 @@ void trace_mutex_create(const void *mutex) {
 }
 
 void trace_mutex_lock_enter(const void *mutex,
-                            TCB_sctTCB_t *task,
-                            TCB_sctTCB_t *owner,
+                            const TCB_sctTCB_t *task,
+                            const TCB_sctTCB_t *owner,
                             uint32_t timeout_ticks,
                             uint8_t finite_timeout) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
@@ -617,8 +617,8 @@ void trace_mutex_lock_enter(const void *mutex,
 }
 
 void trace_mutex_lock_exit(const void *mutex,
-                           TCB_sctTCB_t *task,
-                           TCB_sctTCB_t *owner,
+                           const TCB_sctTCB_t *task,
+                           const TCB_sctTCB_t *owner,
                            uint8_t succeeded) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_MUTEX_LOCK_EXIT,
@@ -638,8 +638,8 @@ void trace_mutex_lock_exit(const void *mutex,
 }
 
 void trace_mutex_block(const void *mutex,
-                       TCB_sctTCB_t *task,
-                       TCB_sctTCB_t *owner,
+                       const TCB_sctTCB_t *task,
+                       const TCB_sctTCB_t *owner,
                        uint32_t timeout_ticks,
                        uint8_t finite_timeout) {
     KERNEL_REQUIRE(task != 0);
@@ -665,7 +665,7 @@ void trace_mutex_block(const void *mutex,
 #endif
 }
 
-void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner) {
+void trace_mutex_timeout(const void *mutex, const TCB_sctTCB_t *task, const TCB_sctTCB_t *owner) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
@@ -684,9 +684,9 @@ void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *ow
 }
 
 void trace_mutex_unlock(const void *mutex,
-                        TCB_sctTCB_t *task,
-                        TCB_sctTCB_t *owner_before,
-                        TCB_sctTCB_t *owner_after,
+                        const TCB_sctTCB_t *task,
+                        const TCB_sctTCB_t *owner_before,
+                        const TCB_sctTCB_t *owner_after,
                         uint8_t succeeded) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_MUTEX_UNLOCK,
@@ -707,7 +707,7 @@ void trace_mutex_unlock(const void *mutex,
 #endif
 }
 
-void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {
+void trace_mutex_wake(const void *mutex, const TCB_sctTCB_t *task) {
     KERNEL_REQUIRE(task != 0);
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
