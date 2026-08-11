@@ -160,7 +160,7 @@ def emit_state_checks(max_tasks: int) -> str:
         )
     return f"""def valid_state_transition :=
   if state_old == {STATE_CREATED} then state_new == {STATE_READY}
-  else if state_old == {STATE_READY} then state_new == {STATE_RUNNING} || state_new == {STATE_BLOCKED}
+  else if state_old == {STATE_READY} then state_new == {STATE_RUNNING}
   else if state_old == {STATE_RUNNING} then state_new == {STATE_READY} || state_new == {STATE_BLOCKED}
   else if state_old == {STATE_BLOCKED} then state_new == {STATE_READY}
   else false

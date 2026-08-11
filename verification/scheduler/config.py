@@ -31,6 +31,9 @@ EXPECTED = {
     "bad_priority_field.input": {
         "violation_task_priority_inconsistent",
     },
+    "bad_ready_to_blocked.input": {
+        "violation_invalid_state_transition",
+    },
     "bad_ready_event_inconsistent.input": {
         "violation_ready_event_inconsistent",
     },

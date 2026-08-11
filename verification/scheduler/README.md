@@ -6,6 +6,7 @@ Verifies task-state history and fixed-priority scheduling with a one-tick time s
 
 - Task IDs are within `0..max_tasks - 1`.
 - Every `STATE.old` equals the previously modeled state, and the transition to `STATE.new` is valid.
+- `READY -> BLOCKED` is invalid; a task may enter `BLOCKED` only from `RUNNING`.
 - `READY`, `RUNNING`, and `BLOCKED` events match the immediately preceding state transition.
 - Event priorities match `TASK_CREATE` when creation data is present.
 - A blocked task cannot run, and idle cannot run while a task is `READY`.

@@ -18,7 +18,7 @@ Each test has its own source file under `Src/`. Tests are intentionally small an
 
 ## Prebuilt TeSSLa monitors
 
-> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/1htq_5S8_92rzDWVeMwq0ZCNn7coaiBaC/view?usp=sharing)**
+> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/14ZYGdIdYDtGIfDYc_Zr4cvj2_mcTdS1F/view?usp=sharing)**
 
 The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, and verification modules used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
 
@@ -60,7 +60,7 @@ python3 tessla_verify.py generate integrity delay scheduler \
     --combined \
     --mode MODE \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar tessla.jar
 ```
 
 ### `PROJECT_DELAY`
@@ -71,7 +71,7 @@ python3 tessla_verify.py generate integrity delay scheduler \
     --combined \
     --mode MODE \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar tessla.jar
 ```
 
 ### `PROJECT_SEMAPHORE`
@@ -83,7 +83,7 @@ python3 tessla_verify.py generate integrity delay scheduler semaphore \
     --combined \
     --mode MODE \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar tessla.jar
 ```
 
 ### `PROJECT_MUTEX`
@@ -96,7 +96,7 @@ python3 tessla_verify.py generate integrity delay scheduler semaphore mutex \
     --combined \
     --mode MODE \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar tessla.jar
 ```
 
 ### `PROJECT_QUEUE`
@@ -108,7 +108,7 @@ python3 tessla_verify.py generate integrity delay scheduler queue \
     --combined \
     --mode MODE \
     --rust \
-    --tessla-jar ~/Desktop/tessla.jar
+    --tessla-jar tessla.jar
 ```
 
 For monitor generation, trace capture, test execution, and interpretation of verification results, see [verification/README.md](../../verification/README.md).
