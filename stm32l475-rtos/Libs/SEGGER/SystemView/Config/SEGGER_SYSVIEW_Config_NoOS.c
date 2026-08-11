@@ -1,3 +1,8 @@
+/**
+ * @file SEGGER_SYSVIEW_Conf.c
+ * @brief SEGGER SystemView configuration for the custom RTOS.
+ * @author Jerome
+ */
 #include "SEGGER_SYSVIEW.h"
 #include "SEGGER_SYSVIEW_Conf.h"
 #include "stm32l4xx.h"
