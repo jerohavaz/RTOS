@@ -1,3 +1,9 @@
+"""Generate the delay TeSSLa verification monitor.
+
+Author: Martin
+Author: Jerome
+"""
+
 STATE_CREATED = 0
 STATE_READY = 1
 STATE_RUNNING = 2
@@ -15,7 +21,14 @@ CHECKS = [
 
 
 def emit_header() -> str:
-    return """in delay_busy_start_id: Events[Int]
+    """Emit the delay monitor documentation and input declarations."""
+    return """# Module: delay
+# Purpose: Verify busy-wait and scheduler-based delay state and duration rules.
+# Generator: delay/generate_tessla.py
+# Author: Martin
+# Author: Jerome
+
+in delay_busy_start_id: Events[Int]
 in delay_busy_start_ticks: Events[Int]
 in delay_busy_end_id: Events[Int]
 
@@ -101,6 +114,7 @@ def delay_task_states: Events[Map[Int, Int]] =
 
 
 def emit_busy_model(max_tasks: int) -> str:
+    """Emit busy-delay state, duration, and running-state checks."""
     return f"""# ---------------- Busy delay ----------------
 #
 # Keep the latest busy start/end timestamp, start tick and requested duration
@@ -300,6 +314,7 @@ def delay_end_times: Events[Map[Int, Int]] =
 
 
 def emit_block_protocol(max_tasks: int) -> str:
+    """Emit the blocking-delay transition and BLOCKED-event protocol."""
     return f"""# ---------------- delay_start -> BLOCKED protocol ----------------
 #
 # Original semantics:
@@ -469,6 +484,7 @@ def violation_delay_not_blocked :=
 
 
 def emit_duration_check(max_tasks: int) -> str:
+    """Emit the minimum-duration check for scheduler-based delays."""
     return f"""# ---------------- Non-blocking duration ----------------
 
 def delay_tick_sum_at_end :=
@@ -501,6 +517,7 @@ def violation_delay_too_short :=
 
 
 def emit_ready_protocol(max_tasks: int) -> str:
+    """Emit the delay-completion READY transition and event protocol."""
     return f"""# ---------------- delay_end -> READY protocol ----------------
 #
 # Original semantics:
@@ -666,6 +683,7 @@ def violation_delay_invalid_unblock_state :=
 
 
 def emit_outputs(mode: str) -> str:
+    """Emit violation streams or paired PASS/FAIL output declarations."""
     # Preserve the original public output names and PASS/FAIL behavior so the
     # existing config.py/tests continue to work unchanged.
     lines: list[str] = []
@@ -695,6 +713,7 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(max_tasks: int, mode: str = "violations") -> str:
+    """Return a delay monitor for the configured task-ID range and output mode."""
     if max_tasks <= 0:
         raise ValueError("max_tasks must be greater than zero")
 

@@ -1,3 +1,8 @@
+"""Configure semaphore monitor generation and expected test results.
+
+Author: Jerome
+"""
+
 GENERATOR_OPTIONS = {
     "max_tasks": 3,
     "max_semaphores": 2,

@@ -1,3 +1,8 @@
+"""Configure queue monitor generation and expected test results.
+
+Author: Jerome
+"""
+
 GENERATOR_OPTIONS = {
     "max_tasks": 4,
     "queue_capacities": {

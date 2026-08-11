@@ -1,3 +1,8 @@
+"""Generate the scheduler TeSSLa verification monitor.
+
+Author: Jerome
+"""
+
 STATE_CREATED = 0
 STATE_READY = 1
 STATE_RUNNING = 2
@@ -21,7 +26,13 @@ CHECKS = [
 
 
 def emit_header() -> str:
-    return """in task_create_id: Events[Int]
+    """Emit the scheduler monitor documentation and input declarations."""
+    return """# Module: scheduler
+# Purpose: Verify task states, priorities, scheduling, and round-robin order.
+# Generator: scheduler/generate_tessla.py
+# Author: Jerome
+
+in task_create_id: Events[Int]
 in task_create_prio: Events[Int]
 
 in state_id: Events[Int]
@@ -44,12 +55,14 @@ in tick: Events[Int]
 
 
 def or_terms(terms: list[str]) -> str:
+    """Join TeSSLa Boolean expressions with logical OR."""
     if not terms:
         return "false"
     return " ||\n  ".join(terms)
 
 
 def nested_merge(streams: list[str], fallback: str) -> str:
+    """Build a nested binary merge expression with an empty-list fallback."""
     if not streams:
         return fallback
     result = streams[-1]
@@ -64,6 +77,7 @@ def emit_pass_fail_pair(
     trigger_expr: str,
     fail_condition: str,
 ) -> str:
+    """Emit one checks-mode PASS/FAIL pair."""
     marker_name = f"{internal_name}_check_marker"
     return f"""def {marker_name} :=
   if {trigger_expr} then 1
@@ -79,6 +93,7 @@ def PASS_{public_name} :=
 
 
 def emit_event_model() -> str:
+    """Emit shared scheduler counters and current-running state."""
     return """def scheduler_task_id_event :=
   merge(task_create_id, merge(state_id, merge(ready_id, merge(running_id, blocked_id))))
 
@@ -98,6 +113,7 @@ def scheduler_current_running_prio: Events[Int] =
 
 
 def emit_per_task(task_id: int) -> str:
+    """Emit state, priority, and ready-order history for one task."""
     return f"""def task_state_{task_id}: Events[Int] =
   merge(filter(state_new, state_id == {task_id}), {STATE_CREATED})
 
@@ -114,6 +130,7 @@ def task_ready_order_{task_id}: Events[Int] =
 
 
 def emit_task_id_bounds(max_tasks: int) -> str:
+    """Emit task-ID range checks for every scheduler event type."""
     streams = []
     for name in ("task_create_id", "state_id", "ready_id", "running_id", "blocked_id"):
         stream = f"scheduler_invalid_{name}"
@@ -134,6 +151,7 @@ def violation_task_id_out_of_range :=
 
 
 def emit_state_checks(max_tasks: int) -> str:
+    """Emit legal-transition and state-history continuity checks."""
     continuity = []
     for task_id in range(max_tasks):
         continuity.append(
@@ -170,6 +188,7 @@ def violation_state_discontinuity :=
 
 
 def emit_event_consistency(max_tasks: int) -> str:
+    """Emit state/event and task-priority consistency checks."""
     ready_terms = []
     running_terms = []
     blocked_terms = []
@@ -267,6 +286,7 @@ def violation_task_priority_inconsistent :=
 
 
 def emit_blocked_check(max_tasks: int) -> str:
+    """Emit the check preventing blocked tasks from running."""
     terms = [
         f"(running_id == {task_id} && "
         f"default(last(task_state_{task_id}, running_id), {STATE_CREATED}) == {STATE_BLOCKED})"
@@ -287,6 +307,7 @@ def violation_blocked_running :=
 
 
 def emit_idle_check(max_tasks: int) -> str:
+    """Emit the check preventing idle execution while a task is ready."""
     ready = [
         f"default(last(task_state_{task_id}, idle), {STATE_CREATED}) == {STATE_READY}" for task_id in range(max_tasks)
     ]
@@ -308,6 +329,7 @@ def violation_idle_while_ready :=
 
 
 def emit_priority_and_fifo(max_tasks: int) -> str:
+    """Emit fixed-priority and equal-priority FIFO scheduling checks."""
     priority_terms = []
     fifo_terms = []
 
@@ -352,6 +374,7 @@ def violation_round_robin :=
 
 
 def emit_tick_rotation(max_tasks: int) -> str:
+    """Emit equal-priority rotation checks following scheduler ticks."""
     same_priority_ready = []
     for current in range(max_tasks):
         for other in range(max_tasks):
@@ -421,6 +444,7 @@ def violation_tick_rotation :=
 
 
 def emit_outputs(mode: str) -> str:
+    """Emit public outputs for violation or checks mode."""
     lines = []
     if mode == "violations":
         for _, internal_name in CHECKS:
@@ -435,6 +459,7 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(max_tasks: int, mode: str = "violations") -> str:
+    """Return a scheduler monitor for the configured task-ID range."""
     if max_tasks <= 0:
         raise ValueError("max_tasks must be greater than zero")
 

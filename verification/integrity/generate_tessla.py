@@ -1,10 +1,21 @@
+"""Generate the trace-integrity TeSSLa verification monitor.
+
+Author: Jerome
+"""
+
 CHECKS = [
     ("trace_complete", "trace_incomplete"),
 ]
 
 
 def emit_header() -> str:
-    return """in trace_incomplete: Events[Int]
+    """Emit the integrity monitor documentation and input declaration."""
+    return """# Module: integrity
+# Purpose: Detect missing records reported by the sequenced RTT converter.
+# Generator: integrity/generate_tessla.py
+# Author: Jerome
+
+in trace_incomplete: Events[Int]
 
 """
 
@@ -15,6 +26,7 @@ def emit_pass_fail_pair(
     trigger_expr: str,
     fail_condition: str,
 ) -> str:
+    """Emit one PASS/FAIL pair for checks-mode output."""
     marker_name = f"{internal_name}_check_marker"
 
     return f"""def {marker_name} :=
@@ -31,6 +43,7 @@ def PASS_{public_name} :=
 
 
 def emit_integrity_checks() -> str:
+    """Emit the missing-record violation and its check-mode streams."""
     return f"""# Any positive value represents the number of records missing
 # before the current trace event.
 def violation_trace_incomplete :=
@@ -45,6 +58,7 @@ def violation_trace_incomplete :=
 
 
 def emit_outputs(mode: str) -> str:
+    """Emit public outputs for the requested monitor mode."""
     lines = []
 
     if mode == "violations":
@@ -63,6 +77,7 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(mode: str = "violations") -> str:
+    """Return the integrity monitor in violation or check output mode."""
     parts = [
         emit_header(),
         emit_integrity_checks(),

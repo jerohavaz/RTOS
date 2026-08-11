@@ -1,3 +1,8 @@
+"""Configure mutex monitor generation and expected test results.
+
+Author: Jerome
+"""
+
 GENERATOR_OPTIONS = {
     "max_tasks": 3,
     "max_mutexes": 2,

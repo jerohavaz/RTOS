@@ -1,3 +1,8 @@
+"""Generate the semaphore TeSSLa verification monitor.
+
+Author: Jerome
+"""
+
 STATE_BLOCKED = 3
 TASK_ID_NONE = 255
 
@@ -29,7 +34,13 @@ CHECKS = [
 
 
 def emit_header() -> str:
-    return """in sem_create_id: Events[Int]
+    """Emit the semaphore monitor documentation and input declarations."""
+    return """# Module: semaphore
+# Purpose: Verify counts, lifecycle, blocking, timeout, and waiter wake order.
+# Generator: semaphore/generate_tessla.py
+# Author: Jerome
+
+in sem_create_id: Events[Int]
 in sem_create_initial_count: Events[Int]
 in sem_create_max_count: Events[Int]
 
@@ -74,6 +85,7 @@ in tick: Events[Int]
 
 
 def nested_merge(streams: list[str], fallback: str) -> str:
+    """Build a nested binary merge expression with a fallback stream."""
     if not streams:
         return fallback
 
@@ -86,6 +98,7 @@ def nested_merge(streams: list[str], fallback: str) -> str:
 
 
 def or_terms(terms: list[str]) -> str:
+    """Join TeSSLa Boolean expressions with logical OR."""
     if not terms:
         return "false"
 
@@ -93,6 +106,7 @@ def or_terms(terms: list[str]) -> str:
 
 
 def and_terms(terms: list[str]) -> str:
+    """Join TeSSLa Boolean expressions with logical AND."""
     if not terms:
         return "true"
 
@@ -105,6 +119,7 @@ def configured_task_ids(max_tasks: int) -> range:
 
 
 def emit_event_model() -> str:
+    """Emit the unified semaphore event kind, object ID, and tick model."""
     kinds = [
         ("create", "sem_create_id", KIND_CREATE),
         ("acquire_enter", "sem_acquire_enter_id", KIND_ACQUIRE_ENTER),
@@ -148,6 +163,7 @@ def emit_event_model() -> str:
 
 
 def emit_task_model(task_id: int) -> str:
+    """Emit acquire-operation and waiter history for one task."""
     return f"""# ---------------- Semaphore waiter task {task_id} ----------------
 def sem_enter_for_task_{task_id} :=
   filter(sem_acquire_enter_id, sem_acquire_enter_task == {task_id})
@@ -239,6 +255,7 @@ def sem_block_unconfirmed_task_{task_id}: Events[Bool] =
 
 
 def emit_taskless_actor_model() -> str:
+    """Emit acquire history for ISR or pre-scheduler operations."""
     task_id = TASK_ID_NONE
 
     return f"""# ---------------- Taskless acquire actor ({task_id}) ----------------
@@ -275,6 +292,7 @@ def sem_enter_finite_task_{task_id}: Events[Int] =
 
 
 def emit_slot_assignment(max_semaphores: int) -> str:
+    """Emit dynamic semaphore-address assignment into bounded slots."""
     parts = ["# ---------------- Dynamic semaphore monitor slots ----------------"]
 
     for slot in range(max_semaphores):
@@ -337,6 +355,7 @@ def {stream_name} :=
 
 
 def emit_slot_model(slot: int) -> str:
+    """Emit capacity and count history for one semaphore slot."""
     match = lambda stream: f"default(last(sem_slot_id_{slot}, {stream}), -1) == {stream}"
 
     return f"""# ---------------- Semaphore monitor slot {slot} ----------------
@@ -379,6 +398,7 @@ def sem_slot_count_{slot}: Events[Int] =
 
 
 def waiting_on_release_terms(max_tasks: int) -> list[str]:
+    """Return waiter predicates sampled at semaphore release events."""
     return [
         f"(default(last(sem_waiting_task_{task}, sem_release_id), false) && "
         f"default(last(sem_wait_object_task_{task}, sem_release_id), -1) == sem_release_id)"
@@ -387,6 +407,7 @@ def waiting_on_release_terms(max_tasks: int) -> list[str]:
 
 
 def waiting_on_create_terms(max_tasks: int) -> list[str]:
+    """Return waiter predicates sampled at semaphore creation events."""
     return [
         f"(default(last(sem_waiting_task_{task}, sem_create_id), false) && "
         f"default(last(sem_wait_object_task_{task}, sem_create_id), -1) == sem_create_id)"
@@ -395,6 +416,7 @@ def waiting_on_create_terms(max_tasks: int) -> list[str]:
 
 
 def emit_create_checks(max_tasks: int) -> str:
+    """Emit semaphore initialization and reinitialization checks."""
     return f"""# ---------------- Creation checks ----------------
 def sem_create_has_waiter :=
   {or_terms(waiting_on_create_terms(max_tasks))}
@@ -412,6 +434,7 @@ def violation_sem_invalid_create :=
 
 
 def emit_count_checks(max_semaphores: int, actor_ids: list[int]) -> str:
+    """Emit count bounds and transition-continuity checks."""
     range_terms = {
         "create": ["sem_create_initial_count < 0 || sem_create_initial_count > sem_create_max_count"],
         "enter": [],
@@ -528,6 +551,7 @@ def sem_violation_count_discontinuity_release_{slot} :=
 
 
 def emit_acquire_checks(max_tasks: int, actor_ids: list[int]) -> str:
+    """Emit acquire lifecycle, empty-acquire, and result checks."""
     valid_actor = " || ".join(f"sem_acquire_enter_task == {actor}" for actor in actor_ids)
     valid_exit_actor = " || ".join(f"sem_acquire_exit_task == {actor}" for actor in actor_ids)
     enter_bad_terms = [
@@ -631,6 +655,7 @@ def violation_sem_timeout_result :=
 
 
 def emit_blocking_state_checks(max_tasks: int) -> str:
+    """Emit task-state checks for blocking semaphore acquisition."""
     task_match = [
         f"(state_id == {task} && " f"default(last(sem_block_task, state_id), -1) == {task})"
         for task in configured_task_ids(max_tasks)
@@ -680,6 +705,7 @@ def violation_sem_blocking_state :=
 
 
 def emit_timeout_checks(max_tasks: int) -> str:
+    """Emit timeout lifecycle and minimum-duration checks."""
     early_terms = []
     lifecycle_terms = []
     valid_task_terms = [f"sem_timeout_task == {task}" for task in configured_task_ids(max_tasks)]
@@ -717,6 +743,7 @@ def violation_sem_timeout_too_early :=
 
 
 def emit_release_and_wake_checks(max_tasks: int) -> str:
+    """Emit release, handoff, wake-priority, and waiter-FIFO checks."""
     waiter_terms = waiting_on_release_terms(max_tasks)
     valid_wake_task = [f"sem_wake_task == {task}" for task in configured_task_ids(max_tasks)]
     wake_lifecycle_terms = []
@@ -815,6 +842,7 @@ def violation_sem_invalid_wait_lifecycle :=
 
 
 def emit_outputs(mode: str) -> str:
+    """Emit public outputs for violation or checks mode."""
     lines = []
 
     if mode == "violations":
@@ -847,6 +875,7 @@ def generate(
     max_semaphores: int,
     mode: str = "violations",
 ) -> str:
+    """Return a semaphore monitor for bounded task and semaphore counts."""
     if max_tasks <= 0 or max_tasks >= TASK_ID_NONE:
         raise ValueError("max_tasks must be in the range 1..254")
 
@@ -886,6 +915,7 @@ def generate(
 
 
 def main() -> int:
+    """Generate a semaphore monitor from command-line arguments."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Generate the semaphore TeSSLa monitor.")

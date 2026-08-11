@@ -1,3 +1,8 @@
+"""Configure trace-integrity monitor generation and expected test results.
+
+Author: Jerome
+"""
+
 GENERATOR_OPTIONS = {}
 
 

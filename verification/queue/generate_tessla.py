@@ -1,3 +1,8 @@
+"""Generate the message-queue TeSSLa verification monitor.
+
+Author: Jerome
+"""
+
 from typing import Mapping
 
 CHECKS = [
@@ -91,7 +96,13 @@ CHECK_TRIGGERS = {
 
 
 def emit_header() -> str:
-    return """in task_create_id: Events[Int]
+    """Emit the queue monitor documentation and input declarations."""
+    return """# Module: queue
+# Purpose: Verify queue capacity, FIFO data, blocking, handoff, and timeouts.
+# Generator: queue/generate_tessla.py
+# Author: Jerome
+
+in task_create_id: Events[Int]
 in task_create_prio: Events[Int]
 
 in state_id: Events[Int]
@@ -151,12 +162,14 @@ def os_ticks: Events[Int] =
 
 
 def or_terms(terms: list[str], indent: str = "  ") -> str:
+    """Join TeSSLa Boolean expressions with a formatted logical OR."""
     if not terms:
         return "false"
     return (" ||\n" + indent).join(terms)
 
 
 def merge_streams(streams: list[str], default: str | None = None) -> str:
+    """Build a nested binary merge expression from stream names."""
     items = list(streams)
     if default is not None:
         items.append(default)
@@ -172,6 +185,7 @@ def emit_pass_fail_pair(
     public_name: str,
     trigger_expr: str,
 ) -> str:
+    """Emit one checks-mode PASS/FAIL pair for a queue property."""
     marker_name = f"{public_name}_check_marker"
     violation_name = f"violation_{public_name}"
     fail_condition = f"merge({violation_name} == {violation_name}, " f"{marker_name} != {marker_name})"
@@ -190,6 +204,7 @@ def PASS_{public_name} :=
 
 
 def emit_wait_state(queue_id: int, task_id: int, kind: str) -> str:
+    """Emit per-task send or receive waiter-state tracking."""
     q = queue_id
     t = task_id
     if kind == "send":
@@ -226,6 +241,7 @@ def {kind}_wait_q{q}_t{t}: Events[Bool] =
 
 
 def emit_timeout_task(queue_id: int, task_id: int, kind: str) -> str:
+    """Emit per-task timeout request and block-time tracking."""
     q = queue_id
     t = task_id
     if kind == "send":
@@ -264,6 +280,7 @@ def {kind}_block_tick_q{q}_t{t}: Events[Int] =
 
 
 def emit_fifo_slots(queue_id: int, capacity: int) -> str:
+    """Emit the bounded FIFO payload model for one configured queue."""
     q = queue_id
     parts = []
     for slot in range(capacity):
@@ -286,6 +303,7 @@ def emit_fifo_slots(queue_id: int, capacity: int) -> str:
 
 
 def emit_queue(queue_id: int, capacity: int, max_tasks: int) -> str:
+    """Emit all per-queue state and property checks."""
     q = queue_id
     wait_states = "".join(
         emit_wait_state(q, task_id, kind) for task_id in range(max_tasks) for kind in ("send", "recv")
@@ -717,6 +735,7 @@ def violation_wait_forever_receive_timed_out_q{q} :=
 
 
 def emit_untracked_queue_check(queue_ids: list[int]) -> str:
+    """Reject events whose queue ID is absent from the configured queue map."""
     tracked_terms = [f"queue_event_id == {queue_id}" for queue_id in queue_ids]
 
     return f"""def queue_event_id :=
@@ -732,6 +751,7 @@ def violation_untracked_queue :=
 
 
 def emit_aggregate_outputs(queue_ids: list[int], mode: str) -> str:
+    """Aggregate per-queue violations and emit the public outputs."""
     parts = []
     for check in CHECKS:
         per_queue = [f"violation_{check}_q{queue_id}" for queue_id in queue_ids]
@@ -772,6 +792,7 @@ def validate_options(
     queue_capacities: Mapping[int, int],
     mode: str,
 ) -> dict[int, int]:
+    """Validate generator arguments and return queues sorted by ID."""
     if max_tasks <= 0:
         raise ValueError("max_tasks must be greater than zero")
     if mode not in {"violations", "checks"}:
@@ -792,6 +813,7 @@ def generate(
     queue_capacities: Mapping[int, int],
     mode: str = "violations",
 ) -> str:
+    """Return a queue monitor for the configured task range and queue map."""
     capacities = validate_options(max_tasks, queue_capacities, mode)
     parts = [emit_header()]
     parts.append(emit_untracked_queue_check(list(capacities)))

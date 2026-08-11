@@ -3,6 +3,9 @@
 For live RTT capture, ``TESSLA_START`` defines the beginning of a firmware
 session. Input received before the marker is discarded. A later marker resets
 the sequence state and replaces file output with the new session.
+
+Author: Jerome
+Author: Martin
 """
 
 import argparse

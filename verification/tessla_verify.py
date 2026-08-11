@@ -1,4 +1,8 @@
-"""Generate, compile, and test the project's TeSSLa verification monitors."""
+"""Generate, combine, compile, and test the TeSSLa verification monitors.
+
+Author: Jerome
+Author: Martin
+"""
 
 import argparse
 import os
@@ -48,6 +52,7 @@ OUTPUT_DECLARATION_PATTERN = re.compile(r"^out\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 
 @dataclass(frozen=True)
 class VerificationModule:
+    """Describe one verification module and its generator/test configuration."""
     name: str
     directory: Path
     generator: Callable[..., str]
@@ -208,9 +213,28 @@ def generate_specification(
     return output_path
 
 
+def normalize_blank_lines(text: str) -> str:
+    """Collapse every run of blank lines to one and ensure one final newline."""
+    lines: list[str] = []
+    previous_was_blank = False
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        is_blank = not line
+
+        if is_blank and previous_was_blank:
+            continue
+
+        lines.append(line)
+        previous_was_blank = is_blank
+
+    return "\n".join(lines).strip() + "\n"
+
+
 def combine_specifications(
     specifications: list[tuple[str, str]],
 ) -> str:
+    """Combine modules while deduplicating declarations and output streams."""
     inputs: dict[str, str] = {}
     definitions: dict[str, str] = {}
     outputs: set[str] = set()
@@ -273,7 +297,8 @@ def combine_specifications(
         "\n".join(output_lines),
     ]
 
-    return "\n\n".join(section for section in sections if section) + "\n"
+    combined = "\n\n".join(section for section in sections if section)
+    return normalize_blank_lines(combined)
 
 
 def write_combined_specification(

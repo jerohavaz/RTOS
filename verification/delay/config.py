@@ -1,3 +1,9 @@
+"""Configure delay monitor generation and expected test results.
+
+Author: Martin
+Author: Jerome
+"""
+
 GENERATOR_OPTIONS = {
     "max_tasks": 3,
 }

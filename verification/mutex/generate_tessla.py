@@ -1,3 +1,8 @@
+"""Generate the mutex TeSSLa verification monitor.
+
+Author: Jerome
+"""
+
 STATE_BLOCKED = 3
 TASK_ID_NONE = 255
 
@@ -29,6 +34,7 @@ CHECKS = [
 
 
 def nested_merge(streams: list[str], fallback: str) -> str:
+    """Build a nested binary merge expression with a fallback stream."""
     if not streams:
         return fallback
 
@@ -41,19 +47,28 @@ def nested_merge(streams: list[str], fallback: str) -> str:
 
 
 def or_terms(terms: list[str]) -> str:
+    """Join TeSSLa Boolean expressions with logical OR."""
     return "false" if not terms else " ||\n  ".join(terms)
 
 
 def and_terms(terms: list[str]) -> str:
+    """Join TeSSLa Boolean expressions with logical AND."""
     return "true" if not terms else " &&\n  ".join(terms)
 
 
 def task_ids(max_tasks: int) -> range:
+    """Return the configured application task-ID range."""
     return range(max_tasks)
 
 
 def emit_header() -> str:
-    return """in mutex_create_id: Events[Int]
+    """Emit the mutex monitor documentation and input declarations."""
+    return """# Module: mutex
+# Purpose: Verify mutex ownership, lifecycle, blocking, timeout, and wake order.
+# Generator: mutex/generate_tessla.py
+# Author: Jerome
+
+in mutex_create_id: Events[Int]
 
 in mutex_lock_enter_id: Events[Int]
 in mutex_lock_enter_task: Events[Int]
@@ -97,6 +112,7 @@ in tick: Events[Int]
 
 
 def emit_event_model() -> str:
+    """Emit the unified mutex event kind, object ID, and tick model."""
     kinds = [
         ("create", "mutex_create_id", KIND_CREATE),
         ("lock_enter", "mutex_lock_enter_id", KIND_LOCK_ENTER),
@@ -140,6 +156,7 @@ def emit_event_model() -> str:
 
 
 def emit_task_model(task: int) -> str:
+    """Emit lock-operation and waiter history for one task."""
     return f"""# ---------------- Mutex task {task} ----------------
 def mutex_enter_for_task_{task} :=
   filter(mutex_lock_enter_id, mutex_lock_enter_task == {task})
@@ -231,6 +248,7 @@ def mutex_block_unconfirmed_task_{task}: Events[Bool] =
 
 
 def emit_slot_assignment(max_mutexes: int) -> str:
+    """Emit dynamic mutex-address assignment into bounded monitor slots."""
     parts = ["# ---------------- Dynamic mutex monitor slots ----------------"]
 
     for slot in range(max_mutexes):
@@ -287,10 +305,12 @@ def {violation} :=
 
 
 def slot_match(slot: int, stream: str) -> str:
+    """Return a TeSSLa expression matching an event to a mutex slot."""
     return f"default(last(mutex_slot_id_{slot}, {stream}), -1) == {stream}"
 
 
 def emit_slot_model(slot: int) -> str:
+    """Emit ownership history for one tracked mutex slot."""
     return f"""# ---------------- Mutex monitor slot {slot} ----------------
 def mutex_slot_create_{slot} :=
   filter(mutex_create_id, mutex_create_id == mutex_slot_id_{slot})
@@ -316,6 +336,7 @@ def mutex_slot_owner_{slot}: Events[Int] =
 
 
 def waiting_terms(max_tasks: int, trigger: str) -> list[str]:
+    """Return waiter predicates sampled by the supplied trigger stream."""
     return [
         f"(default(last(mutex_waiting_task_{task}, {trigger}), false) && "
         f"default(last(mutex_wait_object_task_{task}, {trigger}), -1) == {trigger})"
@@ -324,6 +345,7 @@ def waiting_terms(max_tasks: int, trigger: str) -> list[str]:
 
 
 def emit_create_checks(max_tasks: int, max_mutexes: int) -> str:
+    """Emit initialization and illegal-reinitialization checks."""
     owned_terms = [
         f"({slot_match(slot, 'mutex_create_id')} && "
         f"default(last(mutex_slot_owner_{slot}, mutex_create_id), {TASK_ID_NONE}) != {TASK_ID_NONE})"
@@ -346,6 +368,7 @@ def violation_mutex_invalid_create :=
 
 
 def emit_owner_checks(max_tasks: int, max_mutexes: int) -> str:
+    """Emit ownership snapshot and transition-consistency checks."""
     valid_owner = " || ".join([f"OWNER == {task}" for task in task_ids(max_tasks)] + [f"OWNER == {TASK_ID_NONE}"])
     continuity_streams: list[str] = []
     parts = ["# ---------------- Ownership checks ----------------"]
@@ -432,6 +455,7 @@ def {name} :=
 
 
 def emit_lock_checks(max_tasks: int) -> str:
+    """Emit lock lifecycle, recursion, contention, and result checks."""
     valid_task = " || ".join(f"mutex_lock_enter_task == {task}" for task in task_ids(max_tasks))
     valid_exit_task = " || ".join(f"mutex_lock_exit_task == {task}" for task in task_ids(max_tasks))
     valid_block_task = " || ".join(f"mutex_block_task == {task}" for task in task_ids(max_tasks))
@@ -536,6 +560,7 @@ def violation_mutex_timeout_result :=
 
 
 def emit_blocking_state_checks(max_tasks: int) -> str:
+    """Emit task-state checks for blocking mutex acquisition."""
     task_match = [
         f"(state_id == {task} && default(last(mutex_block_task, state_id), -1) == {task})"
         for task in task_ids(max_tasks)
@@ -576,6 +601,7 @@ def violation_mutex_blocking_state :=
 
 
 def emit_timeout_checks(max_tasks: int) -> str:
+    """Emit mutex timeout lifecycle and minimum-duration checks."""
     valid_task = [f"mutex_timeout_task == {task}" for task in task_ids(max_tasks)]
     lifecycle: list[str] = []
     early: list[str] = []
@@ -612,6 +638,7 @@ def violation_mutex_timeout_too_early :=
 
 
 def emit_unlock_and_wake_checks(max_tasks: int) -> str:
+    """Emit unlock validity, handoff, wake priority, and FIFO checks."""
     has_waiter = or_terms(waiting_terms(max_tasks, "mutex_unlock_id"))
     valid_unlock_task = " || ".join(f"mutex_unlock_task == {task}" for task in task_ids(max_tasks))
     valid_wake_task = " || ".join(f"mutex_wake_task == {task}" for task in task_ids(max_tasks))
@@ -719,6 +746,7 @@ def violation_mutex_invalid_wait_lifecycle :=
 
 
 def emit_outputs(mode: str) -> str:
+    """Emit public outputs for violation or checks mode."""
     lines: list[str] = []
 
     if mode == "violations":
@@ -744,6 +772,7 @@ def emit_outputs(mode: str) -> str:
 
 
 def generate(max_tasks: int, max_mutexes: int, mode: str = "violations") -> str:
+    """Return a mutex monitor for bounded task and mutex-instance counts."""
     if max_tasks <= 0 or max_tasks >= TASK_ID_NONE:
         raise ValueError("max_tasks must be in the range 1..254")
     if max_mutexes <= 0:
