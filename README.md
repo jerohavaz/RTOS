@@ -30,6 +30,8 @@ The build produces `build/Debug/rtos.elf` and `build/Debug/rtos.map`. Use the `R
 
 For complete prerequisites, flashing, GDB debugging, formatting, Doxygen, VS Code, and the local GitLab runner, see **[SETUP.md](SETUP.md)**.
 
+For SEGGER SystemView setup and recording instructions, including use of the provided `RTOS.SVPrj` project file, see **[SEGGER.md](SEGGER.md)**.
+
 Flash with the supplied J-Link script:
 
 ```bash

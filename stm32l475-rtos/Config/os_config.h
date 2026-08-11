@@ -83,12 +83,13 @@
  */
 
 /**
- * @brief Master switch for all kernel tracing.
+ * @brief Enables or disables all kernel tracing.
  *
- * When @c false, trace functions compile to no-op inline functions and no
- * trace backend should be required by the source code.
+ * When disabled, trace functions compile to no-op implementations.
  */
+#ifndef OS_TRACE_ENABLED
 #define OS_TRACE_ENABLED (true)
+#endif
 
 /**
  * @brief Enable the SEGGER SystemView trace backend.
