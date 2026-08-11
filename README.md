@@ -1,9 +1,6 @@
 # STM32L475 Bare-Metal RTOS
 
-A small, statically allocated RTOS for the STM32L475VG (Arm Cortex-M4), built
-with CMake and the GNU Arm Embedded toolchain. The repository includes
-on-target integration tests, SEGGER tracing, TeSSLa runtime verification,
-Doxygen documentation, and GitLab CI.
+A small, statically allocated RTOS for the STM32L475VG (Arm Cortex-M4), built with CMake and the GNU Arm Embedded toolchain. The repository includes on-target integration tests, SEGGER tracing, TeSSLa runtime verification, Doxygen documentation, and GitLab CI.
 
 ## Features
 
@@ -17,9 +14,7 @@ Doxygen documentation, and GitLab CI.
 - Cortex-M context switching through PSP, SVC, PendSV, SysTick, and `BASEPRI`
 - SEGGER SystemView and TeSSLa-compatible trace events over RTT
 
-Mutexes do not implement priority inheritance. Tasks must be created before
-`os_start()` and cannot be deleted. Compile-time limits and trace options are
-in [`stm32l475-rtos/Config/os_config.h`](stm32l475-rtos/Config/os_config.h).
+Mutexes do not implement priority inheritance. Tasks must be created before `os_start()` and cannot be deleted. Compile-time limits and trace options are in [`stm32l475-rtos/Config/os_config.h`](stm32l475-rtos/Config/os_config.h).
 
 ## Build
 
@@ -31,11 +26,9 @@ cmake --preset Debug
 cmake --build --preset Debug
 ```
 
-The build produces `build/Debug/rtos.elf` and `build/Debug/rtos.map`. Use the
-`Release` preset for an optimized build.
+The build produces `build/Debug/rtos.elf` and `build/Debug/rtos.map`. Use the `Release` preset for an optimized build.
 
-For complete prerequisites, flashing, GDB debugging, formatting, Doxygen,
-VS Code, and the local GitLab runner, see **[SETUP.md](SETUP.md)**.
+For complete prerequisites, flashing, GDB debugging, formatting, Doxygen, VS Code, and the local GitLab runner, see **[SETUP.md](SETUP.md)**.
 
 Flash with the supplied J-Link script:
 
@@ -46,31 +39,24 @@ JLinkExe -device STM32L475VG -if SWD -speed 4000 \
 
 ## Integration tests
 
-The firmware builds one on-target scenario at a time. Select it in
-[`stm32l475-rtos/App/Inc/project.h`](stm32l475-rtos/App/Inc/project.h):
+The firmware builds one on-target scenario at a time. Select it in [`stm32l475-rtos/App/Inc/project.h`](stm32l475-rtos/App/Inc/project.h):
 
 ```c
 #define PROJECT PROJECT_QUEUE
 ```
 
-Available scenarios cover the scheduler, delays, semaphores, mutexes, and
-queues. Inspect `g_integration_test_result` in the debugger for the verdict.
-See the [application test guide](stm32l475-rtos/App/README.md) for exact checks.
+Available scenarios cover the scheduler, delays, semaphores, mutexes, and queues. Inspect `g_integration_test_result` in the debugger for the verdict. See the [application test guide](stm32l475-rtos/App/README.md) for exact checks.
 
 ## Runtime verification
 
-TeSSLa monitors check temporal properties that the C assertions cannot prove
-alone. Modules cover scheduler behavior, delay timing, semaphores, mutexes,
-queues, and trace integrity.
+TeSSLa monitors check temporal properties that the C assertions cannot prove alone. Modules cover scheduler behavior, delay timing, semaphores, mutexes, queues, and trace integrity.
 
 ```bash
 cd verification
 python3 tessla_verify.py list
 ```
 
-See the **[verification guide](verification/README.md)** for RTT capture,
-monitor generation, fixture tests, recorded-trace verification, and known
-limitations.
+See the **[verification guide](verification/README.md)** for RTT capture, monitor generation, fixture tests, recorded-trace verification, and known limitations.
 
 ## GitLab CI
 
@@ -85,8 +71,7 @@ The root [`.gitlab-ci.yml`](.gitlab-ci.yml) defines:
 | `verification` | Run all verification fixtures with compiled Rust monitors when verification files change |
 | `pages` | Publish Doxygen HTML from the default branch |
 
-Merge-request-event pipelines are disabled by the current workflow rule. The
-verification job is change-gated, and Pages runs only on the default branch.
+Merge-request-event pipelines are disabled by the current workflow rule. The verification job is change-gated, and Pages runs only on the default branch.
 
 ## Layout
 

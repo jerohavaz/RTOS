@@ -1,7 +1,6 @@
 # Development Setup
 
-This guide covers the local firmware workflow. Run firmware commands from
-`stm32l475-rtos/` unless stated otherwise.
+This guide covers the local firmware workflow. Run firmware commands from `stm32l475-rtos/` unless stated otherwise.
 
 ## Prerequisites
 
@@ -13,8 +12,7 @@ sudo apt install cmake ninja-build gcc-arm-none-eabi gdb-multiarch \
   clang-format cppcheck doxygen
 ```
 
-Install the SEGGER J-Link Software and Documentation Pack separately. Ensure
-these commands are available on `PATH`:
+Install the SEGGER J-Link Software and Documentation Pack separately. Ensure these commands are available on `PATH`:
 
 ```text
 JLinkExe
@@ -36,15 +34,13 @@ The available presets are:
 | `Debug` | `-O0 -g3` | `build/Debug/rtos.elf`, `build/Debug/rtos.map` |
 | `Release` | `-Os -g0` | `build/Release/rtos.elf`, `build/Release/rtos.map` |
 
-Select the on-target integration scenario in `App/Inc/project.h` before
-building:
+Select the on-target integration scenario in `App/Inc/project.h` before building:
 
 ```c
 #define PROJECT PROJECT_QUEUE
 ```
 
-See [App/README.md](stm32l475-rtos/App/README.md) for the available scenarios
-and debugger-visible results.
+See [App/README.md](stm32l475-rtos/App/README.md) for the available scenarios and debugger-visible results.
 
 ## Flash
 
@@ -75,8 +71,7 @@ gdb-multiarch build/Debug/rtos.elf \
   -ex "continue"
 ```
 
-Inspect `g_integration_test_result` for the selected test's state, check count,
-and failure count.
+Inspect `g_integration_test_result` for the selected test's state, check count, and failure count.
 
 ## Formatting and static analysis
 
@@ -115,8 +110,7 @@ Generate Doxygen HTML:
 doxygen Doxyfile
 ```
 
-Open `docs/html/index.html` in a browser. GitLab CI publishes the same Doxygen
-output through Pages from the default branch.
+Open `docs/html/index.html` in a browser. GitLab CI publishes the same Doxygen output through Pages from the default branch.
 
 ## VS Code
 
@@ -175,11 +169,8 @@ cd gitlab-runner
 docker compose up -d
 ```
 
-The supplied runner uses the Docker executor and mounts the host Docker socket.
-`config.toml` is instance-specific: replace its GitLab URL and registration
-details before use, and do not commit a live runner token.
+The supplied runner uses the Docker executor and mounts the host Docker socket. `config.toml` is instance-specific: replace its GitLab URL and registration details before use.
 
 ## Runtime verification
 
-Verification has additional Python, Java, TeSSLa, Rust, and RTT requirements.
-See the dedicated [verification guide](verification/README.md).
+Verification has additional Python, Java, TeSSLa, Rust, and RTT requirements. See the dedicated [verification guide](verification/README.md).
