@@ -59,6 +59,9 @@ EXPECTED = {
         "violation_fifo_model_bounds",
         "violation_queue_fill_consistency",
     },
+    "bad_untracked_queue.input": {
+        "violation_untracked_queue",
+    },
     "valid_buffered_fifo.input": set(),
     "valid_direct_handoff.input": set(),
     "valid_receive_timeout.input": set(),

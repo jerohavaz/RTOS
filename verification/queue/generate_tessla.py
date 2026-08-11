@@ -32,6 +32,27 @@ CHECKS = [
     "wait_forever_receive_timed_out",
 ]
 
+GLOBAL_CHECKS = [
+    "untracked_queue",
+]
+
+
+QUEUE_ID_STREAMS = [
+    "queue_create_id",
+    "queue_send_attempt_queue_id",
+    "queue_send_success_queue_id",
+    "queue_send_block_queue_id",
+    "queue_send_timeout_queue_id",
+    "queue_recv_attempt_queue_id",
+    "queue_recv_success_queue_id",
+    "queue_recv_block_queue_id",
+    "queue_recv_timeout_queue_id",
+    "queue_wake_send_queue_id",
+    "queue_wake_recv_queue_id",
+    "queue_handoff_queue_id",
+    "queue_fill_queue_id",
+]
+
 
 CHECK_TRIGGERS = {
     "queue_configuration": "queue_create_id >= 0",
@@ -65,6 +86,7 @@ CHECK_TRIGGERS = {
     "no_wait_receive_timed_out": "queue_recv_timeout_queue_id >= 0",
     "wait_forever_send_timed_out": "queue_send_timeout_queue_id >= 0",
     "wait_forever_receive_timed_out": "queue_recv_timeout_queue_id >= 0",
+    "untracked_queue": "queue_event_id >= 0",
 }
 
 
@@ -694,6 +716,21 @@ def violation_wait_forever_receive_timed_out_q{q} :=
 """
 
 
+def emit_untracked_queue_check(queue_ids: list[int]) -> str:
+    tracked_terms = [f"queue_event_id == {queue_id}" for queue_id in queue_ids]
+
+    return f"""def queue_event_id :=
+  {merge_streams(QUEUE_ID_STREAMS)}
+
+def queue_event_is_tracked :=
+  {or_terms(tracked_terms)}
+
+def violation_untracked_queue :=
+  filter(queue_event_id, queue_event_is_tracked == false)
+
+"""
+
+
 def emit_aggregate_outputs(queue_ids: list[int], mode: str) -> str:
     parts = []
     for check in CHECKS:
@@ -708,10 +745,21 @@ def emit_aggregate_outputs(queue_ids: list[int], mode: str) -> str:
                 )
             )
 
+    if mode == "checks":
+        for check in GLOBAL_CHECKS:
+            parts.append(
+                emit_pass_fail_pair(
+                    public_name=check,
+                    trigger_expr=CHECK_TRIGGERS[check],
+                )
+            )
+
+    output_checks = CHECKS + GLOBAL_CHECKS
+
     if mode == "violations":
-        parts.extend(f"out violation_{check}\n" for check in CHECKS)
+        parts.extend(f"out violation_{check}\n" for check in output_checks)
     elif mode == "checks":
-        for check in CHECKS:
+        for check in output_checks:
             parts.append(f"out FAIL_{check}\n")
             parts.append(f"out PASS_{check}\n")
     else:
@@ -746,6 +794,7 @@ def generate(
 ) -> str:
     capacities = validate_options(max_tasks, queue_capacities, mode)
     parts = [emit_header()]
+    parts.append(emit_untracked_queue_check(list(capacities)))
     for queue_id, capacity in capacities.items():
         parts.append(emit_queue(queue_id, capacity, max_tasks))
     parts.append(emit_aggregate_outputs(list(capacities), mode))
