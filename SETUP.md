@@ -40,7 +40,7 @@ Select the on-target integration scenario in `App/Inc/project.h` before building
 #define PROJECT PROJECT_QUEUE
 ```
 
-See [App/README.md](stm32l475-rtos/App/README.md) for the available scenarios and debugger-visible results.
+See [stm32l475-rtos/App/README.md](stm32l475-rtos/App/README.md) for the available scenarios and debugger-visible results.
 
 ## Flash
 

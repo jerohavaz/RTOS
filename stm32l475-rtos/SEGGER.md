@@ -24,3 +24,7 @@ Task `0` is the RTOS idle task. It is intentionally **not** registered as a norm
 Normal task metadata is cached by the RTOS trace subsystem when each task is created. SystemView's `pfSendTaskList` callback replays that trace-owned metadata whenever SystemView requests the current task list. Therefore recording may start after task creation without requiring SystemView or the trace layer to query the kernel task table.
 
 `trace_init()` remains before task creation. New normal tasks are announced immediately with `SEGGER_SYSVIEW_OnTaskCreate()` and `SEGGER_SYSVIEW_SendTaskInfo()`, while a later recording restart can recover the current normal-task metadata through `pfSendTaskList`.
+
+## Reference
+
+* [SEGGER SystemView User Guide (UM08027)](https://www.segger.com/downloads/jlink/UM08027_SystemView.pdf)

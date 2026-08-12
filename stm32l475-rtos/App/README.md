@@ -113,8 +113,6 @@ python3 tessla_verify.py generate integrity delay scheduler queue \
     --tessla-jar tessla.jar
 ```
 
-For monitor generation, trace capture, test execution, and interpretation of verification results, see [verification/README.md](../../verification/README.md).
-
 ## Result
 
 Inspect `g_integration_test_result` in the debugger:

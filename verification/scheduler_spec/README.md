@@ -29,4 +29,4 @@ Verifies task-state history and fixed-priority scheduling with a one-tick time s
 
 ## Reference
 
-- STMicroelectronics, *PM0214 — STM32 Cortex-M4 MCUs and MPUs Programming Manual*, Rev. 10, Section 2.3.7 "Exception entry and return", p. 42. The manual describes Cortex-M4 tail-chaining: when an eligible exception is pending at completion of an exception handler, the stack pop is skipped and control transfers directly to the new exception handler.
+* [STMicroelectronics, *PM0214 — STM32 Cortex-M4 MCUs and MPUs Programming Manual*, Rev. 10, Section 2.3.7 "Exception entry and return", p. 42](https://www.st.com/resource/en/programming_manual/pm0214-stm32-cortexm4-mcus-and-mpus-programming-manual-stmicroelectronics.pdf) — describes Cortex-M4 tail-chaining: when an eligible exception is pending at completion of an exception handler, the stack pop is skipped and control transfers directly to the new exception handler.
