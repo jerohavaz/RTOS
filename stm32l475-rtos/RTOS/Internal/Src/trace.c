@@ -246,17 +246,9 @@ static uint8_t sv_resolve_task_id(uint8_t task_id, U32 *systemview_id) {
 void trace_init(void) {
     g_trace_task_count = 0u;
 
-#if OS_TRACE_SEGGER_SYSVIEW || OS_TRACE_TESSLA_RTT
-    /*
-     * Both tracing backends use RTT. Explicit initialization is required
-     * because the NOLOAD RTT control block can retain its contents across
-     * target resets.
-     */
-    SEGGER_RTT_Init();
-#endif
-
 #if OS_TRACE_TESSLA_RTT
     g_trace_sequence = 0u;
+    SEGGER_RTT_Init();
     SEGGER_RTT_WriteString(TRACE_TESSLA_RTT_CHANNEL, "TESSLA_START\n");
 #endif
 
