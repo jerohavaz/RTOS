@@ -14,7 +14,9 @@ A small, statically allocated RTOS for the STM32L475VG (Arm Cortex-M4), built wi
 - Cortex-M context switching through PSP, SVC, PendSV, SysTick, and `BASEPRI`
 - SEGGER SystemView and TeSSLa-compatible trace events over RTT
 
-Mutexes do not implement priority inheritance. Tasks must be created before `os_start()` and cannot be deleted. Compile-time limits and trace options are in [`stm32l475-rtos/Config/os_config.h`](stm32l475-rtos/Config/os_config.h).
+Mutexes do not implement priority inheritance. Tasks must be created before `os_start()` and cannot be deleted. Compile-time limits and trace options are in `stm32l475-rtos/Config/os_config.h`.
+
+For a high-level view of the RTOS structure, task-state model, scheduler flow, context switching, synchronization behavior, and trace architecture, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ## Build
 
