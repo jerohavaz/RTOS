@@ -11,12 +11,12 @@ coverage, configuration, and limitations in its own README.
 
 | Module | Description |
 | --- | --- |
-| [Scheduler](scheduler/README.md) | Task states, priorities, scheduling, and round-robin behavior |
-| [Message queues](queue/README.md) | Capacity, FIFO order, message integrity, blocking, wake-up, and timeout behavior |
-| [Semaphores](semaphore/README.md) | Counts, blocking, direct handoff, wake-up order, and timeouts |
-| [Mutexes](mutex/README.md) | Ownership, non-recursive locking, blocking, timeout, and waiter handoff |
-| [Delays](delay/README.md) | Busy-delay duration and task-state behavior |
-| [Trace integrity](integrity/README.md) | Missing or out-of-order RTT records |
+| [Scheduler](scheduler_spec/README.md) | Task states, priorities, scheduling, and round-robin behavior |
+| [Message queues](queue_spec/README.md) | Capacity, FIFO order, message integrity, blocking, wake-up, and timeout behavior |
+| [Semaphores](semaphore_spec/README.md) | Counts, blocking, direct handoff, wake-up order, and timeouts |
+| [Mutexes](mutex_spec/README.md) | Ownership, non-recursive locking, blocking, timeout, and waiter handoff |
+| [Delays](delay_spec/README.md) | Busy-delay duration and task-state behavior |
+| [Trace integrity](integrity_spec/README.md) | Missing or out-of-order RTT records |
 
 Semaphore and mutex objects are identified by their runtime addresses and
 assigned dynamically to bounded monitor slots.
@@ -110,7 +110,7 @@ python3 rtt_to_tessla.py --no-summary -o trace.input
 
 The converter emits `trace_incomplete` when sequenced RTT records are missing.
 Verification results affected by missing events must be treated as inconclusive.
-See [Trace integrity](integrity/README.md) for details.
+See [Trace integrity](integrity_spec/README.md) for details.
 
 ## Generate Specifications
 
@@ -185,7 +185,7 @@ python3 tessla_verify.py generate queue \
 Queue IDs must be non-negative and capacities must be greater than zero.
 Duplicate queue IDs are rejected.
 
-See [Message queue verification](queue/README.md) for the queue trace contract
+See [Message queue verification](queue_spec/README.md) for the queue trace contract
 and current limitations.
 
 ### Integrity

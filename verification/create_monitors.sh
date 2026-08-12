@@ -17,12 +17,11 @@ generate_monitor() {
     local mode="$2"
     shift 2
 
-    echo "======================================================== ===="
+    echo "============================================================"
     echo "Generating: $name"
     echo "Mode:       $mode"
     echo "============================================================"
 
-    # Remove stale generated artifacts first.
     rm -f \
         "$BUILD_DIR/combined.tessla" \
         "$BUILD_DIR/combined-monitor"
