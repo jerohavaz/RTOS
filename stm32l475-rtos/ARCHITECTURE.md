@@ -19,7 +19,7 @@ A separate trace subsystem receives events from the RTOS services, kernel, and C
 flowchart TB
     APP["Application / Test Tasks"]
 
-    subgraph RTOS["Custom RTOS"]
+    subgraph RTOS["RTOS"]
         SERVICES["RTOS Services<br/>Tasks • Delays • Mutexes • Semaphores • Queues"]
         KERNEL["Kernel<br/>Scheduler • Task States • Wait Queues • Timeouts"]
     end
@@ -109,8 +109,6 @@ stateDiagram-v2
     RUNNING --> BLOCKED : Delay / Mutex / Semaphore / Queue
 
     BLOCKED --> READY : Resource available / timeout elapsed
-
-    RUNNING --> RUNNING : ISR returns without task switch
 ```
 
 The RTOS uses the following valid task-state transitions:

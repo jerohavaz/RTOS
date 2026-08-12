@@ -14,6 +14,7 @@ stages:
 variables:
   FIRMWARE_DIR: "stm32l475-rtos"
   STM32_CI_IMAGE: "$CI_REGISTRY_IMAGE/stm32-ci:latest"
+  DOXYGEN_CI_IMAGE: "$CI_REGISTRY_IMAGE/doxygen-ci:latest"
   VERIFICATION_CI_IMAGE: "$CI_REGISTRY_IMAGE/verification-ci:latest"
 
 default:
@@ -22,7 +23,6 @@ default:
     - runner
   interruptible: true
 
-
 # ---------------------------------------------------------------------------
 # Docker images
 # ---------------------------------------------------------------------------
@@ -30,8 +30,7 @@ default:
 .docker_login: &docker_login
   - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
 
-
-build_image:
+stm32_image:
   stage: docker
   image: docker
   services:
@@ -43,18 +42,39 @@ build_image:
     - *docker_login
 
   script:
-    - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/Dockerfile .
+    - docker build --pull -t "$STM32_CI_IMAGE" -f gitlab-runner/stm32.Dockerfile .
     - docker push "$STM32_CI_IMAGE"
 
   rules:
     - changes:
-        - gitlab-runner/Dockerfile
+        - gitlab-runner/stm32.Dockerfile
         - .gitlab-ci.yml
       when: on_success
-
     - when: manual
       allow_failure: true
 
+doxygen_image:
+  stage: docker
+  image: docker
+  services:
+    - docker:dind
+  tags:
+    - runner
+
+  before_script:
+    - *docker_login
+
+  script:
+    - docker build --pull -t "$DOXYGEN_CI_IMAGE" -f gitlab-runner/doxygen.Dockerfile .
+    - docker push "$DOXYGEN_CI_IMAGE"
+
+  rules:
+    - changes:
+        - gitlab-runner/doxygen.Dockerfile
+        - .gitlab-ci.yml
+      when: on_success
+    - when: manual
+      allow_failure: true
 
 verification_image:
   stage: docker
@@ -77,10 +97,8 @@ verification_image:
         - verification/**/*
         - .gitlab-ci.yml
       when: on_success
-
     - when: manual
       allow_failure: true
-
 
 # ---------------------------------------------------------------------------
 # Formatting
@@ -97,7 +115,6 @@ format:
       -print0 |
       xargs -0 clang-format --dry-run --Werror
 
-
 # ---------------------------------------------------------------------------
 # Firmware builds
 # ---------------------------------------------------------------------------
@@ -110,40 +127,31 @@ build:
       - VARIANT: "queue"
         RTOS_PROJECT: "PROJECT_QUEUE"
         RTOS_TRACE_ENABLED: "1"
-
       - VARIANT: "scheduler"
         RTOS_PROJECT: "PROJECT_SCHEDULER"
         RTOS_TRACE_ENABLED: "1"
-
       - VARIANT: "delay"
         RTOS_PROJECT: "PROJECT_DELAY"
         RTOS_TRACE_ENABLED: "1"
-
       - VARIANT: "semaphore"
         RTOS_PROJECT: "PROJECT_SEMAPHORE"
         RTOS_TRACE_ENABLED: "1"
-
       - VARIANT: "mutex"
         RTOS_PROJECT: "PROJECT_MUTEX"
         RTOS_TRACE_ENABLED: "1"
-
       - VARIANT: "queue-no-trace"
         RTOS_PROJECT: "PROJECT_QUEUE"
         RTOS_TRACE_ENABLED: "0"
 
   script:
     - cd "$FIRMWARE_DIR"
-
     - >
       cmake --preset Debug
       -B "build/ci-${VARIANT}"
       -DRTOS_PROJECT="${RTOS_PROJECT}"
       -DRTOS_TRACE_ENABLED="${RTOS_TRACE_ENABLED}"
-
     - cmake --build "build/ci-${VARIANT}" --parallel
-
     - arm-none-eabi-size "build/ci-${VARIANT}"/*.elf
-
 
 # ---------------------------------------------------------------------------
 # Static analysis
@@ -154,12 +162,10 @@ cppcheck:
 
   script:
     - cd "$FIRMWARE_DIR"
-
     - >
       cmake --preset Debug
       -DRTOS_PROJECT=PROJECT_QUEUE
       -DRTOS_TRACE_ENABLED=1
-
     - >
       cppcheck
       --project=build/Debug/compile_commands.json
@@ -169,7 +175,6 @@ cppcheck:
       --suppress=preprocessorErrorDirective
       -iLibs/SEGGER
       -iCore/Src/syscalls.c
-
 
 # ---------------------------------------------------------------------------
 # TeSSLa verification
@@ -192,9 +197,7 @@ verification:
         - verification/**/*
         - .gitlab-ci.yml
       when: on_success
-
     - when: never
-
 
 # ---------------------------------------------------------------------------
 # Doxygen / GitLab Pages
@@ -204,7 +207,7 @@ pages:
   stage: pages
 
   image:
-    name: nakatt/doxygen:1.11
+    name: "$DOXYGEN_CI_IMAGE"
     entrypoint: [""]
 
   script:

@@ -14,7 +14,7 @@ A small, statically allocated RTOS for the STM32L475VG (Arm Cortex-M4), built wi
 - Cortex-M context switching through PSP, SVC, PendSV, SysTick, and `BASEPRI`
 - SEGGER SystemView and TeSSLa-compatible trace events over RTT
 
-Mutexes do not implement priority inheritance. Tasks must be created before `os_start()` and cannot be deleted. Compile-time limits and trace options are in `stm32l475-rtos/Config/os_config.h`.
+Mutexes do not implement priority inheritance. Tasks must be created before `os_start()` and cannot be deleted. Compile-time limits and trace options are in `Config/os_config.h`.
 
 For a high-level view of the RTOS structure, task-state model, scheduler flow, context switching, synchronization behavior, and trace architecture, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
@@ -23,14 +23,13 @@ For a high-level view of the RTOS structure, task-state model, scheduler flow, c
 Install CMake, Ninja, and `gcc-arm-none-eabi`, then run:
 
 ```bash
-cd stm32l475-rtos
 cmake --preset Debug
 cmake --build --preset Debug
 ```
 
 The build produces `build/Debug/rtos.elf` and `build/Debug/rtos.map`. Use the `Release` preset for an optimized build.
 
-For complete prerequisites, flashing, GDB debugging, formatting, Doxygen, VS Code, and the local GitLab runner, see **[SETUP.md](SETUP.md)**.
+For complete prerequisites, flashing, GDB debugging, formatting, Doxygen, VS Code, and the local GitLab runner, see **[SETUP.md](../SETUP.md)**.
 
 For SEGGER SystemView setup and recording instructions, including use of the provided `RTOS.SVPrj` project file, see **[SEGGER.md](SEGGER.md)**.
 
@@ -43,13 +42,13 @@ JLinkExe -device STM32L475VG -if SWD -speed 4000 \
 
 ## Integration tests
 
-The firmware builds one on-target scenario at a time. Select it in [`stm32l475-rtos/App/Inc/project.h`](stm32l475-rtos/App/Inc/project.h):
+The firmware builds one on-target scenario at a time. Select it in [`App/Inc/project.h`](App/Inc/project.h):
 
 ```c
 #define PROJECT PROJECT_QUEUE
 ```
 
-Available scenarios cover the scheduler, delays, semaphores, mutexes, and queues. Inspect `g_integration_test_result` in the debugger for the verdict. See the [application test guide](stm32l475-rtos/App/README.md) for exact checks.
+Available scenarios cover the scheduler, delays, semaphores, mutexes, and queues. Inspect `g_integration_test_result` in the debugger for the verdict. See the [application test guide](App/README.md) for exact checks.
 
 ## Runtime verification
 
@@ -60,7 +59,7 @@ cd verification
 python3 tessla_verify.py list
 ```
 
-See the **[verification guide](verification/README.md)** for RTT capture, monitor generation, fixture tests, recorded-trace verification, and known limitations.
+See the **[verification guide](../verification/README.md)** for RTT capture, monitor generation, fixture tests, recorded-trace verification, and known limitations.
 
 ## GitLab CI
 
@@ -85,16 +84,12 @@ The verification job is change-gated to modifications under `verification/` or `
 
 ```text
 .
-├── stm32l475-rtos/
-│   ├── RTOS/Public/     Public API
-│   ├── RTOS/Kernel/     Scheduler and kernel services
-│   ├── RTOS/Internal/   Lists, wait queues, tracing, and panic handling
-│   ├── Port/CortexM/    Cortex-M port
-│   ├── Config/          Compile-time configuration
-│   └── App/             Integration-test application
-├── verification/       RTT and TeSSLa tooling
-├── gitlab-runner/      Local runner setup
-└── .gitlab-ci.yml
+├── RTOS/Public/     Public API
+├── RTOS/Kernel/     Scheduler and kernel services
+├── RTOS/Internal/   Lists, wait queues, tracing, and panic handling
+├── Port/CortexM/    Cortex-M port
+├── Config/          Compile-time configuration
+└── App/             Integration-test application
 ```
 
-Generate API documentation from `stm32l475-rtos/` with `doxygen Doxyfile`.
+Generate API documentation with `doxygen Doxyfile`.

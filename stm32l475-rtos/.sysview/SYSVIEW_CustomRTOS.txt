@@ -1,5 +1,5 @@
-# PE5001_RTOS - custom OS API events
-# Must match O=PE5001_RTOS from SEGGER_SYSVIEW_SendSysDesc().
+# CustomRTOS - custom OS API events
+# Must match O=CustomRTOS from SEGGER_SYSVIEW_SendSysDesc().
 # Event IDs 32..511 are reserved by SystemView for custom OS API calls.
 
 # Delays

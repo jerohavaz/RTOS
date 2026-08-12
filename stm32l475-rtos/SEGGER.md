@@ -1,6 +1,6 @@
 # SEGGER SystemView
 
-Use the provided SystemView project file at the repository root:
+Use the provided SystemView project file:
 
 ```text
 RTOS.SVPrj
