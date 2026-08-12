@@ -22,6 +22,8 @@ Each test has its own source file under `Src/`. Tests are intentionally small an
 
 The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, and verification modules used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
 
+For more information about monitor generation, trace capture, running monitors, verification modes, and interpreting results, see the **[TeSSLa verification guide](../../verification/README.md)**.
+
 The filename identifies the integration-test project for which the combined monitor was generated. For example, `mutex.tessla` is the combined monitor for `PROJECT_MUTEX`; it contains every module listed in the corresponding command below, not only the mutex module.
 
 ```text
