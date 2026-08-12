@@ -227,15 +227,6 @@ SECTIONS
   PROVIDE( __bss_start = __tbss_start );
   PROVIDE( __bss_size = __bss_end - __bss_start );
 
-  /* SEGGER RTT / SystemView buffers isolated from normal .bss */
-  .segger_rtt (NOLOAD) :
-  {
-    . = ALIGN(8);
-    KEEP(*(.segger_rtt))
-    KEEP(*(.segger_rtt*))
-    . = ALIGN(8);
-  } >RAM
-
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack (NOLOAD) :
   {

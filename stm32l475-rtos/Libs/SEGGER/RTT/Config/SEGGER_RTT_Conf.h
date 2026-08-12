@@ -27,9 +27,6 @@ Purpose : User configuration file for RTT.
 **********************************************************************
 */
 
-#define SEGGER_RTT_SECTION ".segger_rtt"
-#define SEGGER_RTT_BUFFER_SECTION ".segger_rtt"
-
 
 #define BUFFER_SIZE_UP                      (32768)
 #define BUFFER_SIZE_DOWN                    (64)
