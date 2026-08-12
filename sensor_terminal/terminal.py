@@ -11,7 +11,9 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 latest_sample = None
 first_sample_time = None
-recent_sample_times = deque(maxlen=10)
+
+# 11 timestamps = 10 time intervals between messages.
+recent_sample_times = deque(maxlen=11)
 
 latest_lock = threading.Lock()
 stop_event = threading.Event()
@@ -37,10 +39,12 @@ def serial_reader(ser, session):
     while not stop_event.is_set():
         try:
             raw = ser.readline()
+
             if not raw:
                 continue
 
             line = raw.decode("utf-8", errors="replace").strip()
+
             if not line:
                 continue
 
@@ -48,6 +52,7 @@ def serial_reader(ser, session):
 
             if line.startswith("DATA,"):
                 fields = line.split(",")
+
                 if len(fields) != 8:
                     print(f"[Malformed data] {line}")
                     continue
@@ -65,6 +70,7 @@ def serial_reader(ser, session):
                         "count": int(fields[7]),
                         "time": received_at,
                     }
+
                 except ValueError:
                     print(f"[Invalid data] {line}")
                     continue
@@ -93,11 +99,13 @@ def serial_reader(ser, session):
         except (serial.SerialException, OSError, TypeError) as error:
             if not stop_event.is_set():
                 print(f"[Serial error] {error}")
+
             break
 
 
 def bottom_toolbar():
-    """Display the latest sample and receive-timing statistics."""
+    """Display the latest sample and receive timing statistics."""
+
     with latest_lock:
         sample = latest_sample
         first_time = first_sample_time
@@ -107,35 +115,47 @@ def bottom_toolbar():
         return " Waiting for sensor data... "
 
     now = time.monotonic()
+
+    # Time since the latest message arrived.
     age_ms = (now - sample["time"]) * 1000.0
+
+    # Time since the first DATA message arrived.
     total_age_ms = (now - first_time) * 1000.0
-    intervals = [
-        newer - older
+
+    # Calculate message-to-message intervals in milliseconds.
+    intervals_ms = [
+        (newer - older) * 1000.0
         for older, newer in zip(sample_times, sample_times[1:])
     ]
-    average_interval_ms = (
-        sum(intervals) * 1000.0 / len(intervals)
-        if intervals
-        else 0.0
-    )
+
+    if intervals_ms:
+        average_interval_ms = sum(intervals_ms) / len(intervals_ms)
+        error_ms = average_interval_ms - 100.0
+    else:
+        average_interval_ms = 0.0
+        error_ms = 0.0
 
     return (
-        f" ACC: {sample['ax']:+.3f} "
+        f" ACC: "
+        f"{sample['ax']:+.3f} "
         f"{sample['ay']:+.3f} "
         f"{sample['az']:+.3f} g"
-        f"  |  GYRO: {sample['gx']:+.3f} "
+        f" | GYRO: "
+        f"{sample['gx']:+.3f} "
         f"{sample['gy']:+.3f} "
         f"{sample['gz']:+.3f} deg/s"
-        f"  |  samples={sample['count']:3d}"
-        f"  |  age={age_ms:6.0f} ms"
-        f"  |  avg interval(10)={average_interval_ms:7.1f} ms"
-        f"  |  total={total_age_ms:10.0f} ms "
+        f" | samples={sample['count']:3d}"
+        f" | age={age_ms:6.0f} ms"
+        f" | avg({len(intervals_ms):2d})={average_interval_ms:6.1f} ms"
+        f" | error={error_ms:+6.1f} ms"
+        f" | total={total_age_ms:10.0f} ms "
     )
 
 
 def send_command(ser, command):
     """Send one newline-terminated command to the STM32."""
     command = command.strip()
+
     if not command:
         return
 
@@ -147,16 +167,19 @@ def main():
     parser = argparse.ArgumentParser(
         description="Interactive STM32 LSM6DSL sensor terminal"
     )
+
     parser.add_argument(
         "port",
         help="Serial port, for example COM5 or /dev/ttyACM0",
     )
+
     parser.add_argument(
         "--baud",
         type=int,
         default=115200,
         help="UART baud rate (default: 115200)",
     )
+
     args = parser.parse_args()
 
     completer = NestedCompleter.from_nested_dict(
@@ -197,17 +220,20 @@ def main():
             stopbits=serial.STOPBITS_ONE,
             timeout=0.2,
         )
+
     except serial.SerialException as error:
         print(f"Cannot open {args.port}: {error}")
         return
 
     stop_event.clear()
+
     reader = threading.Thread(
         target=serial_reader,
         args=(ser, session),
         name="serial_reader",
         daemon=True,
     )
+
     reader.start()
 
     print(f"Connected to {args.port} at {args.baud} baud.")
@@ -229,11 +255,16 @@ def main():
                     break
 
                 if command == "clear":
-                    print("\033[2J\033[H", end="", flush=True)
+                    print(
+                        "\033[2J\033[H",
+                        end="",
+                        flush=True,
+                    )
                     continue
 
                 try:
                     send_command(ser, command)
+
                 except serial.SerialException as error:
                     print(f"[Serial error] {error}")
                     break
@@ -246,7 +277,12 @@ def main():
 
         try:
             ser.cancel_read()
-        except (AttributeError, OSError, serial.SerialException):
+
+        except (
+            AttributeError,
+            OSError,
+            serial.SerialException,
+        ):
             pass
 
         reader.join(timeout=1.0)
