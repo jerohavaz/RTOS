@@ -64,18 +64,22 @@ See the **[verification guide](verification/README.md)** for RTT capture, monito
 
 ## GitLab CI
 
-The root [`.gitlab-ci.yml`](.gitlab-ci.yml) defines:
+The root `.gitlab-ci.yml` defines:
 
 | Job | Check |
 | --- | --- |
-| `build_image`, `verification_image` | Rebuild and publish CI images when their inputs change, with manual fallbacks |
-| `format` | `clang-format --dry-run --Werror` |
-| `configure`, `build` | Configure and build the Debug preset; retain firmware artifacts for one week |
-| `cppcheck` | Warning, style, performance, and portability analysis |
-| `verification` | Run all verification fixtures with compiled Rust monitors when verification files change |
-| `pages` | Publish Doxygen HTML from the default branch |
+| `build_image`, `verification_image` | Rebuild and publish the STM32 and verification CI images when relevant files change; manual fallback |
+| `format` | Run `clang-format --dry-run --Werror` on all C and header files in `App`, `Config`, `Core`, `Port`, and `RTOS` |
+| `build` | Build all project variants (`queue`, `scheduler`, `delay`, `semaphore`, `mutex`) with tracing enabled, plus `queue-no-trace` |
+| `cppcheck` | Run warning, style, performance, and portability analysis on the queue configuration  |
+| `verification` | Run all TeSSLa verification fixtures with the Rust monitor backend when verification-related files change |
+| `pages` | Generate and publish the Doxygen HTML documentation from the default branch |
 
-Merge-request-event pipelines are disabled by the current workflow rule. The verification job is change-gated, and Pages runs only on the default branch.
+Merge-request-event pipelines are disabled by the current workflow rules.
+
+The firmware build job uses a parallel matrix to compile all five project-specific integration-test configurations. An additional `queue-no-trace` build verifies that the firmware also compiles with tracing disabled.
+
+The verification job is change-gated to modifications under `verification/` or `.gitlab-ci.yml`. GitLab Pages runs only on the default branch.
 
 ## Layout
 
