@@ -210,10 +210,6 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
     trace_tessla_emit(
         "STATE %u %u %u", (unsigned int)task_id, (unsigned int)old_state, (unsigned int)new_state);
-#else
-    (void)task_id;
-    (void)old_state;
-    (void)new_state;
 #endif
 }
 
@@ -281,8 +277,6 @@ void trace_idle(void) {
 void trace_tick(uint32_t dt) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     trace_tessla_emit("TICK %lu", (unsigned long)dt);
-#else
-    (void)dt;
 #endif
 }
 

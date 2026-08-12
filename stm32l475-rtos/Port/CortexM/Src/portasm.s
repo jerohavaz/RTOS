@@ -2,6 +2,11 @@
 .cpu cortex-m4
 .thumb
 
+/*
+ * Author: Jerome
+ * API/interface documentation: see portasm.h
+ */
+
 .extern k_sched_start_first_context
 .extern k_sched_switch_context
 
