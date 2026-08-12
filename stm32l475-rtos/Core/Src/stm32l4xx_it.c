@@ -144,6 +144,7 @@ void DebugMon_Handler(void) {
 
 /**
  * @brief This function handles System tick timer.
+ * @author Jerome
  */
 void SysTick_Handler(void) {
     /* USER CODE BEGIN SysTick_IRQn 0 */

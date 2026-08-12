@@ -14,7 +14,7 @@
 void k_idle_create(void) {
     kernel_task_t *idle;
 
-    os_status_t status = k_task_create_internal(k_idle_task, OS_TASK_PRIORITY_LOWEST, &idle);
+    os_status_t status = k_task_create_internal(k_idle_task, OS_TASK_PRIORITY_LOWEST, true, &idle);
 
     KERNEL_REQUIRE(status == OS_OK);
     KERNEL_REQUIRE(idle != 0);

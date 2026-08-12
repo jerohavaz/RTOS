@@ -8,6 +8,7 @@
 #include "kernel_panic.h"
 #include "os_config.h"
 #include "k_task.h"
+#include "k_trace.h"
 #include "os_task.h"
 #include "os_types.h"
 #include "port.h"
@@ -82,6 +83,7 @@ void k_task_init(void) {
 
 os_status_t k_task_create_internal(os_task_func_t task_func,
                                    uint8_t prio,
+                                   bool is_idle,
                                    kernel_task_t **out_task) {
     if (out_task == 0) {
         return OS_ERR_NULL;
@@ -135,7 +137,9 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
 
     g_task_count++;
 
-    trace_task_create(tcb);
+    trace_task_info_t trace_info =
+        k_trace_task_info(task, is_idle ? TRACE_TASK_KIND_IDLE : TRACE_TASK_KIND_NORMAL);
+    trace_task_register(&trace_info);
 
     *out_task = task;
 
@@ -145,7 +149,7 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
 os_status_t os_task_create(os_task_func_t task_func, uint8_t prio) {
     kernel_task_t *task = 0;
 
-    return k_task_create_internal(task_func, prio, &task);
+    return k_task_create_internal(task_func, prio, false, &task);
 }
 
 kernel_task_t *k_task_get(uint32_t index) {

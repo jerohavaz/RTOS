@@ -1,30 +1,103 @@
 /**
  * @file trace.h
- * @brief Internal kernel trace-event interface.
+ * @brief Backend-independent kernel trace-event interface.
  * @author Jerome
  *
  * @details
- * Decouples kernel instrumentation sites from the configured trace backends.
- * When @c OS_TRACE_ENABLED is true, calls are implemented by @c trace.c and
- * routed according to the backend and category switches in @c os_config.h.
- * The current implementation supports SEGGER SystemView and a
- * Tessla-compatible text stream over SEGGER RTT.
+ * This interface is the only trace API used by the RTOS kernel. It deliberately
+ * does not include or expose the task-control block, scheduler internals, or
+ * synchronization-object implementation types. Kernel code translates its
+ * internal task representation into the small value types declared here before
+ * emitting an event.
  *
- * When tracing is disabled, this header supplies type-safe inline no-op
- * functions. Kernel call sites therefore require no conditional compilation
- * and generate no external trace dependency.
+ * The trace implementation can route events to SEGGER SystemView and/or to the
+ * TeSSLa-compatible text stream over SEGGER RTT. SystemView task metadata is
+ * cached inside the trace subsystem when a task is registered. This allows the
+ * SystemView OS callback to resend the complete task list when recording starts
+ * later, without querying the kernel and without introducing a Trace -> Kernel
+ * dependency.
  *
- * @warning Trace functions may execute from scheduler critical sections and
- *          interrupt context. Enabled backends must be safe in those contexts
- *          and must not call blocking RTOS services.
+ * Normal tasks are registered with SystemView as tasks. The idle task is kept
+ * in the trace registry for TeSSLa task/state verification but is intentionally
+ * not registered as a normal SystemView task; idle execution is represented by
+ * SEGGER_SYSVIEW_OnIdle().
+ *
+ * When @c OS_TRACE_ENABLED is false, this header provides type-compatible
+ * inline no-op functions. Kernel call sites therefore need no conditional
+ * compilation and no trace backend is referenced by the kernel.
+ *
+ * @warning Trace functions can be called from critical sections and interrupt
+ *          context. Enabled backends must therefore remain non-blocking and
+ *          must never call RTOS services that can block or schedule.
  */
 
 #pragma once
 
 #include "os_config.h"
-#include "tcb.h"
 
 #include <stdint.h>
+
+/** @brief Reserved task ID used when no task is associated with an event. */
+#define TRACE_TASK_ID_NONE UINT8_MAX
+
+/**
+ * @brief Classification of a registered RTOS task.
+ */
+typedef enum {
+    TRACE_TASK_KIND_NORMAL = 0, /**< Normal schedulable application task. */
+    TRACE_TASK_KIND_IDLE        /**< Kernel idle task; represented by OnIdle() in SystemView. */
+} trace_task_kind_t;
+
+/**
+ * @brief Minimal task identity used by ordinary trace events.
+ *
+ * This value contains only information that is meaningful to trace consumers.
+ * It intentionally contains no pointer to a TCB or other kernel-owned object.
+ */
+typedef struct {
+    uint8_t id;       /**< Stable RTOS task ID, or @ref TRACE_TASK_ID_NONE. */
+    uint8_t priority; /**< RTOS scheduling priority; ignored when @ref id is NONE. */
+} trace_task_ref_t;
+
+/**
+ * @brief Task metadata cached by the trace subsystem at creation time.
+ *
+ * @details
+ * @ref runtime_id is an opaque, stable runtime identity. On this Cortex-M
+ * implementation the kernel supplies the TCB address so SystemView can use a
+ * RAM-based task identifier compatible with @c SEGGER_SYSVIEW_SetRAMBase().
+ * The trace subsystem stores the numeric task ID separately and all later
+ * kernel events refer to the task only by @ref trace_task_ref_t.
+ */
+typedef struct {
+    trace_task_ref_t task;  /**< Numeric RTOS identity and priority. */
+    uintptr_t runtime_id;   /**< Opaque stable runtime identity used by trace backends. */
+    uintptr_t stack_base;   /**< Lowest address of the task's stack allocation. */
+    uint32_t stack_size;    /**< Stack allocation size in bytes. */
+    trace_task_kind_t kind; /**< Normal or idle task classification. */
+} trace_task_info_t;
+
+/**
+ * @brief Construct a normal trace task reference.
+ *
+ * @param id Stable RTOS task ID.
+ * @param priority Current fixed RTOS task priority.
+ * @return Initialized trace task reference.
+ */
+static inline trace_task_ref_t trace_task_ref(uint8_t id, uint8_t priority) {
+    trace_task_ref_t ref = { .id = id, .priority = priority };
+    return ref;
+}
+
+/**
+ * @brief Construct the sentinel reference used when no task is associated.
+ *
+ * @return Task reference with @ref TRACE_TASK_ID_NONE.
+ */
+static inline trace_task_ref_t trace_task_ref_none(void) {
+    trace_task_ref_t ref = { .id = TRACE_TASK_ID_NONE, .priority = 0u };
+    return ref;
+}
 
 #if OS_TRACE_ENABLED
 
@@ -43,16 +116,20 @@ void trace_init(void);
  * -------------------------------------------------------------------------- */
 
 /**
- * @brief Record creation of a task.
+ * @brief Register a newly created task and cache its metadata.
  *
- * @param task Initialized task control block containing a valid ID and
- *             priority.
+ * @param info Complete trace metadata for the new task.
  *
- * @pre @p task must not be null.
+ * @pre @p info must describe a unique valid RTOS task ID.
+ * @pre @ref trace_init must have been called first.
  *
- * @note Emitted only when @c OS_TRACE_TASKS is enabled.
+ * @note Normal tasks are announced to SystemView immediately and can later be
+ *       replayed by its task-list callback. Idle is cached but not registered
+ *       as a normal SystemView task.
+ * @note TeSSLa receives @c TASK_CREATE for both normal and idle tasks so its
+ *       task-state model remains complete.
  */
-void trace_task_create(TCB_sctTCB_t *task);
+void trace_task_register(const trace_task_info_t *info);
 
 /**
  * @brief Record a task-state transition.
@@ -73,22 +150,20 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state);
 /**
  * @brief Record that a task entered the ready state.
  *
- * @param task Task control block entering the ready state.
+ * @param task Trace reference of the task entering the ready state.
  *
- * @pre @p task must not be null.
  * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
  */
-void trace_task_ready(TCB_sctTCB_t *task);
+void trace_task_ready(trace_task_ref_t task);
 
 /**
  * @brief Record that the scheduler started executing a task.
  *
- * @param task Task control block entering the running state.
+ * @param task Trace reference of the task entering the running state.
  *
- * @pre @p task must not be null.
  * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
  */
-void trace_task_run(TCB_sctTCB_t *task);
+void trace_task_run(trace_task_ref_t task);
 
 /**
  * @brief Record that execution of the current task stopped.
@@ -100,12 +175,11 @@ void trace_task_stop_run(void);
 /**
  * @brief Record that a task entered the blocked state.
  *
- * @param task Task control block entering the blocked state.
+ * @param task Trace reference of the task entering the blocked state.
  *
- * @pre @p task must not be null.
  * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
  */
-void trace_task_block(TCB_sctTCB_t *task);
+void trace_task_block(trace_task_ref_t task);
 
 /**
  * @brief Record that the scheduler selected the idle task.
@@ -165,20 +239,19 @@ void trace_isr_exit_to_scheduler(void);
  * @p delay_ticks ticks. The task remains runnable during this interval; the
  * event does not represent a scheduler block or yield.
  *
- * @param task Task beginning the busy wait.
+ * @param task Trace reference of the task beginning the busy wait.
  * @param delay_ticks Requested busy-wait duration in kernel ticks.
  *
- * @pre @p task must not be null.
  * @pre @p delay_ticks must satisfy the validation performed by
  *      @c os_delay_busy().
  *
  * @note Emits @c DELAY_BUSY_START with the task ID and requested tick count.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
  * @note Pair this event with one later call to
  *       @c trace_task_delay_busy_end() for the same task.
  */
-void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
+void trace_task_delay_busy_start(trace_task_ref_t task, uint32_t delay_ticks);
 
 /**
  * @brief Record completion of a busy-wait delay.
@@ -186,17 +259,16 @@ void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
  * Marks the point at which @p task has observed the requested busy-wait
  * interval elapse and is about to return from @c os_delay_busy().
  *
- * @param task Task completing the busy wait.
+ * @param task Trace reference of the task completing the busy wait.
  *
- * @pre @p task must not be null.
  * @pre A matching @c trace_task_delay_busy_start() event must already have
  *      been emitted for @p task.
  *
  * @note Emits @c DELAY_BUSY_END with the task ID.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
  */
-void trace_task_delay_busy_end(TCB_sctTCB_t *task);
+void trace_task_delay_busy_end(trace_task_ref_t task);
 
 /**
  * @brief Record the start of a scheduler-based blocking delay.
@@ -205,21 +277,20 @@ void trace_task_delay_busy_end(TCB_sctTCB_t *task);
  * calling task is blocked for @p delay_ticks ticks. This event brackets the
  * scheduler wait; it is distinct from the CPU-consuming busy-delay events.
  *
- * @param task Task entering the delay wait.
+ * @param task Trace reference of the task entering the delay wait.
  * @param delay_ticks Requested blocking duration in kernel ticks.
  *
- * @pre @p task must not be null.
  * @pre @p delay_ticks must be nonzero and must satisfy the finite-timeout
  *      validation performed by @c os_delay().
  *
  * @note Emits @c DELAY_START with the task ID and requested tick count.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
  * @note A zero-tick @c os_delay(0) is a yield and must not emit this event.
  * @note Pair this event with one later call to @c trace_task_delay_end() for
  *       the same task after its delay expires.
  */
-void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
+void trace_task_delay_start(trace_task_ref_t task, uint32_t delay_ticks);
 
 /**
  * @brief Record completion of a scheduler-based blocking delay.
@@ -228,17 +299,16 @@ void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks);
  * expired. It must not be emitted for a rejected delay request or a zero-tick
  * yield.
  *
- * @param task Task whose blocking delay completed.
+ * @param task Trace reference of the task whose blocking delay completed.
  *
- * @pre @p task must not be null.
  * @pre A matching @c trace_task_delay_start() event must already have been
  *      emitted for @p task.
  *
  * @note Emits @c DELAY_END with the task ID.
- * @note Emitted only through the RTT text backend when
- *       @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_DELAY are enabled.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
  */
-void trace_task_delay_end(TCB_sctTCB_t *task);
+void trace_task_delay_end(trace_task_ref_t task);
 
 /* --------------------------------------------------------------------------
  * Counting-semaphore events
@@ -260,17 +330,18 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
  * @brief Record the start of an acquire operation.
  *
  * @param semaphore Stable address of the semaphore object.
- * @param task Task attempting the acquire, or null when no task owns the
+ * @param task Trace reference of the task attempting the acquire, or
+ *             @ref trace_task_ref_none when no task is associated with the
  *             operation (for example, exception context or pre-scheduler use).
  * @param count Number of available tokens observed before the attempt.
  * @param timeout_ticks Requested timeout in kernel ticks.
  * @param finite_timeout Nonzero if @p timeout_ticks is a finite deadline;
  *                       zero for a non-timed/block-forever operation.
  *
- * @note A null @p task is encoded as task ID @c UINT8_MAX in the RTT event.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX in the RTT event.
  */
 void trace_sem_acquire_enter(const void *semaphore,
-                             TCB_sctTCB_t *task,
+                             trace_task_ref_t task,
                              uint32_t count,
                              uint32_t timeout_ticks,
                              uint8_t finite_timeout);
@@ -279,18 +350,18 @@ void trace_sem_acquire_enter(const void *semaphore,
  * @brief Record completion of an acquire operation.
  *
  * @param semaphore Stable address of the semaphore object.
- * @param task Task completing the acquire, or null when no task owns the
- *             operation.
+ * @param task Trace reference of the task completing the acquire, or
+ *             @ref trace_task_ref_none when no task is associated with the operation.
  * @param count Number of available tokens after completion.
  * @param succeeded Nonzero only when one token was acquired.
  *
  * Emit this event on every normal return, including non-blocking failure and
  * timeout. A blocked acquire that is later released emits it only after the
  * task resumes and the acquire actually completes.
- * A null @p task is encoded as task ID @c UINT8_MAX in the RTT event.
+ * @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX in the RTT event.
  */
 void trace_sem_acquire_exit(const void *semaphore,
-                            TCB_sctTCB_t *task,
+                            trace_task_ref_t task,
                             uint32_t count,
                             uint8_t succeeded);
 
@@ -298,14 +369,14 @@ void trace_sem_acquire_exit(const void *semaphore,
  * @brief Record that an acquire operation queued and blocked its task.
  */
 void trace_sem_block(const void *semaphore,
-                     TCB_sctTCB_t *task,
+                     trace_task_ref_t task,
                      uint32_t timeout_ticks,
                      uint8_t finite_timeout);
 
 /**
  * @brief Record expiry of a finite semaphore-acquire timeout.
  */
-void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count);
+void trace_sem_timeout(const void *semaphore, trace_task_ref_t task, uint32_t count);
 
 /**
  * @brief Record the result of a release operation.
@@ -328,10 +399,10 @@ void trace_sem_release(const void *semaphore,
 /**
  * @brief Record that release selected a waiting task for wakeup.
  *
- * The task priority is taken from the TCB so the verifier can check that the
+ * The task priority is taken from the trace reference so the verifier can check that the
  * highest-priority waiter was selected. Trace sequence order breaks ties.
  */
-void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task);
+void trace_sem_wake(const void *semaphore, trace_task_ref_t task);
 
 /* --------------------------------------------------------------------------
  * Mutex events
@@ -351,19 +422,19 @@ void trace_mutex_create(const void *mutex);
  * @brief Record the start of a mutex-lock operation.
  *
  * @param mutex Stable address of the mutex object.
- * @param task Task attempting to lock the mutex.
- * @param owner Current mutex owner, or null if the mutex is unlocked.
+ * @param task Trace reference of the task attempting to lock the mutex.
+ * @param owner Current mutex owner, or @ref trace_task_ref_none if the mutex is unlocked.
  * @param timeout_ticks Requested timeout in kernel ticks.
  * @param finite_timeout Nonzero if @p timeout_ticks represents a finite
  *        deadline; zero for a non-timed or wait-forever operation.
  *
  * @pre @p mutex must not be null.
- * @note A null task or owner is encoded as task ID @c UINT8_MAX.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_lock_enter(const void *mutex,
-                            TCB_sctTCB_t *task,
-                            TCB_sctTCB_t *owner,
+                            trace_task_ref_t task,
+                            trace_task_ref_t owner,
                             uint32_t timeout_ticks,
                             uint8_t finite_timeout);
 
@@ -371,39 +442,37 @@ void trace_mutex_lock_enter(const void *mutex,
  * @brief Record completion of a mutex-lock operation.
  *
  * @param mutex Stable address of the mutex object.
- * @param task Task that attempted to lock the mutex.
- * @param owner Mutex owner after the operation, or null if it is unlocked.
+ * @param task Trace reference of the task that attempted to lock the mutex.
+ * @param owner Mutex owner after the operation, or @ref trace_task_ref_none if it is unlocked.
  * @param succeeded Nonzero if ownership was acquired; zero otherwise.
  *
  * @pre @p mutex must not be null.
- * @note A null task or owner is encoded as task ID @c UINT8_MAX.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX.
  * @note A blocked operation emits this event after the task resumes.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_lock_exit(const void *mutex,
-                           TCB_sctTCB_t *task,
-                           TCB_sctTCB_t *owner,
+                           trace_task_ref_t task,
+                           trace_task_ref_t owner,
                            uint8_t succeeded);
 
 /**
  * @brief Record that a mutex-lock operation queued and blocked its task.
  *
  * @param mutex Stable address of the mutex object.
- * @param task Task added to the mutex wait queue.
- * @param owner Task owning the mutex when the caller was blocked.
+ * @param task Trace reference of the task added to the mutex wait queue.
+ * @param owner Trace reference of the task owning the mutex when the caller was blocked.
  * @param timeout_ticks Requested timeout in kernel ticks.
  * @param finite_timeout Nonzero if @p timeout_ticks represents a finite
  *        deadline; zero for a wait-forever operation.
  *
  * @pre @p mutex must not be null.
- * @pre @p task must not be null.
- * @pre @p owner must not be null.
- * @note The task priority is obtained from @p task.
+ * @note The task priority is carried by @p task.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_block(const void *mutex,
-                       TCB_sctTCB_t *task,
-                       TCB_sctTCB_t *owner,
+                       trace_task_ref_t task,
+                       trace_task_ref_t owner,
                        uint32_t timeout_ticks,
                        uint8_t finite_timeout);
 
@@ -411,53 +480,51 @@ void trace_mutex_block(const void *mutex,
  * @brief Record expiry of a finite mutex-lock timeout.
  *
  * @param mutex Stable address of the mutex object.
- * @param task Task whose lock operation timed out.
- * @param owner Current mutex owner, or null if the mutex is unlocked.
+ * @param task Trace reference of the task whose lock operation timed out.
+ * @param owner Current mutex owner, or @ref trace_task_ref_none if the mutex is unlocked.
  *
  * @pre @p mutex must not be null.
- * @pre @p task must not be null.
- * @note A null owner is encoded as task ID @c UINT8_MAX.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
-void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner);
+void trace_mutex_timeout(const void *mutex, trace_task_ref_t task, trace_task_ref_t owner);
 
 /**
  * @brief Record the result of a mutex-unlock operation.
  *
  * @param mutex Stable address of the mutex object.
- * @param task Task attempting to unlock the mutex.
- * @param owner_before Mutex owner before the operation, or null if unowned.
- * @param owner_after Mutex owner after the operation, or null if unowned.
+ * @param task Trace reference of the task attempting to unlock the mutex.
+ * @param owner_before Mutex owner before the operation, or @ref trace_task_ref_none if unowned.
+ * @param owner_after Mutex owner after the operation, or @ref trace_task_ref_none if unowned.
  * @param succeeded Nonzero if the unlock or ownership handoff succeeded;
  *        zero if the operation was rejected.
  *
  * @pre @p mutex must not be null.
- * @note Null task or owner values are encoded as task ID @c UINT8_MAX.
+ * @note @ref trace_task_ref_none values are encoded as task ID @c UINT8_MAX.
  * @note During direct handoff, @p owner_after identifies the selected waiter.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_unlock(const void *mutex,
-                        TCB_sctTCB_t *task,
-                        TCB_sctTCB_t *owner_before,
-                        TCB_sctTCB_t *owner_after,
+                        trace_task_ref_t task,
+                        trace_task_ref_t owner_before,
+                        trace_task_ref_t owner_after,
                         uint8_t succeeded);
 
 /**
  * @brief Record the waiter selected for direct mutex ownership handoff.
  *
  * @param mutex Stable address of the mutex object.
- * @param task Waiting task selected as the new mutex owner.
+ * @param task Trace reference of the waiting task selected as the new mutex owner.
  *
  * @pre @p mutex must not be null.
- * @pre @p task must not be null.
- * @note The task priority is obtained from @p task so the verifier can check
+ * @note The task priority is carried by @p task so the verifier can check
  *       priority ordering. Trace order is used to resolve FIFO ties.
  * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
-void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task);
+void trace_mutex_wake(const void *mutex, trace_task_ref_t task);
 
 /* --------------------------------------------------------------------------
- * Message queue events
+ * Message-queue events
  * -------------------------------------------------------------------------- */
 
 /**
@@ -469,8 +536,8 @@ void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task);
  * The identifier and capacity must match the queue configuration used to
  * generate the TeSSLa monitor.
  *
- * @note Emitted only when both @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_QUEUE
- *       are enabled.
+ * @note Emitted when @c OS_TRACE_QUEUE is enabled and routed to each
+ *       configured backend that supports this event.
  */
 void trace_queue_create(uint32_t queue_id, uint32_t capacity);
 
@@ -488,8 +555,8 @@ void trace_queue_create(uint32_t queue_id, uint32_t capacity);
  * Emit before determining whether the message is buffered, handed directly to
  * a receiver, rejected, or must block.
  *
- * @note Emitted only when both @c OS_TRACE_TESSLA_RTT and @c OS_TRACE_QUEUE
- *       are enabled.
+ * @note Emitted when @c OS_TRACE_QUEUE is enabled and routed to each
+ *       configured backend that supports this event.
  */
 void trace_queue_send_attempt(uint32_t queue_id,
                               uint8_t task_id,
@@ -651,32 +718,29 @@ void trace_queue_fill(uint32_t queue_id, uint32_t fill);
  */
 void trace_log(const char *text);
 
-#else
+#else /* OS_TRACE_ENABLED */
 
 static inline void trace_init(void) {}
 
 /* --------------------------------------------------------------------------
  * Task events
  * -------------------------------------------------------------------------- */
-
-static inline void trace_task_create(TCB_sctTCB_t *task) {}
+static inline void trace_task_register(const trace_task_info_t *info) {}
 static inline void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {}
 
 /* --------------------------------------------------------------------------
  * Scheduler events
  * -------------------------------------------------------------------------- */
-
-static inline void trace_task_ready(TCB_sctTCB_t *task) {}
-static inline void trace_task_run(TCB_sctTCB_t *task) {}
+static inline void trace_task_ready(trace_task_ref_t task) {}
+static inline void trace_task_run(trace_task_ref_t task) {}
 static inline void trace_task_stop_run(void) {}
-static inline void trace_task_block(TCB_sctTCB_t *task) {}
+static inline void trace_task_block(trace_task_ref_t task) {}
 static inline void trace_idle(void) {}
 static inline void trace_tick(uint32_t dt) {}
 
 /* --------------------------------------------------------------------------
  * ISR events
  * -------------------------------------------------------------------------- */
-
 static inline void trace_isr_enter(void) {}
 static inline void trace_isr_exit(void) {}
 static inline void trace_isr_exit_to_scheduler(void) {}
@@ -684,10 +748,13 @@ static inline void trace_isr_exit_to_scheduler(void) {}
 /* --------------------------------------------------------------------------
  * Delay events
  * -------------------------------------------------------------------------- */
-static inline void trace_task_delay_busy_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
-static inline void trace_task_delay_busy_end(TCB_sctTCB_t *task) {}
-static inline void trace_task_delay_start(TCB_sctTCB_t *task, uint32_t delay_ticks) {}
-static inline void trace_task_delay_end(TCB_sctTCB_t *task) {}
+static inline void trace_task_delay_busy_start(trace_task_ref_t task, uint32_t delay_ticks) {}
+
+static inline void trace_task_delay_busy_end(trace_task_ref_t task) {}
+
+static inline void trace_task_delay_start(trace_task_ref_t task, uint32_t delay_ticks) {}
+
+static inline void trace_task_delay_end(trace_task_ref_t task) {}
 
 /* --------------------------------------------------------------------------
  * Counting-semaphore events
@@ -695,53 +762,67 @@ static inline void trace_task_delay_end(TCB_sctTCB_t *task) {}
 static inline void trace_sem_create(const void *semaphore,
                                     uint32_t initial_count,
                                     uint32_t max_count) {}
+
 static inline void trace_sem_acquire_enter(const void *semaphore,
-                                           TCB_sctTCB_t *task,
+                                           trace_task_ref_t task,
                                            uint32_t count,
                                            uint32_t timeout_ticks,
                                            uint8_t finite_timeout) {}
+
 static inline void trace_sem_acquire_exit(const void *semaphore,
-                                          TCB_sctTCB_t *task,
+                                          trace_task_ref_t task,
                                           uint32_t count,
                                           uint8_t succeeded) {}
+
 static inline void trace_sem_block(const void *semaphore,
-                                   TCB_sctTCB_t *task,
+                                   trace_task_ref_t task,
                                    uint32_t timeout_ticks,
                                    uint8_t finite_timeout) {}
-static inline void trace_sem_timeout(const void *semaphore, TCB_sctTCB_t *task, uint32_t count) {}
+
+static inline void trace_sem_timeout(const void *semaphore, trace_task_ref_t task, uint32_t count) {
+}
+
 static inline void trace_sem_release(const void *semaphore,
                                      uint32_t count_before,
                                      uint32_t count_after,
                                      uint32_t max_count,
                                      uint8_t succeeded) {}
-static inline void trace_sem_wake(const void *semaphore, TCB_sctTCB_t *task) {}
+
+static inline void trace_sem_wake(const void *semaphore, trace_task_ref_t task) {}
 
 /* --------------------------------------------------------------------------
  * Mutex events
  * -------------------------------------------------------------------------- */
 static inline void trace_mutex_create(const void *mutex) {}
+
 static inline void trace_mutex_lock_enter(const void *mutex,
-                                          TCB_sctTCB_t *task,
-                                          TCB_sctTCB_t *owner,
+                                          trace_task_ref_t task,
+                                          trace_task_ref_t owner,
                                           uint32_t timeout_ticks,
                                           uint8_t finite_timeout) {}
+
 static inline void trace_mutex_lock_exit(const void *mutex,
-                                         TCB_sctTCB_t *task,
-                                         TCB_sctTCB_t *owner,
+                                         trace_task_ref_t task,
+                                         trace_task_ref_t owner,
                                          uint8_t succeeded) {}
+
 static inline void trace_mutex_block(const void *mutex,
-                                     TCB_sctTCB_t *task,
-                                     TCB_sctTCB_t *owner,
+                                     trace_task_ref_t task,
+                                     trace_task_ref_t owner,
                                      uint32_t timeout_ticks,
                                      uint8_t finite_timeout) {}
-static inline void trace_mutex_timeout(const void *mutex, TCB_sctTCB_t *task, TCB_sctTCB_t *owner) {
-}
+
+static inline void trace_mutex_timeout(const void *mutex,
+                                       trace_task_ref_t task,
+                                       trace_task_ref_t owner) {}
+
 static inline void trace_mutex_unlock(const void *mutex,
-                                      TCB_sctTCB_t *task,
-                                      TCB_sctTCB_t *owner_before,
-                                      TCB_sctTCB_t *owner_after,
+                                      trace_task_ref_t task,
+                                      trace_task_ref_t owner_before,
+                                      trace_task_ref_t owner_after,
                                       uint8_t succeeded) {}
-static inline void trace_mutex_wake(const void *mutex, TCB_sctTCB_t *task) {}
+
+static inline void trace_mutex_wake(const void *mutex, trace_task_ref_t task) {}
 
 /* --------------------------------------------------------------------------
  * Message queue events
@@ -793,7 +874,6 @@ static inline void trace_queue_fill(uint32_t queue_id, uint32_t fill) {}
 /* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
-
 static inline void trace_log(const char *text) {}
 
 #endif /* OS_TRACE_ENABLED */

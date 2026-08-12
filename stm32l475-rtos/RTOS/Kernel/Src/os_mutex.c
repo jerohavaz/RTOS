@@ -8,6 +8,7 @@
 #include "k_mutex.h"
 #include "k_sched.h"
 #include "k_timeout.h"
+#include "k_trace.h"
 #include "kernel_panic.h"
 #include "os_types.h"
 #include "port.h"
@@ -65,15 +66,15 @@ os_status_t os_mutex_lock(os_mutex_t *mutex, uint32_t timeout_ticks) {
     uint8_t finite_timeout = (uint8_t)(timeout_ticks != OS_WAIT_FOREVER);
 
     trace_mutex_lock_enter(mutex,
-                           &current->tcb,
-                           (mutex->owner != 0) ? &mutex->owner->tcb : 0,
+                           k_trace_task_ref(current),
+                           k_trace_task_ref(mutex->owner),
                            timeout_ticks,
                            finite_timeout);
 
     if (mutex->owner == 0) {
         mutex->owner = current;
 
-        trace_mutex_lock_exit(mutex, &current->tcb, &current->tcb, 1u);
+        trace_mutex_lock_exit(mutex, k_trace_task_ref(current), k_trace_task_ref(current), 1u);
 
         port_exit_critical(key);
         return OS_OK;
@@ -84,13 +85,13 @@ os_status_t os_mutex_lock(os_mutex_t *mutex, uint32_t timeout_ticks) {
      * owner may not lock the same mutex again.
      */
     if (mutex->owner == current) {
-        trace_mutex_lock_exit(mutex, &current->tcb, &current->tcb, 0u);
+        trace_mutex_lock_exit(mutex, k_trace_task_ref(current), k_trace_task_ref(current), 0u);
         port_exit_critical(key);
         return OS_ERR_INVALID_STATE;
     }
 
     if (timeout_ticks == OS_NO_WAIT) {
-        trace_mutex_lock_exit(mutex, &current->tcb, &mutex->owner->tcb, 0u);
+        trace_mutex_lock_exit(mutex, k_trace_task_ref(current), k_trace_task_ref(mutex->owner), 0u);
         port_exit_critical(key);
         return OS_ERR_WOULD_BLOCK;
     }
@@ -105,7 +106,11 @@ os_status_t os_mutex_lock(os_mutex_t *mutex, uint32_t timeout_ticks) {
         k_timeout_add(current, timeout_ticks);
     }
 
-    trace_mutex_block(mutex, &current->tcb, &mutex->owner->tcb, timeout_ticks, finite_timeout);
+    trace_mutex_block(mutex,
+                      k_trace_task_ref(current),
+                      k_trace_task_ref(mutex->owner),
+                      timeout_ticks,
+                      finite_timeout);
     k_sched_task_block(current);
 
     port_exit_critical(key);
@@ -115,8 +120,8 @@ os_status_t os_mutex_lock(os_mutex_t *mutex, uint32_t timeout_ticks) {
     key = port_enter_critical();
     os_status_t result = current->wait_result;
     trace_mutex_lock_exit(mutex,
-                          &current->tcb,
-                          (mutex->owner != 0) ? &mutex->owner->tcb : 0,
+                          k_trace_task_ref(current),
+                          k_trace_task_ref(mutex->owner),
                           (uint8_t)(result == OS_OK));
     port_exit_critical(key);
 
@@ -142,11 +147,11 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
     }
 
     uint32_t key = port_enter_critical();
-    TCB_sctTCB_t *current_tcb = &current->tcb;
-    TCB_sctTCB_t *owner_before = (mutex->owner != 0) ? &mutex->owner->tcb : 0;
+    trace_task_ref_t current_trace = k_trace_task_ref(current);
+    trace_task_ref_t owner_before = k_trace_task_ref(mutex->owner);
 
     if (mutex->owner != current) {
-        trace_mutex_unlock(mutex, current_tcb, owner_before, owner_before, 0u);
+        trace_mutex_unlock(mutex, current_trace, owner_before, owner_before, 0u);
         port_exit_critical(key);
         return OS_ERR_NOT_OWNER;
     }
@@ -156,7 +161,7 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
     if (next == 0) {
         mutex->owner = 0;
 
-        trace_mutex_unlock(mutex, current_tcb, owner_before, 0, 1u);
+        trace_mutex_unlock(mutex, current_trace, owner_before, trace_task_ref_none(), 1u);
 
         port_exit_critical(key);
         return OS_OK;
@@ -175,8 +180,8 @@ os_status_t os_mutex_unlock(os_mutex_t *mutex) {
     next->wait_object = 0;
     next->wait_result = OS_OK;
 
-    trace_mutex_unlock(mutex, current_tcb, owner_before, &next->tcb, 1u);
-    trace_mutex_wake(mutex, &next->tcb);
+    trace_mutex_unlock(mutex, current_trace, owner_before, k_trace_task_ref(next), 1u);
+    trace_mutex_wake(mutex, k_trace_task_ref(next));
     k_sched_task_ready(next);
 
     port_exit_critical(key);
@@ -194,7 +199,7 @@ void k_mutex_timeout_cleanup(os_mutex_t *mutex, kernel_task_t *task) {
 
     prio_waitq_remove(&mutex->wait_list, task);
 
-    trace_mutex_timeout(mutex, &task->tcb, (mutex->owner != 0) ? &mutex->owner->tcb : 0);
+    trace_mutex_timeout(mutex, k_trace_task_ref(task), k_trace_task_ref(mutex->owner));
 
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;

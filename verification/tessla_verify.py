@@ -1,4 +1,8 @@
-"""Generate, compile, and test the project's TeSSLa verification monitors."""
+"""Generate, combine, compile, and test the TeSSLa verification monitors.
+
+Author: Jerome
+Author: Martin
+"""
 
 import argparse
 import os
@@ -10,29 +14,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from scheduler.config import EXPECTED as SCHEDULER_EXPECTED
-from scheduler.config import GENERATOR_OPTIONS as SCHEDULER_OPTIONS
-from scheduler.generate_tessla import generate as generate_scheduler
+from scheduler_spec.config import EXPECTED as SCHEDULER_EXPECTED
+from scheduler_spec.config import GENERATOR_OPTIONS as SCHEDULER_OPTIONS
+from scheduler_spec.generate_tessla import generate as generate_scheduler
 
-from delay.config import EXPECTED as DELAY_EXPECTED
-from delay.config import GENERATOR_OPTIONS as DELAY_OPTIONS
-from delay.generate_tessla import generate as generate_delay
+from delay_spec.config import EXPECTED as DELAY_EXPECTED
+from delay_spec.config import GENERATOR_OPTIONS as DELAY_OPTIONS
+from delay_spec.generate_tessla import generate as generate_delay
 
-from integrity.config import EXPECTED as INTEGRITY_EXPECTED
-from integrity.config import GENERATOR_OPTIONS as INTEGRITY_OPTIONS
-from integrity.generate_tessla import generate as generate_integrity
+from integrity_spec.config import EXPECTED as INTEGRITY_EXPECTED
+from integrity_spec.config import GENERATOR_OPTIONS as INTEGRITY_OPTIONS
+from integrity_spec.generate_tessla import generate as generate_integrity
 
-from semaphore.config import EXPECTED as SEMAPHORE_EXPECTED
-from semaphore.config import GENERATOR_OPTIONS as SEMAPHORE_OPTIONS
-from semaphore.generate_tessla import generate as generate_semaphore
+from semaphore_spec.config import EXPECTED as SEMAPHORE_EXPECTED
+from semaphore_spec.config import GENERATOR_OPTIONS as SEMAPHORE_OPTIONS
+from semaphore_spec.generate_tessla import generate as generate_semaphore
 
-from mutex.config import EXPECTED as MUTEX_EXPECTED
-from mutex.config import GENERATOR_OPTIONS as MUTEX_OPTIONS
-from mutex.generate_tessla import generate as generate_mutex
+from mutex_spec.config import EXPECTED as MUTEX_EXPECTED
+from mutex_spec.config import GENERATOR_OPTIONS as MUTEX_OPTIONS
+from mutex_spec.generate_tessla import generate as generate_mutex
 
-from queue.config import EXPECTED as QUEUE_EXPECTED
-from queue.config import GENERATOR_OPTIONS as QUEUE_OPTIONS
-from queue.generate_tessla import generate as generate_queue
+from queue_spec.config import EXPECTED as QUEUE_EXPECTED
+from queue_spec.config import GENERATOR_OPTIONS as QUEUE_OPTIONS
+from queue_spec.generate_tessla import generate as generate_queue
 
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
@@ -48,6 +52,7 @@ OUTPUT_DECLARATION_PATTERN = re.compile(r"^out\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 
 @dataclass(frozen=True)
 class VerificationModule:
+    """Describe one verification module and its generator/test configuration."""
     name: str
     directory: Path
     generator: Callable[..., str]
@@ -58,42 +63,42 @@ class VerificationModule:
 MODULES = {
     "scheduler": VerificationModule(
         name="scheduler",
-        directory=ROOT_DIR / "scheduler",
+        directory=ROOT_DIR / "scheduler_spec",
         generator=generate_scheduler,
         generator_options=SCHEDULER_OPTIONS,
         expected=SCHEDULER_EXPECTED,
     ),
     "delay": VerificationModule(
         name="delay",
-        directory=ROOT_DIR / "delay",
+        directory=ROOT_DIR / "delay_spec",
         generator=generate_delay,
         generator_options=DELAY_OPTIONS,
         expected=DELAY_EXPECTED,
     ),
     "integrity": VerificationModule(
         name="integrity",
-        directory=ROOT_DIR / "integrity",
+        directory=ROOT_DIR / "integrity_spec",
         generator=generate_integrity,
         generator_options=INTEGRITY_OPTIONS,
         expected=INTEGRITY_EXPECTED,
     ),
     "semaphore": VerificationModule(
         name="semaphore",
-        directory=ROOT_DIR / "semaphore",
+        directory=ROOT_DIR / "semaphore_spec",
         generator=generate_semaphore,
         generator_options=SEMAPHORE_OPTIONS,
         expected=SEMAPHORE_EXPECTED,
     ),
     "mutex": VerificationModule(
         name="mutex",
-        directory=ROOT_DIR / "mutex",
+        directory=ROOT_DIR / "mutex_spec",
         generator=generate_mutex,
         generator_options=MUTEX_OPTIONS,
         expected=MUTEX_EXPECTED,
     ),
     "queue": VerificationModule(
         name="queue",
-        directory=ROOT_DIR / "queue",
+        directory=ROOT_DIR / "queue_spec",
         generator=generate_queue,
         generator_options=QUEUE_OPTIONS,
         expected=QUEUE_EXPECTED,
@@ -105,10 +110,6 @@ GENERATOR_ARGUMENTS = {
     "max_tasks": (
         "max_tasks",
         "--max-tasks",
-    ),
-    "quantum_ticks": (
-        "quantum",
-        "--quantum",
     ),
     "max_semaphores": (
         "max_semaphores",
@@ -212,9 +213,28 @@ def generate_specification(
     return output_path
 
 
+def normalize_blank_lines(text: str) -> str:
+    """Collapse every run of blank lines to one and ensure one final newline."""
+    lines: list[str] = []
+    previous_was_blank = False
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        is_blank = not line
+
+        if is_blank and previous_was_blank:
+            continue
+
+        lines.append(line)
+        previous_was_blank = is_blank
+
+    return "\n".join(lines).strip() + "\n"
+
+
 def combine_specifications(
     specifications: list[tuple[str, str]],
 ) -> str:
+    """Combine modules while deduplicating declarations and output streams."""
     inputs: dict[str, str] = {}
     definitions: dict[str, str] = {}
     outputs: set[str] = set()
@@ -277,7 +297,8 @@ def combine_specifications(
         "\n".join(output_lines),
     ]
 
-    return "\n\n".join(section for section in sections if section) + "\n"
+    combined = "\n\n".join(section for section in sections if section)
+    return normalize_blank_lines(combined)
 
 
 def write_combined_specification(
@@ -574,9 +595,6 @@ def command_generate(
 
     if args.max_tasks is not None:
         overrides["max_tasks"] = args.max_tasks
-
-    if args.quantum is not None:
-        overrides["quantum_ticks"] = args.quantum
 
     if args.max_semaphores is not None:
         overrides["max_semaphores"] = args.max_semaphores
@@ -936,12 +954,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
-        "--quantum",
-        type=int,
-        help=("Required when the scheduler module " "is selected."),
-    )
-
-    generate_parser.add_argument(
         "--max-semaphores",
         type=int,
         help=("Required when the semaphore module " "is selected."),
@@ -1039,10 +1051,6 @@ def main() -> int:
     if hasattr(args, "max_tasks"):
         if args.max_tasks is not None and args.max_tasks <= 0:
             parser.error("--max-tasks must be greater than 0")
-
-    if hasattr(args, "quantum"):
-        if args.quantum is not None and args.quantum <= 0:
-            parser.error("--quantum must be greater than 0")
 
     if hasattr(args, "max_semaphores"):
         if args.max_semaphores is not None and args.max_semaphores <= 0:

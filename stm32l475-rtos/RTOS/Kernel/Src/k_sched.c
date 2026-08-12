@@ -7,6 +7,7 @@
 #include "k_sched.h"
 #include "kernel_panic.h"
 #include "k_task.h"
+#include "k_trace.h"
 #include "kernel_task.h"
 #include "os_config.h"
 #include "port.h"
@@ -67,14 +68,14 @@ static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
             }
 
             prio_waitq_push(&g_ready_queue, task);
-            trace_task_ready(&task->tcb);
+            trace_task_ready(k_trace_task_ref(task));
             break;
 
         case TaskState_Blocked:
             KERNEL_REQUIRE(!k_sched_is_idle(task));
 
             task->tcb.eTaskState = TaskState_Blocked;
-            trace_task_block(&task->tcb);
+            trace_task_block(k_trace_task_ref(task));
             break;
 
         case TaskState_Running:
@@ -84,7 +85,7 @@ static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
             if (k_sched_is_idle(task)) {
                 trace_idle();
             } else {
-                trace_task_run(&task->tcb);
+                trace_task_run(k_trace_task_ref(task));
             }
             break;
 

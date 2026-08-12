@@ -24,13 +24,39 @@ target_include_directories(rtos_config INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/Config
 )
 
+# ---------------------------------------------------------------------------
+# CI/build-time configuration overrides
+# ---------------------------------------------------------------------------
+
+set(RTOS_PROJECT "" CACHE STRING
+    "Integration-test project selected at compile time")
+
+set(RTOS_TRACE_ENABLED "" CACHE STRING
+    "Override OS_TRACE_ENABLED (0 or 1)")
+
+if(NOT RTOS_PROJECT STREQUAL "")
+    target_compile_definitions(rtos_config INTERFACE
+        PROJECT=${RTOS_PROJECT}
+    )
+endif()
+
+if(NOT RTOS_TRACE_ENABLED STREQUAL "")
+    target_compile_definitions(rtos_config INTERFACE
+        OS_TRACE_ENABLED=${RTOS_TRACE_ENABLED}
+    )
+endif()
+
 add_subdirectory(cmake/stm32cubemx)
 add_subdirectory(Port/CortexM)
 add_subdirectory(RTOS)
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    App/Src/app_tasks.c
     App/Src/app.c
+    App/Src/integration_delay.c
+    App/Src/integration_mutex.c
+    App/Src/integration_queue.c
+    App/Src/integration_scheduler.c
+    App/Src/integration_semaphore.c
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

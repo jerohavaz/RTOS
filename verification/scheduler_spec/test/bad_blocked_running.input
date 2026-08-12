@@ -1,0 +1,16 @@
+0: state_id = 1
+0: state_old = 0
+0: state_new = 1
+
+1: state_id = 1
+1: state_old = 1
+1: state_new = 2
+
+2: state_id = 1
+2: state_old = 2
+2: state_new = 3
+
+3: blocked_id = 1
+
+4: running_id = 1
+4: running_prio = 1
