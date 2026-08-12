@@ -1,14 +1,20 @@
 /**
  * @file trace.c
- * @brief Configurable kernel trace-backend implementation.
+ * @brief Backend-independent RTOS trace implementation and task registry.
  * @author Jerome
+ *
+ * @details
+ * Owns the trace-side snapshot of task metadata and routes kernel events to
+ * SEGGER SystemView and the TeSSLa RTT stream. This module deliberately has no
+ * dependency on kernel task tables, scheduler objects, or tcb.h. SystemView's
+ * task-list callback replays the metadata previously supplied through
+ * trace_task_register().
  */
 
 #include "trace.h"
 
 #if OS_TRACE_ENABLED
 
-#include "kernel_panic.h"
 #include "port.h"
 
 #if OS_TRACE_SEGGER_SYSVIEW || OS_TRACE_TESSLA_RTT
@@ -119,55 +125,127 @@ static void trace_tessla_emit(const char *format, ...) {
 }
 #endif
 
-#if OS_TRACE_SEGGER_SYSVIEW && (OS_TRACE_TASKS || OS_TRACE_SCHEDULER)
-/**
- * @brief Convert an RTOS task ID to the SystemView task-ID type.
- *
- * @param task Task control block whose ID is required.
- *
- * @return Task ID converted to @c U32.
- *
- * @pre @p task must not be null.
- */
-static U32 sv_task_id(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
-    return (U32)(uintptr_t)task;
-}
-#endif
+#define TRACE_TASK_REGISTRY_CAPACITY (OS_MAX_TASKS + 1u)
 
-#if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_TASKS
+static trace_task_info_t g_trace_tasks[TRACE_TASK_REGISTRY_CAPACITY];
+static uint32_t g_trace_task_count;
+
 /**
- * @brief Send task metadata to SEGGER SystemView.
+ * @brief Find cached task metadata by numeric RTOS task ID.
  *
- * Reports the task's SystemView identifier, numeric task ID as its display
- * name, priority, and stack bounds. Stack usage is reported as unknown because
- * the kernel does not currently track the stack high-water mark.
+ * @param task_id Numeric task ID to look up.
  *
- * @param task Task control block whose metadata will be reported.
- *
- * @pre @p task must not be null.
- * @note SEGGER_SYSVIEW_SendTaskInfo() encodes the task name immediately, so the
- *       local name buffer does not need to persist after this function returns.
+ * @return Pointer to the cached metadata, or 0 when the task has not been
+ *         registered with the trace subsystem.
  */
-static void sv_send_task_info(const TCB_sctTCB_t *task) {
+static const trace_task_info_t *trace_task_lookup(uint8_t task_id) {
+    for (uint32_t i = 0u; i < g_trace_task_count; ++i) {
+        if (g_trace_tasks[i].task.id == task_id) {
+            return &g_trace_tasks[i];
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Check whether a task reference represents a real RTOS task.
+ *
+ * @param task Task reference to inspect.
+ * @retval 1 The reference contains a real task ID.
+ * @retval 0 The reference is the no-task sentinel.
+ */
+static inline uint8_t trace_task_ref_valid(trace_task_ref_t task) {
+    return (uint8_t)(task.id != TRACE_TASK_ID_NONE);
+}
+
+#if OS_TRACE_SEGGER_SYSVIEW
+
+/**
+ * @brief Send one cached normal task to SEGGER SystemView.
+ *
+ * @param task Cached task metadata to report.
+ *
+ * @pre @p task must not be 0.
+ * @pre @p task must describe a normal, not idle, task.
+ *
+ * @note SEGGER_SYSVIEW_SendTaskInfo() encodes the task name immediately, so
+ *       the local name buffer does not need to outlive this function.
+ */
+static void sv_send_task_info(const trace_task_info_t *task) {
+    if ((task == 0) || (task->kind != TRACE_TASK_KIND_NORMAL) || (task->runtime_id == 0u)) {
+        return;
+    }
+
     char name[4]; /* "255" plus '\0' */
 
-    snprintf(name, sizeof(name), "%u", (unsigned int)task->u8TaskId);
+    snprintf(name, sizeof(name), "%u", (unsigned int)task->task.id);
 
     const SEGGER_SYSVIEW_TASKINFO info = {
-        .TaskID = sv_task_id(task),
+        .TaskID = (U32)task->runtime_id,
         .sName = name,
-        .Prio = task->u8TaskPrio,
-        .StackBase = (U32)(uintptr_t)task->au32TaskStack,
-        .StackSize = (U32)sizeof(task->au32TaskStack),
+        .Prio = (U32)task->task.priority,
+        .StackBase = (U32)task->stack_base,
+        .StackSize = (U32)task->stack_size,
         .StackUsage = 0u,
     };
 
     SEGGER_SYSVIEW_SendTaskInfo(&info);
 }
+
+/**
+ * @brief Replay all currently registered normal tasks to SystemView.
+ *
+ * SystemView invokes this callback when a recording session requests the
+ * current task list. The information comes entirely from the trace-owned
+ * registry populated by trace_task_register(); no kernel task table is queried.
+ */
+static void sv_send_task_list(void) {
+    for (uint32_t i = 0u; i < g_trace_task_count; ++i) {
+        if (g_trace_tasks[i].kind == TRACE_TASK_KIND_NORMAL) {
+            sv_send_task_info(&g_trace_tasks[i]);
+        }
+    }
+}
+
+/**
+ * @brief SystemView OS integration used by SEGGER_SYSVIEW_Conf().
+ *
+ * A custom absolute-time callback is unnecessary because SystemView already
+ * timestamps events with the configured DWT cycle counter. The task-list
+ * callback is required so task metadata can be resent when recording starts
+ * after task creation.
+ */
+const SEGGER_SYSVIEW_OS_API g_trace_sysview_os_api = {
+    .pfGetTime = 0,
+    .pfSendTaskList = sv_send_task_list,
+};
+
+/**
+ * @brief Resolve a numeric RTOS task ID to the cached SystemView task ID.
+ *
+ * @param task_id Numeric RTOS task ID.
+ * @param[out] systemview_id Receives the opaque SystemView task identity.
+ *
+ * @retval 1 The task was registered and has a valid runtime identity.
+ * @retval 0 The task is unknown, idle, or has no runtime identity.
+ */
+static uint8_t sv_resolve_task_id(uint8_t task_id, U32 *systemview_id) {
+    const trace_task_info_t *task = trace_task_lookup(task_id);
+
+    if ((task == 0) || (task->kind != TRACE_TASK_KIND_NORMAL) || (task->runtime_id == 0u) ||
+        (systemview_id == 0)) {
+        return 0u;
+    }
+
+    *systemview_id = (U32)task->runtime_id;
+    return 1u;
+}
 #endif
 
 void trace_init(void) {
+    g_trace_task_count = 0u;
+
 #if OS_TRACE_SEGGER_SYSVIEW || OS_TRACE_TESSLA_RTT
     /*
      * Both tracing backends use RTT. Explicit initialization is required
@@ -192,17 +270,31 @@ void trace_init(void) {
  * Task events
  * -------------------------------------------------------------------------- */
 
-void trace_task_create(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
+void trace_task_register(const trace_task_info_t *info) {
+    if ((info == 0) || (info->task.id == TRACE_TASK_ID_NONE)) {
+        return;
+    }
+
+    if (trace_task_lookup(info->task.id) != 0) {
+        return;
+    }
+
+    if (g_trace_task_count >= TRACE_TASK_REGISTRY_CAPACITY) {
+        return;
+    }
+
+    g_trace_tasks[g_trace_task_count++] = *info;
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_TASKS
-    SEGGER_SYSVIEW_OnTaskCreate(sv_task_id(task));
-    sv_send_task_info(task);
+    if (info->kind == TRACE_TASK_KIND_NORMAL && info->runtime_id != 0u) {
+        SEGGER_SYSVIEW_OnTaskCreate((U32)info->runtime_id);
+        sv_send_task_info(info);
+    }
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
     trace_tessla_emit(
-        "TASK_CREATE %u %u", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
+        "TASK_CREATE %u %u", (unsigned int)info->task.id, (unsigned int)info->task.priority);
 #endif
 }
 
@@ -210,6 +302,10 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
     trace_tessla_emit(
         "STATE %u %u %u", (unsigned int)task_id, (unsigned int)old_state, (unsigned int)new_state);
+#else
+    (void)task_id;
+    (void)old_state;
+    (void)new_state;
 #endif
 }
 
@@ -217,28 +313,39 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
  * Scheduler events
  * -------------------------------------------------------------------------- */
 
-void trace_task_ready(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_ready(trace_task_ref_t task) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
-    SEGGER_SYSVIEW_OnTaskStartReady(sv_task_id(task));
+    U32 systemview_id;
+
+    if (sv_resolve_task_id(task.id, &systemview_id) != 0u) {
+        SEGGER_SYSVIEW_OnTaskStartReady(systemview_id);
+    }
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    trace_tessla_emit("READY %u %u", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
+    if (trace_task_ref_valid(task) != 0u) {
+        trace_tessla_emit("READY %u %u", (unsigned int)task.id, (unsigned int)task.priority);
+    }
+#else
+    (void)task;
 #endif
 }
 
-void trace_task_run(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_run(trace_task_ref_t task) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
-    SEGGER_SYSVIEW_OnTaskStartExec(sv_task_id(task));
+    U32 systemview_id;
+
+    if (sv_resolve_task_id(task.id, &systemview_id) != 0u) {
+        SEGGER_SYSVIEW_OnTaskStartExec(systemview_id);
+    }
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    trace_tessla_emit(
-        "RUNNING %u %u", (unsigned int)task->u8TaskId, (unsigned int)task->u8TaskPrio);
+    if (trace_task_ref_valid(task) != 0u) {
+        trace_tessla_emit("RUNNING %u %u", (unsigned int)task.id, (unsigned int)task.priority);
+    }
+#else
+    (void)task;
 #endif
 }
 
@@ -252,15 +359,21 @@ void trace_task_stop_run(void) {
 #endif
 }
 
-void trace_task_block(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_block(trace_task_ref_t task) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SCHEDULER
-    SEGGER_SYSVIEW_OnTaskStopReady(sv_task_id(task), 0u);
+    U32 systemview_id;
+
+    if (sv_resolve_task_id(task.id, &systemview_id) != 0u) {
+        SEGGER_SYSVIEW_OnTaskStopReady(systemview_id, 0u);
+    }
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    trace_tessla_emit("BLOCKED %u", (unsigned int)task->u8TaskId);
+    if (trace_task_ref_valid(task) != 0u) {
+        trace_tessla_emit("BLOCKED %u", (unsigned int)task.id);
+    }
+#else
+    (void)task;
 #endif
 }
 
@@ -277,6 +390,8 @@ void trace_idle(void) {
 void trace_tick(uint32_t dt) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     trace_tessla_emit("TICK %lu", (unsigned long)dt);
+#else
+    (void)dt;
 #endif
 }
 
@@ -306,53 +421,53 @@ void trace_isr_exit_to_scheduler(void) {
  * Delay events
  * -------------------------------------------------------------------------- */
 
-void trace_task_delay_busy_start(const TCB_sctTCB_t *task, uint32_t delay_ticks) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_delay_busy_start(trace_task_ref_t task, uint32_t delay_ticks) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
-    SEGGER_SYSVIEW_RecordU32x2(
-        TRACE_SV_EVT_DELAY_BUSY_START, (U32)task->u8TaskId, (U32)delay_ticks);
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_DELAY_BUSY_START, (U32)task.id, (U32)delay_ticks);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit(
-        "DELAY_BUSY_START %u %u", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
+    trace_tessla_emit("DELAY_BUSY_START %u %u", (unsigned int)task.id, (unsigned int)delay_ticks);
+#else
+    (void)task;
+    (void)delay_ticks;
 #endif
 }
 
-void trace_task_delay_busy_end(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_delay_busy_end(trace_task_ref_t task) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
-    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_DELAY_BUSY_END, (U32)task->u8TaskId);
+    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_DELAY_BUSY_END, (U32)task.id);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task->u8TaskId);
+    trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task.id);
+#else
+    (void)task;
 #endif
 }
 
-void trace_task_delay_start(const TCB_sctTCB_t *task, uint32_t delay_ticks) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_delay_start(trace_task_ref_t task, uint32_t delay_ticks) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
-    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_DELAY_START, (U32)task->u8TaskId, (U32)delay_ticks);
+    SEGGER_SYSVIEW_RecordU32x2(TRACE_SV_EVT_DELAY_START, (U32)task.id, (U32)delay_ticks);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_START %u %u", (unsigned int)task->u8TaskId, (unsigned int)delay_ticks);
+    trace_tessla_emit("DELAY_START %u %u", (unsigned int)task.id, (unsigned int)delay_ticks);
+#else
+    (void)task;
+    (void)delay_ticks;
 #endif
 }
 
-void trace_task_delay_end(const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
-
+void trace_task_delay_end(trace_task_ref_t task) {
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_DELAY
-    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_DELAY_END, (U32)task->u8TaskId);
+    SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_DELAY_END, (U32)task.id);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_END %u", (unsigned int)task->u8TaskId);
+    trace_tessla_emit("DELAY_END %u", (unsigned int)task.id);
+#else
+    (void)task;
 #endif
 }
 
@@ -364,38 +479,19 @@ void trace_task_delay_end(const TCB_sctTCB_t *task) {
 /**
  * @brief Convert a semaphore address to its numeric trace identifier.
  *
- * The semaphore address remains stable for the object's lifetime and allows
- * the verifier to correlate events belonging to the same semaphore.
- *
- * @param semaphore Semaphore object whose trace identifier is required.
- *
+ * @param semaphore Semaphore object whose stable address is required.
  * @return Address of @p semaphore represented as an unsigned integer.
- *
- * @pre @p semaphore must not be null.
  */
 static unsigned long trace_sem_id(const void *semaphore) {
-    KERNEL_REQUIRE(semaphore != 0);
-    return (unsigned long)(uintptr_t)semaphore;
-}
-
-/**
- * @brief Convert an optional task control block to its numeric trace ID.
- *
- * A null task represents an operation without an associated task, such as an
- * acquire attempted from exception context. It is encoded as @c UINT8_MAX so
- * it remains distinguishable from every valid kernel task ID.
- *
- * @param task Task control block to encode, or null when no task is associated
- *             with the operation.
- *
- * @return @p task's kernel task ID, or @c UINT8_MAX when @p task is null.
- */
-static unsigned int trace_sem_task_id(const TCB_sctTCB_t *task) {
-    return (task != 0) ? (unsigned int)task->u8TaskId : (unsigned int)UINT8_MAX;
+    return (semaphore != 0) ? (unsigned long)(uintptr_t)semaphore : 0ul;
 }
 #endif
 
 void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t max_count) {
+    if (semaphore == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
     SEGGER_SYSVIEW_RecordU32x3(
         TRACE_SV_EVT_SEM_CREATE, (U32)trace_sem_id(semaphore), (U32)initial_count, (U32)max_count);
@@ -406,18 +502,25 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
                       trace_sem_id(semaphore),
                       (unsigned long)initial_count,
                       (unsigned long)max_count);
+#else
+    (void)initial_count;
+    (void)max_count;
 #endif
 }
 
 void trace_sem_acquire_enter(const void *semaphore,
-                             const TCB_sctTCB_t *task,
+                             trace_task_ref_t task,
                              uint32_t count,
                              uint32_t timeout_ticks,
                              uint8_t finite_timeout) {
+    if (semaphore == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
     SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_SEM_ACQUIRE_ENTER,
                                (U32)trace_sem_id(semaphore),
-                               (U32)trace_sem_task_id(task),
+                               (U32)task.id,
                                (U32)count,
                                (U32)timeout_ticks,
                                (U32)(finite_timeout != 0u));
@@ -426,21 +529,30 @@ void trace_sem_acquire_enter(const void *semaphore,
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_ACQUIRE_ENTER %lu %u %lu %lu %u",
                       trace_sem_id(semaphore),
-                      trace_sem_task_id(task),
+                      (unsigned int)task.id,
                       (unsigned long)count,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
+#else
+    (void)task;
+    (void)count;
+    (void)timeout_ticks;
+    (void)finite_timeout;
 #endif
 }
 
 void trace_sem_acquire_exit(const void *semaphore,
-                            const TCB_sctTCB_t *task,
+                            trace_task_ref_t task,
                             uint32_t count,
                             uint8_t succeeded) {
+    if (semaphore == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
     SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_SEM_ACQUIRE_EXIT,
                                (U32)trace_sem_id(semaphore),
-                               (U32)trace_sem_task_id(task),
+                               (U32)task.id,
                                (U32)count,
                                (U32)(succeeded != 0u));
 #endif
@@ -448,23 +560,29 @@ void trace_sem_acquire_exit(const void *semaphore,
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_ACQUIRE_EXIT %lu %u %lu %u",
                       trace_sem_id(semaphore),
-                      trace_sem_task_id(task),
+                      (unsigned int)task.id,
                       (unsigned long)count,
                       (unsigned int)(succeeded != 0u));
+#else
+    (void)task;
+    (void)count;
+    (void)succeeded;
 #endif
 }
 
 void trace_sem_block(const void *semaphore,
-                     const TCB_sctTCB_t *task,
+                     trace_task_ref_t task,
                      uint32_t timeout_ticks,
                      uint8_t finite_timeout) {
-    KERNEL_REQUIRE(task != 0);
+    if ((semaphore == 0) || (trace_task_ref_valid(task) == 0u)) {
+        return;
+    }
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
     SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_SEM_BLOCK,
                                (U32)trace_sem_id(semaphore),
-                               (U32)task->u8TaskId,
-                               (U32)task->u8TaskPrio,
+                               (U32)task.id,
+                               (U32)task.priority,
                                (U32)timeout_ticks,
                                (U32)(finite_timeout != 0u));
 #endif
@@ -472,26 +590,33 @@ void trace_sem_block(const void *semaphore,
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_BLOCK %lu %u %u %lu %u",
                       trace_sem_id(semaphore),
-                      (unsigned int)task->u8TaskId,
-                      (unsigned int)task->u8TaskPrio,
+                      (unsigned int)task.id,
+                      (unsigned int)task.priority,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
+#else
+    (void)timeout_ticks;
+    (void)finite_timeout;
 #endif
 }
 
-void trace_sem_timeout(const void *semaphore, const TCB_sctTCB_t *task, uint32_t count) {
-    KERNEL_REQUIRE(task != 0);
+void trace_sem_timeout(const void *semaphore, trace_task_ref_t task, uint32_t count) {
+    if ((semaphore == 0) || (trace_task_ref_valid(task) == 0u)) {
+        return;
+    }
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
     SEGGER_SYSVIEW_RecordU32x3(
-        TRACE_SV_EVT_SEM_TIMEOUT, (U32)trace_sem_id(semaphore), (U32)task->u8TaskId, (U32)count);
+        TRACE_SV_EVT_SEM_TIMEOUT, (U32)trace_sem_id(semaphore), (U32)task.id, (U32)count);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_TIMEOUT %lu %u %lu",
                       trace_sem_id(semaphore),
-                      (unsigned int)task->u8TaskId,
+                      (unsigned int)task.id,
                       (unsigned long)count);
+#else
+    (void)count;
 #endif
 }
 
@@ -500,6 +625,10 @@ void trace_sem_release(const void *semaphore,
                        uint32_t count_after,
                        uint32_t max_count,
                        uint8_t succeeded) {
+    if (semaphore == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
     SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_SEM_RELEASE,
                                (U32)trace_sem_id(semaphore),
@@ -516,24 +645,29 @@ void trace_sem_release(const void *semaphore,
                       (unsigned long)count_after,
                       (unsigned long)max_count,
                       (unsigned int)(succeeded != 0u));
+#else
+    (void)count_before;
+    (void)count_after;
+    (void)max_count;
+    (void)succeeded;
 #endif
 }
 
-void trace_sem_wake(const void *semaphore, const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
+void trace_sem_wake(const void *semaphore, trace_task_ref_t task) {
+    if ((semaphore == 0) || (trace_task_ref_valid(task) == 0u)) {
+        return;
+    }
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_SEMAPHORE
-    SEGGER_SYSVIEW_RecordU32x3(TRACE_SV_EVT_SEM_WAKE,
-                               (U32)trace_sem_id(semaphore),
-                               (U32)task->u8TaskId,
-                               (U32)task->u8TaskPrio);
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_SEM_WAKE, (U32)trace_sem_id(semaphore), (U32)task.id, (U32)task.priority);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
     trace_tessla_emit("SEM_WAKE %lu %u %u",
                       trace_sem_id(semaphore),
-                      (unsigned int)task->u8TaskId,
-                      (unsigned int)task->u8TaskPrio);
+                      (unsigned int)task.id,
+                      (unsigned int)task.priority);
 #endif
 }
 
@@ -545,38 +679,19 @@ void trace_sem_wake(const void *semaphore, const TCB_sctTCB_t *task) {
 /**
  * @brief Convert a mutex address to its numeric trace identifier.
  *
- * The mutex object address is stable for the object's lifetime and allows the
- * verifier to correlate all events belonging to the same mutex. The verifier
- * may map this runtime address to a bounded internal monitor slot.
- *
- * @param mutex Mutex object whose trace identifier is required.
- *
+ * @param mutex Mutex object whose stable address is required.
  * @return Address of @p mutex represented as an unsigned integer.
- *
- * @pre @p mutex must not be null.
  */
 static unsigned long trace_mutex_id(const void *mutex) {
-    KERNEL_REQUIRE(mutex != 0);
-    return (unsigned long)(uintptr_t)mutex;
-}
-
-/**
- * @brief Convert an optional task control block to its numeric trace ID.
- *
- * A null task represents an unowned mutex or an operation without an owning
- * task. Such cases are encoded as @c UINT8_MAX so they remain distinguishable
- * from every valid kernel task ID.
- *
- * @param task Task control block to encode, or null when no task is present.
- *
- * @return @p task's kernel task ID, or @c UINT8_MAX when @p task is null.
- */
-static unsigned int trace_mutex_task_id(const TCB_sctTCB_t *task) {
-    return (task != 0) ? (unsigned int)task->u8TaskId : (unsigned int)UINT8_MAX;
+    return (mutex != 0) ? (unsigned long)(uintptr_t)mutex : 0ul;
 }
 #endif
 
 void trace_mutex_create(const void *mutex) {
+    if (mutex == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32(TRACE_SV_EVT_MUTEX_CREATE, (U32)trace_mutex_id(mutex));
 #endif
@@ -587,15 +702,19 @@ void trace_mutex_create(const void *mutex) {
 }
 
 void trace_mutex_lock_enter(const void *mutex,
-                            const TCB_sctTCB_t *task,
-                            const TCB_sctTCB_t *owner,
+                            trace_task_ref_t task,
+                            trace_task_ref_t owner,
                             uint32_t timeout_ticks,
                             uint8_t finite_timeout) {
+    if (mutex == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_MUTEX_LOCK_ENTER,
                                (U32)trace_mutex_id(mutex),
-                               (U32)trace_mutex_task_id(task),
-                               (U32)trace_mutex_task_id(owner),
+                               (U32)task.id,
+                               (U32)owner.id,
                                (U32)timeout_ticks,
                                (U32)(finite_timeout != 0u));
 #endif
@@ -603,47 +722,62 @@ void trace_mutex_lock_enter(const void *mutex,
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_LOCK_ENTER %lu %u %u %lu %u",
                       trace_mutex_id(mutex),
-                      trace_mutex_task_id(task),
-                      trace_mutex_task_id(owner),
+                      (unsigned int)task.id,
+                      (unsigned int)owner.id,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
+#else
+    (void)task;
+    (void)owner;
+    (void)timeout_ticks;
+    (void)finite_timeout;
 #endif
 }
 
 void trace_mutex_lock_exit(const void *mutex,
-                           const TCB_sctTCB_t *task,
-                           const TCB_sctTCB_t *owner,
+                           trace_task_ref_t task,
+                           trace_task_ref_t owner,
                            uint8_t succeeded) {
+    if (mutex == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32x4(TRACE_SV_EVT_MUTEX_LOCK_EXIT,
                                (U32)trace_mutex_id(mutex),
-                               (U32)trace_mutex_task_id(task),
-                               (U32)trace_mutex_task_id(owner),
+                               (U32)task.id,
+                               (U32)owner.id,
                                (U32)(succeeded != 0u));
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_LOCK_EXIT %lu %u %u %u",
                       trace_mutex_id(mutex),
-                      trace_mutex_task_id(task),
-                      trace_mutex_task_id(owner),
+                      (unsigned int)task.id,
+                      (unsigned int)owner.id,
                       (unsigned int)(succeeded != 0u));
+#else
+    (void)task;
+    (void)owner;
+    (void)succeeded;
 #endif
 }
 
 void trace_mutex_block(const void *mutex,
-                       const TCB_sctTCB_t *task,
-                       const TCB_sctTCB_t *owner,
+                       trace_task_ref_t task,
+                       trace_task_ref_t owner,
                        uint32_t timeout_ticks,
                        uint8_t finite_timeout) {
-    KERNEL_REQUIRE(task != 0);
+    if ((mutex == 0) || (trace_task_ref_valid(task) == 0u)) {
+        return;
+    }
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32x6(TRACE_SV_EVT_MUTEX_BLOCK,
                                (U32)trace_mutex_id(mutex),
-                               (U32)task->u8TaskId,
-                               (U32)task->u8TaskPrio,
-                               (U32)trace_mutex_task_id(owner),
+                               (U32)task.id,
+                               (U32)task.priority,
+                               (U32)owner.id,
                                (U32)timeout_ticks,
                                (U32)(finite_timeout != 0u));
 #endif
@@ -651,71 +785,86 @@ void trace_mutex_block(const void *mutex,
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_BLOCK %lu %u %u %u %lu %u",
                       trace_mutex_id(mutex),
-                      (unsigned int)task->u8TaskId,
-                      (unsigned int)task->u8TaskPrio,
-                      trace_mutex_task_id(owner),
+                      (unsigned int)task.id,
+                      (unsigned int)task.priority,
+                      (unsigned int)owner.id,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
+#else
+    (void)owner;
+    (void)timeout_ticks;
+    (void)finite_timeout;
 #endif
 }
 
-void trace_mutex_timeout(const void *mutex, const TCB_sctTCB_t *task, const TCB_sctTCB_t *owner) {
-    KERNEL_REQUIRE(task != 0);
+void trace_mutex_timeout(const void *mutex, trace_task_ref_t task, trace_task_ref_t owner) {
+    if ((mutex == 0) || (trace_task_ref_valid(task) == 0u)) {
+        return;
+    }
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
-    SEGGER_SYSVIEW_RecordU32x3(TRACE_SV_EVT_MUTEX_TIMEOUT,
-                               (U32)trace_mutex_id(mutex),
-                               (U32)task->u8TaskId,
-                               (U32)trace_mutex_task_id(owner));
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_MUTEX_TIMEOUT, (U32)trace_mutex_id(mutex), (U32)task.id, (U32)owner.id);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_TIMEOUT %lu %u %u",
                       trace_mutex_id(mutex),
-                      (unsigned int)task->u8TaskId,
-                      trace_mutex_task_id(owner));
+                      (unsigned int)task.id,
+                      (unsigned int)owner.id);
+#else
+    (void)owner;
 #endif
 }
 
 void trace_mutex_unlock(const void *mutex,
-                        const TCB_sctTCB_t *task,
-                        const TCB_sctTCB_t *owner_before,
-                        const TCB_sctTCB_t *owner_after,
+                        trace_task_ref_t task,
+                        trace_task_ref_t owner_before,
+                        trace_task_ref_t owner_after,
                         uint8_t succeeded) {
+    if (mutex == 0) {
+        return;
+    }
+
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
     SEGGER_SYSVIEW_RecordU32x5(TRACE_SV_EVT_MUTEX_UNLOCK,
                                (U32)trace_mutex_id(mutex),
-                               (U32)trace_mutex_task_id(task),
-                               (U32)trace_mutex_task_id(owner_before),
-                               (U32)trace_mutex_task_id(owner_after),
+                               (U32)task.id,
+                               (U32)owner_before.id,
+                               (U32)owner_after.id,
                                (U32)(succeeded != 0u));
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_UNLOCK %lu %u %u %u %u",
                       trace_mutex_id(mutex),
-                      trace_mutex_task_id(task),
-                      trace_mutex_task_id(owner_before),
-                      trace_mutex_task_id(owner_after),
+                      (unsigned int)task.id,
+                      (unsigned int)owner_before.id,
+                      (unsigned int)owner_after.id,
                       (unsigned int)(succeeded != 0u));
+#else
+    (void)task;
+    (void)owner_before;
+    (void)owner_after;
+    (void)succeeded;
 #endif
 }
 
-void trace_mutex_wake(const void *mutex, const TCB_sctTCB_t *task) {
-    KERNEL_REQUIRE(task != 0);
+void trace_mutex_wake(const void *mutex, trace_task_ref_t task) {
+    if ((mutex == 0) || (trace_task_ref_valid(task) == 0u)) {
+        return;
+    }
 
 #if OS_TRACE_SEGGER_SYSVIEW && OS_TRACE_MUTEX
-    SEGGER_SYSVIEW_RecordU32x3(TRACE_SV_EVT_MUTEX_WAKE,
-                               (U32)trace_mutex_id(mutex),
-                               (U32)task->u8TaskId,
-                               (U32)task->u8TaskPrio);
+    SEGGER_SYSVIEW_RecordU32x3(
+        TRACE_SV_EVT_MUTEX_WAKE, (U32)trace_mutex_id(mutex), (U32)task.id, (U32)task.priority);
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
     trace_tessla_emit("MUTEX_WAKE %lu %u %u",
                       trace_mutex_id(mutex),
-                      (unsigned int)task->u8TaskId,
-                      (unsigned int)task->u8TaskPrio);
+                      (unsigned int)task.id,
+                      (unsigned int)task.priority);
 #endif
 }
 

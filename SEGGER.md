@@ -19,8 +19,8 @@ If SystemView is started without `RTOS.SVPrj`, custom events may appear with gen
 
 ## Idle task representation
 
-Task `0` is the RTOS idle task. It is created and registered with SystemView like the other tasks, so it appears in the task list and its creation event is visible.
+Task `0` is the RTOS idle task. It is intentionally **not** registered as a normal SystemView task. Idle execution is represented exclusively with SEGGER SystemView's `SEGGER_SYSVIEW_OnIdle()` event, so idle time appears in SystemView's dedicated idle representation instead of the normal task list/timeline.
 
-Its execution is intentionally not reported with the normal task-execution event used for application tasks. Instead, idle execution is reported using SEGGER SystemView's `SEGGER_SYSVIEW_OnIdle()` event.
+Normal task metadata is cached by the RTOS trace subsystem when each task is created. SystemView's `pfSendTaskList` callback replays that trace-owned metadata whenever SystemView requests the current task list. Therefore recording may start after task creation without requiring SystemView or the trace layer to query the kernel task table.
 
-As a result, task `0` may appear to have been created but never run in the normal task timeline. Idle periods are shown by SystemView's dedicated idle representation instead. This is expected behavior and does not mean that the idle task is not executing.
+`trace_init()` remains before task creation. New normal tasks are announced immediately with `SEGGER_SYSVIEW_OnTaskCreate()` and `SEGGER_SYSVIEW_SendTaskInfo()`, while a later recording restart can recover the current normal-task metadata through `pfSendTaskList`.

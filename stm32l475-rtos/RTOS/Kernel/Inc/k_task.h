@@ -12,6 +12,7 @@
 #include "os_types.h"
 #include "os_task.h"
 #include "kernel_task.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 /** @brief Total number of kernel task slots, including the idle task. */
@@ -44,6 +45,9 @@ void k_task_lock_creation(void);
  *
  * @param task_func Entry function executed by the task.
  * @param prio Task priority in the configured valid priority range.
+ * @param is_idle Whether this task is the kernel idle task. This information
+ *                is forwarded to the trace subsystem at creation time so idle
+ *                is not registered as a normal SystemView task.
  * @param[out] out_task Receives the created task, or 0 if creation fails.
  *
  * @retval OS_OK Task created successfully.
@@ -58,6 +62,7 @@ void k_task_lock_creation(void);
  */
 os_status_t k_task_create_internal(os_task_func_t task_func,
                                    uint8_t prio,
+                                   bool is_idle,
                                    kernel_task_t **out_task);
 
 /**

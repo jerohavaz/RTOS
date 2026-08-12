@@ -7,6 +7,7 @@
 #include "k_sched.h"
 #include "k_sem.h"
 #include "k_timeout.h"
+#include "k_trace.h"
 #include "kernel_panic.h"
 #include "port.h"
 #include "trace.h"
@@ -60,32 +61,32 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
     uint32_t key = port_enter_critical();
     bool in_exception = port_in_exception();
     kernel_task_t *current = in_exception ? 0 : k_sched_current();
-    TCB_sctTCB_t *current_tcb = (current != 0) ? &current->tcb : 0;
+    trace_task_ref_t current_trace = k_trace_task_ref(current);
     uint8_t finite_timeout = (uint8_t)(timeout_ticks != OS_WAIT_FOREVER);
 
-    trace_sem_acquire_enter(sem, current_tcb, sem->count, timeout_ticks, finite_timeout);
+    trace_sem_acquire_enter(sem, current_trace, sem->count, timeout_ticks, finite_timeout);
 
     if (sem->count != 0u) {
         sem->count--;
-        trace_sem_acquire_exit(sem, current_tcb, sem->count, 1u);
+        trace_sem_acquire_exit(sem, current_trace, sem->count, 1u);
         port_exit_critical(key);
         return OS_OK;
     }
 
     if (timeout_ticks == OS_NO_WAIT) {
-        trace_sem_acquire_exit(sem, current_tcb, sem->count, 0u);
+        trace_sem_acquire_exit(sem, current_trace, sem->count, 0u);
         port_exit_critical(key);
         return OS_ERR_WOULD_BLOCK;
     }
 
     if (in_exception) {
-        trace_sem_acquire_exit(sem, 0, sem->count, 0u);
+        trace_sem_acquire_exit(sem, trace_task_ref_none(), sem->count, 0u);
         port_exit_critical(key);
         return OS_ERR_IN_ISR;
     }
 
     if (current == 0 || k_sched_is_idle(current)) {
-        trace_sem_acquire_exit(sem, current_tcb, sem->count, 0u);
+        trace_sem_acquire_exit(sem, current_trace, sem->count, 0u);
         port_exit_critical(key);
         return OS_ERR_INVALID_STATE;
     }
@@ -100,7 +101,7 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
         k_timeout_add(current, timeout_ticks);
     }
 
-    trace_sem_block(sem, &current->tcb, timeout_ticks, finite_timeout);
+    trace_sem_block(sem, k_trace_task_ref(current), timeout_ticks, finite_timeout);
     k_sched_task_block(current);
     port_exit_critical(key);
 
@@ -108,7 +109,7 @@ os_status_t os_sem_acquire(os_sem_t *sem, uint32_t timeout_ticks) {
 
     key = port_enter_critical();
     os_status_t result = current->wait_result;
-    trace_sem_acquire_exit(sem, &current->tcb, sem->count, (uint8_t)(result == OS_OK));
+    trace_sem_acquire_exit(sem, k_trace_task_ref(current), sem->count, (uint8_t)(result == OS_OK));
     port_exit_critical(key);
 
     return result;
@@ -149,7 +150,7 @@ os_status_t os_sem_release(os_sem_t *sem) {
     task->wait_result = OS_OK;
 
     trace_sem_release(sem, count_before, sem->count, sem->max_count, 1u);
-    trace_sem_wake(sem, &task->tcb);
+    trace_sem_wake(sem, k_trace_task_ref(task));
     k_sched_task_ready(task);
     port_exit_critical(key);
 
@@ -166,7 +167,7 @@ void k_sem_timeout_cleanup(os_sem_t *sem, kernel_task_t *task) {
 
     prio_waitq_remove(&sem->wait_list, task);
 
-    trace_sem_timeout(sem, &task->tcb, sem->count);
+    trace_sem_timeout(sem, k_trace_task_ref(task), sem->count);
 
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;
