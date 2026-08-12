@@ -102,14 +102,12 @@ static inline trace_task_ref_t trace_task_ref_none(void) {
 #if OS_TRACE_ENABLED
 
 /**
- * @brief Initialize every enabled trace backend and clear trace-owned state.
+ * @brief Initialize every enabled trace backend.
  *
- * @details
- * RTT is initialized when required. The TeSSLa backend starts a new logical
- * stream with @c TESSLA_START. SystemView is configured using the project OS
- * API, whose task-list callback replays the trace-owned task registry.
+ * The RTT backend is initialized and emits @c TESSLA_START. SystemView is
+ * configured and receives a startup message.
  *
- * @pre Call exactly once during @c os_init(), before any task is created.
+ * @pre Call once during @c os_init() before task creation and scheduler start.
  */
 void trace_init(void);
 
@@ -134,11 +132,14 @@ void trace_init(void);
 void trace_task_register(const trace_task_info_t *info);
 
 /**
- * @brief Record a task-state transition for TeSSLa verification.
+ * @brief Record a task-state transition.
  *
  * @param task_id Numeric ID of the affected task.
  * @param old_state Previous task-state value.
  * @param new_state New task-state value.
+ *
+ * @note The current implementation emits this event only through the RTT text
+ *       backend when @c OS_TRACE_TASKS is enabled.
  */
 void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state);
 
@@ -146,24 +147,54 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state);
  * Scheduler events
  * -------------------------------------------------------------------------- */
 
-/** @brief Record that @p task entered READY. */
+/**
+ * @brief Record that a task entered the ready state.
+ *
+ * @param task Trace reference of the task entering the ready state.
+ *
+ * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
+ */
 void trace_task_ready(trace_task_ref_t task);
 
-/** @brief Record that the scheduler started executing @p task. */
+/**
+ * @brief Record that the scheduler started executing a task.
+ *
+ * @param task Trace reference of the task entering the running state.
+ *
+ * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
+ */
 void trace_task_run(trace_task_ref_t task);
 
-/** @brief Record that execution of the current non-idle task stopped. */
+/**
+ * @brief Record that execution of the current task stopped.
+ *
+ * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
+ */
 void trace_task_stop_run(void);
 
-/** @brief Record that @p task entered BLOCKED. */
+/**
+ * @brief Record that a task entered the blocked state.
+ *
+ * @param task Trace reference of the task entering the blocked state.
+ *
+ * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
+ */
 void trace_task_block(trace_task_ref_t task);
 
-/** @brief Record that the scheduler selected the idle task. */
+/**
+ * @brief Record that the scheduler selected the idle task.
+ *
+ * @note Emitted only when @c OS_TRACE_SCHEDULER is enabled.
+ */
 void trace_idle(void);
 
 /**
  * @brief Record advancement of the kernel tick.
+ *
  * @param dt Number of elapsed kernel ticks represented by the event.
+ *
+ * @note The current implementation emits this event through the RTT text
+ *       backend when @c OS_TRACE_SCHEDULER is enabled.
  */
 void trace_tick(uint32_t dt);
 
@@ -171,13 +202,30 @@ void trace_tick(uint32_t dt);
  * ISR events
  * -------------------------------------------------------------------------- */
 
-/** @brief Record entry into an instrumented ISR. */
+/**
+ * @brief Record entry into an interrupt service routine.
+ *
+ * @note Routed to SystemView when @c OS_TRACE_SEGGER_SYSVIEW and
+ *       @c OS_TRACE_ISR are enabled.
+ */
 void trace_isr_enter(void);
 
-/** @brief Record an ISR exit that resumes normal interrupted execution. */
+/**
+ * @brief Record an ISR exit that resumes normal interrupted execution.
+ *
+ * @note Routed to SystemView when @c OS_TRACE_SEGGER_SYSVIEW and
+ *       @c OS_TRACE_ISR are enabled.
+ */
 void trace_isr_exit(void);
 
-/** @brief Record an ISR exit that transfers control to the scheduler. */
+/**
+ * @brief Record an ISR exit that transfers control to the scheduler.
+ *
+ * Use this variant when the ISR pends a context switch.
+ *
+ * @note Routed to SystemView when @c OS_TRACE_SEGGER_SYSVIEW and
+ *       @c OS_TRACE_ISR are enabled.
+ */
 void trace_isr_exit_to_scheduler(void);
 
 /* --------------------------------------------------------------------------
@@ -186,27 +234,79 @@ void trace_isr_exit_to_scheduler(void);
 
 /**
  * @brief Record the start of a busy-wait delay.
- * @param task Task performing the busy wait.
- * @param delay_ticks Requested duration in kernel ticks.
+ *
+ * Marks the point at which @p task begins actively polling the kernel tick for
+ * @p delay_ticks ticks. The task remains runnable during this interval; the
+ * event does not represent a scheduler block or yield.
+ *
+ * @param task Trace reference of the task beginning the busy wait.
+ * @param delay_ticks Requested busy-wait duration in kernel ticks.
+ *
+ * @pre @p delay_ticks must satisfy the validation performed by
+ *      @c os_delay_busy().
+ *
+ * @note Emits @c DELAY_BUSY_START with the task ID and requested tick count.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
+ * @note Pair this event with one later call to
+ *       @c trace_task_delay_busy_end() for the same task.
  */
 void trace_task_delay_busy_start(trace_task_ref_t task, uint32_t delay_ticks);
 
 /**
  * @brief Record completion of a busy-wait delay.
- * @param task Task completing the busy wait.
+ *
+ * Marks the point at which @p task has observed the requested busy-wait
+ * interval elapse and is about to return from @c os_delay_busy().
+ *
+ * @param task Trace reference of the task completing the busy wait.
+ *
+ * @pre A matching @c trace_task_delay_busy_start() event must already have
+ *      been emitted for @p task.
+ *
+ * @note Emits @c DELAY_BUSY_END with the task ID.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
  */
 void trace_task_delay_busy_end(trace_task_ref_t task);
 
 /**
- * @brief Record the start of a scheduler-based delay.
- * @param task Task that will enter BLOCKED.
- * @param delay_ticks Requested duration in kernel ticks.
+ * @brief Record the start of a scheduler-based blocking delay.
+ *
+ * Marks a successful nonzero @c os_delay() operation immediately before the
+ * calling task is blocked for @p delay_ticks ticks. This event brackets the
+ * scheduler wait; it is distinct from the CPU-consuming busy-delay events.
+ *
+ * @param task Trace reference of the task entering the delay wait.
+ * @param delay_ticks Requested blocking duration in kernel ticks.
+ *
+ * @pre @p delay_ticks must be nonzero and must satisfy the finite-timeout
+ *      validation performed by @c os_delay().
+ *
+ * @note Emits @c DELAY_START with the task ID and requested tick count.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
+ * @note A zero-tick @c os_delay(0) is a yield and must not emit this event.
+ * @note Pair this event with one later call to @c trace_task_delay_end() for
+ *       the same task after its delay expires.
  */
 void trace_task_delay_start(trace_task_ref_t task, uint32_t delay_ticks);
 
 /**
- * @brief Record completion of a scheduler-based delay.
- * @param task Task whose delay expired.
+ * @brief Record completion of a scheduler-based blocking delay.
+ *
+ * Marks the point at which @p task resumes after its delay timeout has
+ * expired. It must not be emitted for a rejected delay request or a zero-tick
+ * yield.
+ *
+ * @param task Trace reference of the task whose blocking delay completed.
+ *
+ * @pre A matching @c trace_task_delay_start() event must already have been
+ *      emitted for @p task.
+ *
+ * @note Emits @c DELAY_END with the task ID.
+ * @note Emitted when @c OS_TRACE_DELAY is enabled and routed to each
+ *       configured backend that supports this event.
  */
 void trace_task_delay_end(trace_task_ref_t task);
 
@@ -216,19 +316,29 @@ void trace_task_delay_end(trace_task_ref_t task);
 
 /**
  * @brief Record creation of a counting semaphore.
+ *
  * @param semaphore Stable address of the semaphore object.
- * @param initial_count Initially available tokens.
- * @param max_count Maximum token count; one denotes a binary semaphore.
+ * @param initial_count Number of initially available tokens.
+ * @param max_count Maximum number of tokens the semaphore can hold.
+ *
+ * @note A binary semaphore is represented by @p max_count equal to one.
+ * @note Emitted only when @c OS_TRACE_SEMAPHORE is enabled.
  */
 void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t max_count);
 
 /**
- * @brief Record entry into a semaphore-acquire operation.
- * @param semaphore Semaphore being acquired.
- * @param task Calling task, or @ref trace_task_ref_none for exception context.
- * @param count Current semaphore count.
- * @param timeout_ticks Requested timeout value.
- * @param finite_timeout Nonzero when the timeout is finite.
+ * @brief Record the start of an acquire operation.
+ *
+ * @param semaphore Stable address of the semaphore object.
+ * @param task Trace reference of the task attempting the acquire, or
+ *             @ref trace_task_ref_none when no task is associated with the
+ *             operation (for example, exception context or pre-scheduler use).
+ * @param count Number of available tokens observed before the attempt.
+ * @param timeout_ticks Requested timeout in kernel ticks.
+ * @param finite_timeout Nonzero if @p timeout_ticks is a finite deadline;
+ *                       zero for a non-timed/block-forever operation.
+ *
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX in the RTT event.
  */
 void trace_sem_acquire_enter(const void *semaphore,
                              trace_task_ref_t task,
@@ -237,11 +347,18 @@ void trace_sem_acquire_enter(const void *semaphore,
                              uint8_t finite_timeout);
 
 /**
- * @brief Record completion of a semaphore-acquire operation.
- * @param semaphore Semaphore being acquired.
- * @param task Calling task, or @ref trace_task_ref_none for exception context.
- * @param count Semaphore count after the attempt.
- * @param succeeded Nonzero when acquisition succeeded.
+ * @brief Record completion of an acquire operation.
+ *
+ * @param semaphore Stable address of the semaphore object.
+ * @param task Trace reference of the task completing the acquire, or
+ *             @ref trace_task_ref_none when no task is associated with the operation.
+ * @param count Number of available tokens after completion.
+ * @param succeeded Nonzero only when one token was acquired.
+ *
+ * Emit this event on every normal return, including non-blocking failure and
+ * timeout. A blocked acquire that is later released emits it only after the
+ * task resumes and the acquire actually completes.
+ * @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX in the RTT event.
  */
 void trace_sem_acquire_exit(const void *semaphore,
                             trace_task_ref_t task,
@@ -249,11 +366,7 @@ void trace_sem_acquire_exit(const void *semaphore,
                             uint8_t succeeded);
 
 /**
- * @brief Record that a task blocks while waiting for a semaphore.
- * @param semaphore Semaphore being waited on.
- * @param task Blocking task.
- * @param timeout_ticks Requested timeout value.
- * @param finite_timeout Nonzero when the timeout is finite.
+ * @brief Record that an acquire operation queued and blocked its task.
  */
 void trace_sem_block(const void *semaphore,
                      trace_task_ref_t task,
@@ -261,20 +374,21 @@ void trace_sem_block(const void *semaphore,
                      uint8_t finite_timeout);
 
 /**
- * @brief Record expiration of a blocked semaphore acquire.
- * @param semaphore Semaphore being waited on.
- * @param task Task whose wait expired.
- * @param count Current semaphore count.
+ * @brief Record expiry of a finite semaphore-acquire timeout.
  */
 void trace_sem_timeout(const void *semaphore, trace_task_ref_t task, uint32_t count);
 
 /**
- * @brief Record a semaphore release attempt.
- * @param semaphore Semaphore being released.
- * @param count_before Count before release processing.
- * @param count_after Count after release processing.
- * @param max_count Configured maximum count.
- * @param succeeded Nonzero when release succeeded.
+ * @brief Record the result of a release operation.
+ *
+ * @param count_before Available-token count before the release.
+ * @param count_after Available-token count after the release or direct
+ *                    hand-off to a waiter.
+ * @param max_count Configured semaphore capacity.
+ * @param succeeded Nonzero if the release was accepted.
+ *
+ * @note Direct hand-off is allowed to leave the count unchanged when a waiter
+ *       receives the released token.
  */
 void trace_sem_release(const void *semaphore,
                        uint32_t count_before,
@@ -283,9 +397,10 @@ void trace_sem_release(const void *semaphore,
                        uint8_t succeeded);
 
 /**
- * @brief Record selection of a blocked task for semaphore wakeup.
- * @param semaphore Semaphore releasing the task.
- * @param task Task selected for wakeup.
+ * @brief Record that release selected a waiting task for wakeup.
+ *
+ * The task priority is taken from the trace reference so the verifier can check that the
+ * highest-priority waiter was selected. Trace sequence order breaks ties.
  */
 void trace_sem_wake(const void *semaphore, trace_task_ref_t task);
 
@@ -294,18 +409,28 @@ void trace_sem_wake(const void *semaphore, trace_task_ref_t task);
  * -------------------------------------------------------------------------- */
 
 /**
- * @brief Record creation of a mutex.
- * @param mutex Stable address of the mutex object.
+ * @brief Record initialization of an unlocked, non-recursive mutex.
+ *
+ * @param mutex Stable address of the initialized mutex object.
+ *
+ * @pre @p mutex must not be null.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_create(const void *mutex);
 
 /**
- * @brief Record entry into a mutex-lock operation.
- * @param mutex Mutex being locked.
- * @param task Calling task.
- * @param owner Current owner, or @ref trace_task_ref_none when unowned.
- * @param timeout_ticks Requested timeout value.
- * @param finite_timeout Nonzero when the timeout is finite.
+ * @brief Record the start of a mutex-lock operation.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Trace reference of the task attempting to lock the mutex.
+ * @param owner Current mutex owner, or @ref trace_task_ref_none if the mutex is unlocked.
+ * @param timeout_ticks Requested timeout in kernel ticks.
+ * @param finite_timeout Nonzero if @p timeout_ticks represents a finite
+ *        deadline; zero for a non-timed or wait-forever operation.
+ *
+ * @pre @p mutex must not be null.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_lock_enter(const void *mutex,
                             trace_task_ref_t task,
@@ -315,10 +440,16 @@ void trace_mutex_lock_enter(const void *mutex,
 
 /**
  * @brief Record completion of a mutex-lock operation.
- * @param mutex Mutex being locked.
- * @param task Calling task.
- * @param owner Owner after the operation, or NONE when unowned.
- * @param succeeded Nonzero when the lock operation succeeded.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Trace reference of the task that attempted to lock the mutex.
+ * @param owner Mutex owner after the operation, or @ref trace_task_ref_none if it is unlocked.
+ * @param succeeded Nonzero if ownership was acquired; zero otherwise.
+ *
+ * @pre @p mutex must not be null.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX.
+ * @note A blocked operation emits this event after the task resumes.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_lock_exit(const void *mutex,
                            trace_task_ref_t task,
@@ -326,12 +457,18 @@ void trace_mutex_lock_exit(const void *mutex,
                            uint8_t succeeded);
 
 /**
- * @brief Record that a task blocks waiting for a mutex.
- * @param mutex Mutex being waited on.
- * @param task Blocking task.
- * @param owner Current mutex owner.
- * @param timeout_ticks Requested timeout value.
- * @param finite_timeout Nonzero when the timeout is finite.
+ * @brief Record that a mutex-lock operation queued and blocked its task.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Trace reference of the task added to the mutex wait queue.
+ * @param owner Trace reference of the task owning the mutex when the caller was blocked.
+ * @param timeout_ticks Requested timeout in kernel ticks.
+ * @param finite_timeout Nonzero if @p timeout_ticks represents a finite
+ *        deadline; zero for a wait-forever operation.
+ *
+ * @pre @p mutex must not be null.
+ * @note The task priority is carried by @p task.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_block(const void *mutex,
                        trace_task_ref_t task,
@@ -340,20 +477,32 @@ void trace_mutex_block(const void *mutex,
                        uint8_t finite_timeout);
 
 /**
- * @brief Record expiration of a blocked mutex lock.
- * @param mutex Mutex being waited on.
- * @param task Task whose wait expired.
- * @param owner Current owner when the timeout is processed.
+ * @brief Record expiry of a finite mutex-lock timeout.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Trace reference of the task whose lock operation timed out.
+ * @param owner Current mutex owner, or @ref trace_task_ref_none if the mutex is unlocked.
+ *
+ * @pre @p mutex must not be null.
+ * @note @ref trace_task_ref_none is encoded as task ID @c UINT8_MAX.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_timeout(const void *mutex, trace_task_ref_t task, trace_task_ref_t owner);
 
 /**
- * @brief Record a mutex-unlock operation.
- * @param mutex Mutex being unlocked.
- * @param task Calling task.
- * @param owner_before Owner before the unlock attempt.
- * @param owner_after Owner after the unlock attempt.
- * @param succeeded Nonzero when the unlock succeeded.
+ * @brief Record the result of a mutex-unlock operation.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Trace reference of the task attempting to unlock the mutex.
+ * @param owner_before Mutex owner before the operation, or @ref trace_task_ref_none if unowned.
+ * @param owner_after Mutex owner after the operation, or @ref trace_task_ref_none if unowned.
+ * @param succeeded Nonzero if the unlock or ownership handoff succeeded;
+ *        zero if the operation was rejected.
+ *
+ * @pre @p mutex must not be null.
+ * @note @ref trace_task_ref_none values are encoded as task ID @c UINT8_MAX.
+ * @note During direct handoff, @p owner_after identifies the selected waiter.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_unlock(const void *mutex,
                         trace_task_ref_t task,
@@ -362,9 +511,15 @@ void trace_mutex_unlock(const void *mutex,
                         uint8_t succeeded);
 
 /**
- * @brief Record selection of a blocked task for mutex wakeup/handoff.
- * @param mutex Mutex whose ownership is handed off.
- * @param task Task selected for wakeup.
+ * @brief Record the waiter selected for direct mutex ownership handoff.
+ *
+ * @param mutex Stable address of the mutex object.
+ * @param task Trace reference of the waiting task selected as the new mutex owner.
+ *
+ * @pre @p mutex must not be null.
+ * @note The task priority is carried by @p task so the verifier can check
+ *       priority ordering. Trace order is used to resolve FIFO ties.
+ * @note Emitted only when @c OS_TRACE_MUTEX is enabled.
  */
 void trace_mutex_wake(const void *mutex, trace_task_ref_t task);
 
@@ -372,59 +527,179 @@ void trace_mutex_wake(const void *mutex, trace_task_ref_t task);
  * Message-queue events
  * -------------------------------------------------------------------------- */
 
-/** @brief Record queue creation. */
+/**
+ * @brief Record creation of a message queue.
+ *
+ * @param queue_id Stable numeric identifier of the queue.
+ * @param capacity Maximum number of buffered messages held by the queue.
+ *
+ * The identifier and capacity must match the queue configuration used to
+ * generate the TeSSLa monitor.
+ *
+ * @note Emitted when @c OS_TRACE_QUEUE is enabled and routed to each
+ *       configured backend that supports this event.
+ */
 void trace_queue_create(uint32_t queue_id, uint32_t capacity);
 
-/** @brief Record a queue-send attempt. */
+/**
+ * @brief Record the start of a queue-send operation.
+ *
+ * @param queue_id Identifier of the target queue.
+ * @param task_id Identifier of the sending task, or @c UINT8_MAX for an
+ *                operation performed from exception context.
+ * @param task_priority Priority of the sending task.
+ * @param timeout_ticks Requested timeout in kernel ticks. @c OS_NO_WAIT and
+ *                      @c OS_WAIT_FOREVER retain their public API meanings.
+ * @param message_hash 32-bit hash of the message being sent.
+ *
+ * Emit before determining whether the message is buffered, handed directly to
+ * a receiver, rejected, or must block.
+ *
+ * @note Emitted when @c OS_TRACE_QUEUE is enabled and routed to each
+ *       configured backend that supports this event.
+ */
 void trace_queue_send_attempt(uint32_t queue_id,
                               uint8_t task_id,
                               uint8_t task_priority,
                               uint32_t timeout_ticks,
                               uint32_t message_hash);
 
-/** @brief Record successful completion of a queue send. */
+/**
+ * @brief Record successful completion of a queue-send operation.
+ *
+ * @param queue_id Identifier of the target queue.
+ * @param task_id Identifier of the sender, or @c UINT8_MAX for exception
+ *                context.
+ * @param message_hash Hash supplied by the corresponding send attempt.
+ *
+ * A successful send either places the message in the ring buffer or transfers
+ * it directly to a waiting receiver.
+ */
 void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
 
-/** @brief Record that a sender blocks on a full queue. */
+/**
+ * @brief Record that a queue-send operation blocked its task.
+ *
+ * @param queue_id Identifier of the full queue.
+ * @param task_id Identifier of the task entering the send wait queue.
+ * @param task_priority Priority used to order the waiting sender.
+ *
+ * @pre The task must subsequently transition from @c RUNNING to @c BLOCKED.
+ */
 void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
 
-/** @brief Record expiration of a blocked queue send. */
+/**
+ * @brief Record expiry of a blocked queue-send operation.
+ *
+ * @param queue_id Identifier of the queue on which the task waited.
+ * @param task_id Identifier of the timed-out sender.
+ *
+ * @note Emit only for a finite timeout after the requested number of kernel
+ *       ticks has elapsed.
+ */
 void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id);
 
-/** @brief Record a queue-receive attempt. */
+/**
+ * @brief Record the start of a queue-receive operation.
+ *
+ * @param queue_id Identifier of the source queue.
+ * @param task_id Identifier of the receiving task, or @c UINT8_MAX for an
+ *                operation performed from exception context.
+ * @param task_priority Priority of the receiving task.
+ * @param timeout_ticks Requested timeout in kernel ticks. @c OS_NO_WAIT and
+ *                      @c OS_WAIT_FOREVER retain their public API meanings.
+ *
+ * Emit before determining whether a buffered message or waiting sender can
+ * satisfy the operation, or whether the operation must fail or block.
+ */
 void trace_queue_receive_attempt(uint32_t queue_id,
                                  uint8_t task_id,
                                  uint8_t task_priority,
                                  uint32_t timeout_ticks);
 
-/** @brief Record successful completion of a queue receive. */
+/**
+ * @brief Record successful completion of a queue-receive operation.
+ *
+ * @param queue_id Identifier of the source queue.
+ * @param task_id Identifier of the receiver, or @c UINT8_MAX for exception
+ *                context.
+ * @param message_hash 32-bit hash of the received message.
+ *
+ * The hash must describe the bytes delivered to the receiver, whether the
+ * message came from the ring buffer or through direct handoff.
+ */
 void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t message_hash);
 
-/** @brief Record that a receiver blocks on an empty queue. */
+/**
+ * @brief Record that a queue-receive operation blocked its task.
+ *
+ * @param queue_id Identifier of the empty queue.
+ * @param task_id Identifier of the task entering the receive wait queue.
+ * @param task_priority Priority used to order the waiting receiver.
+ *
+ * @pre The task must subsequently transition from @c RUNNING to @c BLOCKED.
+ */
 void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_priority);
 
-/** @brief Record expiration of a blocked queue receive. */
+/**
+ * @brief Record expiry of a blocked queue-receive operation.
+ *
+ * @param queue_id Identifier of the queue on which the task waited.
+ * @param task_id Identifier of the timed-out receiver.
+ *
+ * @note Emit only for a finite timeout after the requested number of kernel
+ *       ticks has elapsed.
+ */
 void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id);
 
-/** @brief Record selection of a blocked sender for wakeup. */
+/**
+ * @brief Record that a waiting sender was selected for wakeup.
+ *
+ * @param queue_id Identifier of the queue whose buffered receive freed a slot.
+ * @param task_id Identifier of the sender leaving the send wait queue.
+ *
+ * @pre The task must subsequently transition from @c BLOCKED to @c READY.
+ */
 void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id);
 
-/** @brief Record selection of a blocked receiver for wakeup. */
+/**
+ * @brief Record that a waiting receiver was selected for wakeup.
+ *
+ * @param queue_id Identifier of the queue receiving a direct handoff.
+ * @param task_id Identifier of the receiver leaving the receive wait queue.
+ *
+ * @pre The task must subsequently transition from @c BLOCKED to @c READY.
+ */
 void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id);
 
 /**
- * @brief Record a direct queue handoff that bypasses the ring buffer.
- * @param queue_id Queue coordinating the transfer.
- * @param sender_id Sending task ID or @ref TRACE_TASK_ID_NONE.
- * @param receiver_id Receiving task ID or @ref TRACE_TASK_ID_NONE.
- * @param message_hash Hash of the transferred message.
+ * @brief Record a direct message transfer between a sender and receiver.
+ *
+ * @param queue_id Identifier of the queue coordinating the transfer.
+ * @param sender_id Identifier of the sending task, or @c UINT8_MAX for
+ *                  exception context.
+ * @param receiver_id Identifier of the receiving task, or @c UINT8_MAX for
+ *                    exception context.
+ * @param message_hash 32-bit hash of the transferred message.
+ *
+ * Direct handoff bypasses the ring buffer and therefore does not change queue
+ * fill. Emit this event immediately before the matching send-success and
+ * receive-success events.
  */
 void trace_queue_handoff(uint32_t queue_id,
                          uint8_t sender_id,
                          uint8_t receiver_id,
                          uint32_t message_hash);
 
-/** @brief Record the queue fill level after a ring-buffer modification. */
+/**
+ * @brief Record the queue fill level after a ring-buffer modification.
+ *
+ * @param queue_id Identifier of the modified queue.
+ * @param fill Number of messages buffered after the push or pop.
+ *
+ * Emit immediately after every successful ring-buffer push or pop. Do not emit
+ * for direct handoff because it leaves the fill level unchanged.
+ */
 void trace_queue_fill(uint32_t queue_id, uint32_t fill);
 
 /* --------------------------------------------------------------------------
@@ -432,8 +707,14 @@ void trace_queue_fill(uint32_t queue_id, uint32_t fill);
  * -------------------------------------------------------------------------- */
 
 /**
- * @brief Emit a generic null-terminated trace log message.
- * @param text Message to emit; a null pointer is ignored.
+ * @brief Write a generic null-terminated trace message.
+ *
+ * @param text Message to emit. A null pointer is ignored.
+ *
+ * SystemView receives the string directly. The RTT text backend appends one
+ * newline after the supplied string.
+ *
+ * @warning The caller must keep @p text valid for the duration of the call.
  */
 void trace_log(const char *text);
 
@@ -461,9 +742,7 @@ static inline void trace_tick(uint32_t dt) {}
  * ISR events
  * -------------------------------------------------------------------------- */
 static inline void trace_isr_enter(void) {}
-
 static inline void trace_isr_exit(void) {}
-
 static inline void trace_isr_exit_to_scheduler(void) {}
 
 /* --------------------------------------------------------------------------

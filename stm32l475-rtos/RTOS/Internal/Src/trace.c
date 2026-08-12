@@ -302,10 +302,6 @@ void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
     trace_tessla_emit(
         "STATE %u %u %u", (unsigned int)task_id, (unsigned int)old_state, (unsigned int)new_state);
-#else
-    (void)task_id;
-    (void)old_state;
-    (void)new_state;
 #endif
 }
 
@@ -326,8 +322,6 @@ void trace_task_ready(trace_task_ref_t task) {
     if (trace_task_ref_valid(task) != 0u) {
         trace_tessla_emit("READY %u %u", (unsigned int)task.id, (unsigned int)task.priority);
     }
-#else
-    (void)task;
 #endif
 }
 
@@ -344,8 +338,6 @@ void trace_task_run(trace_task_ref_t task) {
     if (trace_task_ref_valid(task) != 0u) {
         trace_tessla_emit("RUNNING %u %u", (unsigned int)task.id, (unsigned int)task.priority);
     }
-#else
-    (void)task;
 #endif
 }
 
@@ -372,8 +364,6 @@ void trace_task_block(trace_task_ref_t task) {
     if (trace_task_ref_valid(task) != 0u) {
         trace_tessla_emit("BLOCKED %u", (unsigned int)task.id);
     }
-#else
-    (void)task;
 #endif
 }
 
@@ -390,8 +380,6 @@ void trace_idle(void) {
 void trace_tick(uint32_t dt) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     trace_tessla_emit("TICK %lu", (unsigned long)dt);
-#else
-    (void)dt;
 #endif
 }
 
@@ -428,9 +416,6 @@ void trace_task_delay_busy_start(trace_task_ref_t task, uint32_t delay_ticks) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_BUSY_START %u %u", (unsigned int)task.id, (unsigned int)delay_ticks);
-#else
-    (void)task;
-    (void)delay_ticks;
 #endif
 }
 
@@ -441,8 +426,6 @@ void trace_task_delay_busy_end(trace_task_ref_t task) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task.id);
-#else
-    (void)task;
 #endif
 }
 
@@ -453,9 +436,6 @@ void trace_task_delay_start(trace_task_ref_t task, uint32_t delay_ticks) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_START %u %u", (unsigned int)task.id, (unsigned int)delay_ticks);
-#else
-    (void)task;
-    (void)delay_ticks;
 #endif
 }
 
@@ -466,8 +446,6 @@ void trace_task_delay_end(trace_task_ref_t task) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
     trace_tessla_emit("DELAY_END %u", (unsigned int)task.id);
-#else
-    (void)task;
 #endif
 }
 
@@ -502,9 +480,6 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
                       trace_sem_id(semaphore),
                       (unsigned long)initial_count,
                       (unsigned long)max_count);
-#else
-    (void)initial_count;
-    (void)max_count;
 #endif
 }
 
@@ -533,11 +508,6 @@ void trace_sem_acquire_enter(const void *semaphore,
                       (unsigned long)count,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
-#else
-    (void)task;
-    (void)count;
-    (void)timeout_ticks;
-    (void)finite_timeout;
 #endif
 }
 
@@ -563,10 +533,6 @@ void trace_sem_acquire_exit(const void *semaphore,
                       (unsigned int)task.id,
                       (unsigned long)count,
                       (unsigned int)(succeeded != 0u));
-#else
-    (void)task;
-    (void)count;
-    (void)succeeded;
 #endif
 }
 
@@ -594,9 +560,6 @@ void trace_sem_block(const void *semaphore,
                       (unsigned int)task.priority,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
-#else
-    (void)timeout_ticks;
-    (void)finite_timeout;
 #endif
 }
 
@@ -615,8 +578,6 @@ void trace_sem_timeout(const void *semaphore, trace_task_ref_t task, uint32_t co
                       trace_sem_id(semaphore),
                       (unsigned int)task.id,
                       (unsigned long)count);
-#else
-    (void)count;
 #endif
 }
 
@@ -645,11 +606,6 @@ void trace_sem_release(const void *semaphore,
                       (unsigned long)count_after,
                       (unsigned long)max_count,
                       (unsigned int)(succeeded != 0u));
-#else
-    (void)count_before;
-    (void)count_after;
-    (void)max_count;
-    (void)succeeded;
 #endif
 }
 
@@ -726,11 +682,6 @@ void trace_mutex_lock_enter(const void *mutex,
                       (unsigned int)owner.id,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
-#else
-    (void)task;
-    (void)owner;
-    (void)timeout_ticks;
-    (void)finite_timeout;
 #endif
 }
 
@@ -756,10 +707,6 @@ void trace_mutex_lock_exit(const void *mutex,
                       (unsigned int)task.id,
                       (unsigned int)owner.id,
                       (unsigned int)(succeeded != 0u));
-#else
-    (void)task;
-    (void)owner;
-    (void)succeeded;
 #endif
 }
 
@@ -790,10 +737,6 @@ void trace_mutex_block(const void *mutex,
                       (unsigned int)owner.id,
                       (unsigned long)timeout_ticks,
                       (unsigned int)(finite_timeout != 0u));
-#else
-    (void)owner;
-    (void)timeout_ticks;
-    (void)finite_timeout;
 #endif
 }
 
@@ -812,8 +755,6 @@ void trace_mutex_timeout(const void *mutex, trace_task_ref_t task, trace_task_re
                       trace_mutex_id(mutex),
                       (unsigned int)task.id,
                       (unsigned int)owner.id);
-#else
-    (void)owner;
 #endif
 }
 
@@ -842,11 +783,6 @@ void trace_mutex_unlock(const void *mutex,
                       (unsigned int)owner_before.id,
                       (unsigned int)owner_after.id,
                       (unsigned int)(succeeded != 0u));
-#else
-    (void)task;
-    (void)owner_before;
-    (void)owner_after;
-    (void)succeeded;
 #endif
 }
 
