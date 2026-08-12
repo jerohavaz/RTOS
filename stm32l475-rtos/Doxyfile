@@ -11,15 +11,15 @@ OUTPUT_LANGUAGE        = English
 # Change INPUT if your folders differ.
 # Add excludes for generated/vendor noise if docs get messy.
 # -----------------------------------------------------------------------------
-INPUT                  = App Config Core Port RTOS
+INPUT                  = App Config Core Port RTOS ../README.md
 INPUT_ENCODING         = UTF-8
-FILE_PATTERNS          = *.c *.h *.s
+FILE_PATTERNS          = *.c *.h *.s *.md
 EXTENSION_MAPPING      =
 RECURSIVE              = YES
 EXCLUDE                =
 EXCLUDE_PATTERNS       =
 EXCLUDE_SYMBOLS        =
-USE_MDFILE_AS_MAINPAGE =
+USE_MDFILE_AS_MAINPAGE = ../README.md
 
 # -----------------------------------------------------------------------------
 # C / firmware parsing behavior
