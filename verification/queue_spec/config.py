@@ -69,6 +69,8 @@ EXPECTED = {
     },
     "valid_buffered_fifo.input": set(),
     "valid_direct_handoff.input": set(),
+    "valid_preempted_direct_handoff.input": set(),
     "valid_receive_timeout.input": set(),
+    "valid_receiver_timeout_during_send.input": set(),
     "valid_sender_refill.input": set(),
 }

@@ -1,5 +1,5 @@
-#ifndef APP_TASKS_H_
-#define APP_TASKS_H_
+#ifndef INTEGRATION_SENSOR_APP_H_
+#define INTEGRATION_SENSOR_APP_H_
 
 #include "os_types.h"
 
@@ -13,4 +13,4 @@ typedef enum {
 
 os_status_t app_sensor_command_submit(app_sensor_command_t command);
 
-#endif
+#endif /* INTEGRATION_SENSOR_APP_H_ */

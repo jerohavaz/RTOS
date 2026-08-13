@@ -78,9 +78,9 @@ typedef enum {
 #include <stddef.h>
 #include <string.h>
 
-#define TRACE_TESSLA_RTT_CHANNEL       (0u)
-#define TRACE_TESSLA_HEADER_SIZE       (4u)
-#define TRACE_TESSLA_MAX_PAYLOAD_SIZE  (96u)
+#define TRACE_TESSLA_RTT_CHANNEL        (0u)
+#define TRACE_TESSLA_HEADER_SIZE        (4u)
+#define TRACE_TESSLA_MAX_PAYLOAD_SIZE   (96u)
 #define TRACE_TESSLA_FIXED_PAYLOAD_SIZE (20u)
 
 typedef enum {
@@ -168,8 +168,7 @@ static void trace_tessla_emit(trace_tessla_event_id_t event_id,
                               uint8_t payload_length) {
     uint8_t record[TRACE_TESSLA_HEADER_SIZE + TRACE_TESSLA_MAX_PAYLOAD_SIZE];
 
-    if (payload_length > TRACE_TESSLA_MAX_PAYLOAD_SIZE ||
-        (payload_length != 0u && payload == 0)) {
+    if (payload_length > TRACE_TESSLA_MAX_PAYLOAD_SIZE || (payload_length != 0u && payload == 0)) {
         return;
     }
 
@@ -185,9 +184,8 @@ static void trace_tessla_emit(trace_tessla_event_id_t event_id,
 
     record[0] = (uint8_t)sequence;
     record[1] = (uint8_t)(sequence >> 8u);
-    SEGGER_RTT_WriteSkipNoLock(TRACE_TESSLA_RTT_CHANNEL,
-                               record,
-                               TRACE_TESSLA_HEADER_SIZE + (unsigned int)payload_length);
+    SEGGER_RTT_WriteSkipNoLock(
+        TRACE_TESSLA_RTT_CHANNEL, record, TRACE_TESSLA_HEADER_SIZE + (unsigned int)payload_length);
 
     port_exit_critical(key);
 }

@@ -43,6 +43,10 @@ void integration_mutex_init(void);
  */
 void integration_queue_init(void);
 
+/**
+ * @brief Initialize the LSM6DSL sensor application and its worker tasks.
+ * @pre @c os_init() has completed and @c os_start() has not been called.
+ */
 void integration_sensor_app_init(void);
 
 #endif /* INTEGRATION_TESTS_H_ */

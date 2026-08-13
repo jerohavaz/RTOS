@@ -1,10 +1,10 @@
-#ifndef SHELL_H_
-#define SHELL_H_
+#ifndef INTEGRATION_SENSOR_SHELL_H_
+#define INTEGRATION_SENSOR_SHELL_H_
 
 #include <stdint.h>
 
 void shell_init(void);
 void shell_update(void);
-uint8_t is_stream_enabled(void);
+uint8_t sensor_shell_stream_enabled(void);
 
-#endif
+#endif /* INTEGRATION_SENSOR_SHELL_H_ */

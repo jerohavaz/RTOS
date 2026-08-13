@@ -31,7 +31,7 @@
  * The kernel allocates one additional internal task slot for the idle task.
  * The total task capacity is therefore @c OS_MAX_TASKS + 1.
  */
-#define OS_MAX_TASKS (9u)
+#define OS_MAX_TASKS (5u)
 
 /**
  * @brief Stack capacity allocated to each task, in 32-bit words.

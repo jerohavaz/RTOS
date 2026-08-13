@@ -32,6 +32,7 @@
 /** @brief Build the message-queue communication and integrity test. */
 #define PROJECT_QUEUE (5u)
 
+/** @brief Build the interactive LSM6DSL sensor application. */
 #define PROJECT_SENSOR (6u)
 
 /**

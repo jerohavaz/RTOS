@@ -1,10 +1,15 @@
 #include "integration_sensor_shell.h"
 
+#include "project.h"
+
+#if PROJECT == PROJECT_SENSOR
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "integration_sensor_app.h"
+#include "integration_sensor_internal.h"
 #include "main.h"
 
 #define SHELL_RX_BUFFER_SIZE 128u
@@ -45,8 +50,10 @@ static const command_t command_table[] = {
 #define NUM_COMMANDS (sizeof(command_table) / sizeof(command_table[0]))
 
 static void shell_print(const char *text) {
-    if (text != NULL) {
-        HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
+    if ((text != NULL) &&
+        (HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY) !=
+         HAL_OK)) {
+        sensor_app_record_error();
     }
 }
 
@@ -239,6 +246,8 @@ static int cmd_status(int argc, char **argv) {
     return queue_sensor_command(APP_SENSOR_CMD_STATUS);
 }
 
-uint8_t is_stream_enabled(void) {
+uint8_t sensor_shell_stream_enabled(void) {
     return stream_enabled;
 }
+
+#endif /* PROJECT == PROJECT_SENSOR */

@@ -315,8 +315,8 @@ def emit_queue(queue_id: int, capacity: int, max_tasks: int) -> str:
         [f"last(send_wait_q{q}_t{task}, queue_recv_success_hash)" for task in range(max_tasks)],
         "   ",
     )
-    waiting_receivers_at_send = or_terms(
-        [f"last(recv_wait_q{q}_t{task}, queue_send_attempt_queue_id)" for task in range(max_tasks)],
+    waiting_receivers_at_send_success = or_terms(
+        [f"last(recv_wait_q{q}_t{task}, queue_send_success_queue_id)" for task in range(max_tasks)],
         "   ",
     )
     handoff_receiver_waiting = or_terms(
@@ -633,24 +633,9 @@ def violation_queue_ready_event_missing_q{q} :=
 def sender_wake_requirement_time_q{q}: Events[Int] =
   merge(time(filter(queue_recv_success_task_id, waiting_sender_at_receive_q{q})), -100)
 
-def waiting_receiver_at_send_q{q} :=
-  queue_send_attempt_queue_id == {q} &&
-  ({waiting_receivers_at_send})
-
-def receiver_handoff_requirement_time_q{q}: Events[Int] =
-  merge(time(filter(queue_send_attempt_queue_id, waiting_receiver_at_send_q{q})), -100)
-
-def receiver_handoff_required_sender_q{q}: Events[Int] =
-  merge(filter(queue_send_attempt_task_id, waiting_receiver_at_send_q{q}), -1)
-
-def receiver_handoff_matches_requirement_q{q} :=
-  queue_handoff_queue_id == {q} &&
-  ({handoff_receiver_waiting}) &&
-  queue_handoff_sender_id ==
-    default(last(receiver_handoff_required_sender_q{q}, queue_handoff_queue_id), -1)
-
-def matching_receiver_handoff_time_q{q}: Events[Int] =
-  merge(time(filter(queue_handoff_queue_id, receiver_handoff_matches_requirement_q{q})), -100)
+def waiting_receiver_at_send_success_q{q} :=
+  queue_send_success_queue_id == {q} &&
+  ({waiting_receivers_at_send_success})
 
 def receiver_wake_requirement_time_q{q}: Events[Int] =
   merge(
@@ -662,19 +647,10 @@ def receiver_wake_requirement_time_q{q}: Events[Int] =
 def violation_waiting_sender_not_woken_q{q} :=
   filter(tick, last(sender_wake_requirement_time_q{q}, tick) > last(sender_wake_time_q{q}, tick))
 
-def receiver_handoff_missing_at_send_success_q{q} :=
-  queue_send_success_queue_id == {q} &&
-  default(last(receiver_handoff_requirement_time_q{q}, queue_send_success_queue_id), -100) >
-    default(last(matching_receiver_handoff_time_q{q}, queue_send_success_queue_id), -100)
-
-def receiver_handoff_missing_at_tick_q{q} :=
-  default(last(receiver_handoff_requirement_time_q{q}, tick), -100) >
-    default(last(matching_receiver_handoff_time_q{q}, tick), -100)
-
 def violation_waiting_receiver_not_handed_off_q{q} :=
-  merge(
-    filter(queue_send_success_queue_id, receiver_handoff_missing_at_send_success_q{q}),
-    filter(tick, receiver_handoff_missing_at_tick_q{q})
+  filter(
+    queue_send_success_task_id,
+    waiting_receiver_at_send_success_q{q} && direct_send_q{q} == false
   )
 
 def violation_waiting_receiver_not_woken_q{q} :=

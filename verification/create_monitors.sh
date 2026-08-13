@@ -89,6 +89,16 @@ for mode in "${MODES[@]}"; do
         --max-tasks 4 \
         --queue 1:1
 
+    # PROJECT_SENSOR    
+    generate_monitor sensor "$mode" \
+         integrity delay scheduler semaphore queue project \
+        --max-tasks 3 \
+        --max-semaphores 1 \
+        --queue 1:8 \
+        --queue 2:96 \
+        --target-interval-ticks 100 \
+        --jitter-ticks 5 
+
 done
 
 echo "============================================================"

@@ -1,60 +1,23 @@
-# Project transmission timing verification
+# Project Transmission Timing Verification
 
-This module verifies the tick interval of every `transmission_complete` event.
+Verifies the tick interval between observed `transmission_complete` events.
 
-The user supplies:
+## Checks
 
-- `target_interval_ticks`: expected number of OS ticks between transmission completions.
-- `jitter_ticks`: allowed jitter on either side of the target.
+- Every completion interval must remain within `target_interval_ticks +/- jitter_ticks`, including both boundary values.
+- The first completion is measured from accumulated tick count zero; later completions are measured from the preceding completion.
+- With a target of 100 ticks and jitter of 5 ticks, intervals from 95 through 105 ticks are valid; smaller or larger intervals emit `violation_transmission_interval`.
 
-The accepted interval is inclusive:
+## Implementation Trace
 
-```text
-[target_interval_ticks - jitter_ticks,
- target_interval_ticks + jitter_ticks]
-```
+- The application emits `TRANSMISSION_COMPLETE` immediately before transmitting one completed UART data record.
+- The RTT receiver converts that record to the `transmission_complete` input stream.
+- Positive `TICK` values advance the accumulated OS tick count; non-positive values do not.
+- Violation mode exposes `violation_transmission_interval`; check mode exposes `FAIL_transmission_interval` and `PASS_transmission_interval` for each completion.
 
-For example, a target of `100` ticks with `5` ticks of jitter accepts a
-`transmission_complete` interval from `95` through `105` ticks. An interval of
-`94` or `106` ticks emits `violation_transmission_interval`.
+## Limits
 
-The first `transmission_complete` interval is measured from accumulated tick
-count zero. Later intervals are measured from the preceding
-`transmission_complete` event.
-
-Only positive `tick` values advance the accumulated tick count, matching the
-tick-duration model used by the other verification modules.
-
-## Generate
-
-Using the jitter alias:
-
-```bash
-python3 tessla_verify.py generate project \
-    --target-interval-ticks 100 \
-    --jitter-ticks 5
-```
-
-The existing `--tolerance-ticks 5` spelling is also accepted.
-
-Generate check-mode outputs instead of violation-only output:
-
-```bash
-python3 tessla_verify.py generate project \
-    --target-interval-ticks 100 \
-    --jitter-ticks 5 \
-    --mode checks
-```
-
-Violation mode exposes:
-
-```text
-violation_transmission_interval
-```
-
-Check mode exposes:
-
-```text
-FAIL_transmission_interval
-PASS_transmission_interval
-```
+- Timing is expressed only in emitted OS ticks; sub-tick timing and UART transmission duration are not measured.
+- The first interval includes all traced ticks before the first completion.
+- Missing RTT records make timing results inconclusive and must be detected by the trace-integrity monitor.
+- `target_interval_ticks` must be positive; `jitter_ticks` must be non-negative and no greater than the target interval.

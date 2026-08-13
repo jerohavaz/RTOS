@@ -13,12 +13,21 @@ The application builds exactly one RTOS integration test. Select it by changing 
 | `PROJECT_SEMAPHORE` | Binary empty/full/success paths, low-first contention with high-priority wake-up, finite timeout, and counting range |
 | `PROJECT_MUTEX` | Low-first contention with high-priority handoff, one-owner invariant, recursive/non-owner rejection, finite timeout, and reuse |
 | `PROJECT_QUEUE` | Empty receive and full send blocking, direct handoff, FIFO refill, exact integrity, no-wait rejection, and both finite timeout paths |
+| `PROJECT_SENSOR` | Interrupt-driven LSM6DSL sampling, 100 ms aggregation, UART streaming, and shell commands |
+
+The sensor project separates device register access, sampling orchestration,
+UART output, and shell parsing. Raw samples are accumulated by the sensor task
+and one batch is queued on a fixed 100 ms RTOS-tick deadline. The data-ready
+semaphore uses the remaining deadline as a finite timeout, so low sensor rates
+do not quantize the UART period to the next sample interrupt. Queue 1 carries
+sensor commands with capacity 8; queue 2 carries output batches and responses
+with capacity 96.
 
 Each test has its own source file under `Src/`. Tests are intentionally small and use only public RTOS APIs.
 
 ## Prebuilt TeSSLa monitors
 
-> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/14ZYGdIdYDtGIfDYc_Zr4cvj2_mcTdS1F/view?usp=sharing)**
+> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/1FiHaoeGVnvxhUGxd2dAXaXvNWMbt5crq/view?usp=sharing)**
 
 The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, and verification modules used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
 
@@ -38,7 +47,9 @@ monitors/
 │   ├── scheduler-monitor
 │   ├── scheduler.tessla
 │   ├── semaphore-monitor
-│   └── semaphore.tessla
+│   ├── semaphore.tessla
+│   ├── sensor-monitor
+│   └── sensor.tessla
 └── violations/
     ├── delay-monitor
     ├── delay.tessla
@@ -49,7 +60,9 @@ monitors/
     ├── scheduler-monitor
     ├── scheduler.tessla
     ├── semaphore-monitor
-    └── semaphore.tessla
+    ├── semaphore.tessla
+    ├── sensor-monitor
+    └── sensor.tessla
 ```
 
 The files under `checks/` were generated with `--mode checks`. The files under `violations/` were generated with `--mode violations`. Each command below was run once for each mode by replacing `MODE` with `checks` and then `violations`. The resulting `build/combined.tessla` and `build/combined-monitor` were renamed to the project-specific filenames shown above.
@@ -107,6 +120,20 @@ python3 tessla_verify.py generate integrity delay scheduler semaphore mutex \
 python3 tessla_verify.py generate integrity delay scheduler queue \
     --max-tasks 4 \
     --queue 1:1 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar tessla.jar
+```
+
+### `PROJECT_SENSOR`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler semaphore queue \
+    --max-tasks 3 \
+    --max-semaphores 1 \
+    --queue 1:8 \
+    --queue 2:96 \
     --combined \
     --mode MODE \
     --rust \
