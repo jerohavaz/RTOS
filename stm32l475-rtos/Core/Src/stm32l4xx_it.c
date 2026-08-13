@@ -144,6 +144,7 @@ void DebugMon_Handler(void) {
 
 /**
  * @brief This function handles System tick timer.
+ * @author Jerome
  */
 void SysTick_Handler(void) {
     /* USER CODE BEGIN SysTick_IRQn 0 */
@@ -181,19 +182,21 @@ void EXTI9_5_IRQHandler(void) {
 
 /**
  * @brief This function handles USART1 global interrupt.
+ * @author Jerome
  */
 void USART1_IRQHandler(void) {
     /* USER CODE BEGIN USART1_IRQn 0 */
-
+    os_isr_enter();
     /* USER CODE END USART1_IRQn 0 */
     HAL_UART_IRQHandler(&huart1);
     /* USER CODE BEGIN USART1_IRQn 1 */
-
+    os_isr_exit();
     /* USER CODE END USART1_IRQn 1 */
 }
 
 /**
  * @brief This function handles EXTI line[15:10] interrupts.
+ * @author Jerome
  */
 void EXTI15_10_IRQHandler(void) {
     /* USER CODE BEGIN EXTI15_10_IRQn 0 */
