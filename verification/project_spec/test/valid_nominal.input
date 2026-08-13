@@ -1,0 +1,6 @@
+# target=100, jitter=5
+0: tick = 50
+1: tick = 50
+2: transmission_complete = true
+3: tick = 100
+4: transmission_complete = true

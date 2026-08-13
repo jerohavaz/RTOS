@@ -703,6 +703,12 @@ void trace_queue_handoff(uint32_t queue_id,
 void trace_queue_fill(uint32_t queue_id, uint32_t fill);
 
 /* --------------------------------------------------------------------------
+ * Project: 3D-Gyro-Accelerometer events
+ * -------------------------------------------------------------------------- */
+
+void trace_transmission_complete(void);
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 
@@ -870,6 +876,11 @@ static inline void trace_queue_handoff(uint32_t queue_id,
                                        uint32_t message_hash) {}
 
 static inline void trace_queue_fill(uint32_t queue_id, uint32_t fill) {}
+
+/* --------------------------------------------------------------------------
+ * Project: 3D-Gyro-Accelerometer events
+ * -------------------------------------------------------------------------- */
+static inline void trace_transmission_complete(void) {}
 
 /* --------------------------------------------------------------------------
  * Generic log event

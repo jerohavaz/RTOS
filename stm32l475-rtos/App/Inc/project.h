@@ -32,6 +32,8 @@
 /** @brief Build the message-queue communication and integrity test. */
 #define PROJECT_QUEUE (5u)
 
+#define PROJECT_SENSOR (6u)
+
 /**
  * @brief Integration test selected for the current firmware image.
  *
@@ -39,10 +41,10 @@
  * change the value below to build another scenario.
  */
 #ifndef PROJECT
-#define PROJECT PROJECT_QUEUE
+#define PROJECT PROJECT_SENSOR
 #endif
 
-#if (PROJECT < PROJECT_SCHEDULER) || (PROJECT > PROJECT_QUEUE)
+#if (PROJECT < PROJECT_SCHEDULER) || (PROJECT > PROJECT_SENSOR)
 #error "PROJECT must select a defined integration test"
 #endif
 

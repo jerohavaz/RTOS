@@ -55,6 +55,8 @@ void app_init(void) {
     integration_mutex_init();
 #elif PROJECT == PROJECT_QUEUE
     integration_queue_init();
+#elif PROJECT == PROJECT_SENSOR
+    integration_sensor_app_init();
 #else
 #error "Unsupported PROJECT selection"
 #endif

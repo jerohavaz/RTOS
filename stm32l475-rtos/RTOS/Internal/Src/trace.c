@@ -983,6 +983,16 @@ void trace_queue_fill(uint32_t queue_id, uint32_t fill) {
 }
 
 /* --------------------------------------------------------------------------
+ * Project: 3D-Gyro-Accelerometer events
+ * -------------------------------------------------------------------------- */
+
+void trace_transmission_complete(void) {
+#if OS_TRACE_TESSLA_RTT && OS_TRACE_PROJECT
+    trace_tessla_emit("TRANSMISSION_COMPLETE");
+#endif
+}
+
+/* --------------------------------------------------------------------------
  * Generic log event
  * -------------------------------------------------------------------------- */
 

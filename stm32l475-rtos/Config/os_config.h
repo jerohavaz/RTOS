@@ -97,7 +97,7 @@
  * Requires the SEGGER SystemView sources, headers, and target configuration.
  * This option is meaningful only when @ref OS_TRACE_ENABLED is @c true.
  */
-#define OS_TRACE_SEGGER_SYSVIEW (true)
+#define OS_TRACE_SEGGER_SYSVIEW (false)
 
 /**
  * @brief Enable the Tessla-compatible text stream over SEGGER RTT.
@@ -120,27 +120,29 @@
 /**
  * @brief Trace interrupt entry and exit events.
  */
-#define OS_TRACE_ISR (true)
+#define OS_TRACE_ISR (false)
 
 /**
  * @brief Trace mutex operations.
  */
-#define OS_TRACE_MUTEX (true)
+#define OS_TRACE_MUTEX (false)
 
 /**
  * @brief Trace semaphore operations.
  */
-#define OS_TRACE_SEMAPHORE (true)
+#define OS_TRACE_SEMAPHORE (false)
 
 /**
  * @brief Trace message-queue operations.
  */
-#define OS_TRACE_QUEUE (true)
+#define OS_TRACE_QUEUE (false)
 
 /**
  * @brief Trace task-delay operations.
  */
 #define OS_TRACE_DELAY (true)
+
+#define OS_TRACE_PROJECT (false)
 
 /** @} */
 

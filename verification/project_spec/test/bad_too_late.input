@@ -1,0 +1,3 @@
+# 106 ticks is above the accepted 105-tick upper bound.
+0: tick = 106
+1: transmission_complete = true

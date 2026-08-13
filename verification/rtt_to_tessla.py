@@ -14,6 +14,9 @@ import sys
 from contextlib import nullcontext
 from typing import Callable, Iterable, TextIO
 
+FLUSH_INTERVAL = 1000
+SUMMARY_INTERVAL = 1000
+
 EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
     "TASK_CREATE": [
         ("task_create_id", int),
@@ -201,6 +204,9 @@ EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
         ("queue_fill_queue_id", int),
         ("queue_fill_value", int),
     ],
+    "TRANSMISSION_COMPLETE": [
+        ("transmission_complete", lambda _value: True),
+    ],
 }
 
 last_trace_sequence: int | None = None
@@ -375,11 +381,12 @@ def convert_line(line: str, timestamp: int) -> list[str]:
     event = parts[0]
     mapping = EVENTS[event]
 
-    if event == "IDLE":
+    if event in ("IDLE", "TRANSMISSION_COMPLETE"):
         if len(parts) != 1:
             return []
 
-        return [f"{timestamp}: idle = true"]
+        stream_name = EVENTS[event][0][0]
+        return [f"{timestamp}: {stream_name} = true"]
 
     expected_length = 1 + len(mapping)
 
@@ -491,7 +498,8 @@ def main() -> int:
                     elif replacing_session:
                         print(
                             "Target restarted: stdout consumers have already "
-                            "received the previous session and must also be restarted.",
+                            "received the previous session and must also be "
+                            "restarted.",
                             file=sys.stderr,
                         )
 
@@ -546,15 +554,16 @@ def main() -> int:
                     output_stream.write(converted_line)
                     output_stream.write("\n")
 
-                output_stream.flush()
                 timestamp += 1
                 received_events += 1
 
-                if show_live_summary:
+                if received_events % FLUSH_INTERVAL == 0:
+                    output_stream.flush()
+
+                if show_live_summary and received_events % SUMMARY_INTERVAL == 0:
                     print_live_summary(received_events)
 
         if show_live_summary:
-            # Finish the carriage-return-based live summary line.
             print(file=sys.stderr)
 
             if missing_trace_records > 0:

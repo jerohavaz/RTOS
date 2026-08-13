@@ -58,6 +58,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/integration_queue.c
     App/Src/integration_scheduler.c
     App/Src/integration_semaphore.c
+    App/Src/integration_sensor_app.c
+    App/Src/integration_sensor_shell.c
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

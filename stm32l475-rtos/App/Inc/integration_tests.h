@@ -43,4 +43,6 @@ void integration_mutex_init(void);
  */
 void integration_queue_init(void);
 
+void integration_sensor_app_init(void);
+
 #endif /* INTEGRATION_TESTS_H_ */

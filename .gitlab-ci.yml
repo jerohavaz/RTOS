@@ -124,6 +124,9 @@ build:
 
   parallel:
     matrix:
+      - VARIANT: "sensor"
+        RTOS_PROJECT: "PROJECT_SENSOR"
+        RTOS_TRACE_ENABLED: "1"
       - VARIANT: "queue"
         RTOS_PROJECT: "PROJECT_QUEUE"
         RTOS_TRACE_ENABLED: "1"
