@@ -1,0 +1,36 @@
+0: state_id = 1
+0: state_old = 0
+0: state_new = 1
+
+1: ready_id = 1
+1: ready_prio = 2
+
+2: state_id = 2
+2: state_old = 0
+2: state_new = 1
+
+3: ready_id = 2
+3: ready_prio = 2
+
+4: state_id = 1
+4: state_old = 1
+4: state_new = 2
+
+5: running_id = 1
+5: running_prio = 2
+
+6: tick = 1
+
+7: state_id = 1
+7: state_old = 2
+7: state_new = 1
+
+8: ready_id = 1
+8: ready_prio = 2
+
+9: state_id = 1
+9: state_old = 1
+9: state_new = 2
+
+10: running_id = 1
+10: running_prio = 2

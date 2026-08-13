@@ -1,6 +1,14 @@
+/**
+ * @file os_delay.c
+ * @brief Task delay API implementation.
+ * @author Jerome
+ * @author Martin
+ */
+
 #include "k_delay.h"
 #include "k_sched.h"
 #include "k_timeout.h"
+#include "k_trace.h"
 #include "kernel_panic.h"
 #include "port.h"
 #include "trace.h"
@@ -37,6 +45,9 @@ os_status_t os_delay(uint32_t delay_ticks) {
     current->wait_result = OS_ERR_BUSY;
 
     k_timeout_add(current, delay_ticks);
+
+    trace_task_delay_start(k_trace_task_ref(current), delay_ticks);
+
     k_sched_task_block(current);
     port_exit_critical(key);
 
@@ -60,7 +71,7 @@ os_status_t os_delay_busy(uint32_t delay_ticks) {
         return OS_ERR_INVALID_STATE;
     }
 
-    trace_task_delay_busy_start(&current->tcb, delay_ticks);
+    trace_task_delay_busy_start(k_trace_task_ref(current), delay_ticks);
 
     uint32_t start_tick = k_tick_get();
 
@@ -68,7 +79,7 @@ os_status_t os_delay_busy(uint32_t delay_ticks) {
         port_no_operation();
     }
 
-    trace_task_delay_busy_end(&current->tcb);
+    trace_task_delay_busy_end(k_trace_task_ref(current));
 
     return OS_OK;
 }
@@ -81,4 +92,5 @@ void k_delay_timeout_cleanup(kernel_task_t *task) {
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;
     task->wait_result = OS_OK;
+    trace_task_delay_end(k_trace_task_ref(task));
 }

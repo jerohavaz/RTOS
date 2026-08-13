@@ -1,7 +1,14 @@
+/**
+ * @file k_task.c
+ * @brief Static task storage and creation implementation.
+ * @author Jerome
+ */
+
 #include "kernel_task.h"
 #include "kernel_panic.h"
 #include "os_config.h"
 #include "k_task.h"
+#include "k_trace.h"
 #include "os_task.h"
 #include "os_types.h"
 #include "port.h"
@@ -22,11 +29,28 @@ static kernel_task_t g_tasks[K_MAX_TASKS];
 static uint32_t g_task_count = 0u;
 static bool g_task_creation_locked = false;
 
+/**
+ * @brief Trap a task that returns from its entry function.
+ *
+ * Installed as the initial task LR by port_init_task_stack(). A valid RTOS
+ * task is not permitted to return, so execution remains in this loop.
+ *
+ * @note This function never returns.
+ */
 static void task_exit_error(void) {
     while (1) {
     }
 }
 
+/**
+ * @brief Reset a task slot to its unused state.
+ *
+ * Clears the TCB state, intrusive-list links, wake tick, wait type, wait
+ * object, and wait result so the slot can be initialized by task creation.
+ *
+ * @param task Task slot to clear.
+ * @pre @p task must not be 0.
+ */
 static void task_clear(kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
 
@@ -45,6 +69,7 @@ static void task_clear(kernel_task_t *task) {
     task->wait_type = K_WAIT_NONE;
     task->wait_object = 0;
     task->wait_result = OS_OK;
+    task->wait_data = 0;
 }
 
 void k_task_init(void) {
@@ -58,6 +83,7 @@ void k_task_init(void) {
 
 os_status_t k_task_create_internal(os_task_func_t task_func,
                                    uint8_t prio,
+                                   bool is_idle,
                                    kernel_task_t **out_task) {
     if (out_task == 0) {
         return OS_ERR_NULL;
@@ -111,7 +137,9 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
 
     g_task_count++;
 
-    trace_task_create(tcb);
+    trace_task_info_t trace_info =
+        k_trace_task_info(task, is_idle ? TRACE_TASK_KIND_IDLE : TRACE_TASK_KIND_NORMAL);
+    trace_task_register(&trace_info);
 
     *out_task = task;
 
@@ -121,7 +149,7 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
 os_status_t os_task_create(os_task_func_t task_func, uint8_t prio) {
     kernel_task_t *task = 0;
 
-    return k_task_create_internal(task_func, prio, &task);
+    return k_task_create_internal(task_func, prio, false, &task);
 }
 
 kernel_task_t *k_task_get(uint32_t index) {

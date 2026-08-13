@@ -1,37 +1,51 @@
-/*
- * tcb.h
- *  Task control block
- *  Created on: Mar 31, 2025
- *      Author: David
+/**
+ * @file tcb.h
+ * @brief Architecture-neutral task control block definitions.
+ * @author David
+ * @author Jerome
+ *
+ * Defines the task states and control-block fields used by the scheduler and
+ * Cortex-M context-switch implementation.
  */
 
 #ifndef DOS_INC_TCB_H_
 #define DOS_INC_TCB_H_
 
 #include "os_config.h"
+
 #include <stdint.h>
 
-/// Task state.
+/**
+ * @brief Task lifecycle and scheduler states.
+ *
+ * A task occupies exactly one state at a time. Only tasks in the ready or
+ * running states are schedulable.
+ */
 typedef enum {
-    TaskState_Created = 0U, ///< Task has been created.
-
-    // Normal scheduler states.
-    TaskState_Ready,   ///< Ready to be scheduled.
-    TaskState_Running, ///< Currently executing.
-    TaskState_Blocked, ///< Waiting; not schedulable.
-
-    TaskState_Deleted,   ///< [FUTURE] Deleted; will not run again.
-    TaskState_MAX_STATE, ///< Number of states / validity limit.
+    TaskState_Created = 0U, /**< Task has been created but is not yet ready. */
+    TaskState_Ready,        /**< Task is ready to be scheduled. */
+    TaskState_Running,      /**< Task is currently executing. */
+    TaskState_Blocked,      /**< Task is waiting and cannot be scheduled. */
+    TaskState_Deleted,      /**< Reserved for a future deleted-task state. */
+    TaskState_MAX_STATE     /**< Number of states and state-validity limit. */
 } TCB_eTaskStates_t;
 
-/// Task control block.
+/**
+ * @brief Task control block.
+ *
+ * Stores the task identity, scheduling attributes, statically allocated stack,
+ * and saved stack pointer required to resume its execution.
+ */
 typedef struct {
-    uint8_t u8TaskId;             ///< Task ID.
-    uint8_t u8TaskPrio;           ///< Task priority.
-    TCB_eTaskStates_t eTaskState; ///< Current task state.
+    uint8_t u8TaskId;             /**< Unique kernel task identifier. */
+    uint8_t u8TaskPrio;           /**< Fixed scheduling priority. */
+    TCB_eTaskStates_t eTaskState; /**< Current task state. */
 
-    uint32_t au32TaskStack[OS_TASK_STACK_SIZE]; ///< Task stack; stores software-saved context.
-    uint32_t *pu32TaskSP;                       ///< Saved stack pointer.
+    /** Statically allocated task stack containing the saved CPU context. */
+    uint32_t au32TaskStack[OS_TASK_STACK_SIZE];
+
+    /** Saved stack pointer used by the context-switch implementation. */
+    uint32_t *pu32TaskSP;
 } TCB_sctTCB_t;
 
 #endif /* DOS_INC_TCB_H_ */

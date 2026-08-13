@@ -1,0 +1,5 @@
+0: mutex_create_id = 100
+1: mutex_lock_exit_id = 100
+1: mutex_lock_exit_task = 0
+1: mutex_lock_exit_owner = 255
+1: mutex_lock_exit_succeeded = 0

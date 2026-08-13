@@ -1,3 +1,9 @@
+/**
+ * @file k_idle.c
+ * @brief Kernel idle-task implementation.
+ * @author Jerome
+ */
+
 #include "k_idle.h"
 #include "kernel_panic.h"
 #include "k_sched.h"
@@ -8,7 +14,7 @@
 void k_idle_create(void) {
     kernel_task_t *idle;
 
-    os_status_t status = k_task_create_internal(k_idle_task, OS_TASK_PRIORITY_LOWEST, &idle);
+    os_status_t status = k_task_create_internal(k_idle_task, OS_TASK_PRIORITY_LOWEST, true, &idle);
 
     KERNEL_REQUIRE(status == OS_OK);
     KERNEL_REQUIRE(idle != 0);
@@ -20,13 +26,9 @@ void k_idle_task(void) {
     while (1) {
 #if OS_TRACE_ENABLED
         /*
-         * Do not use WFI while tracing.
-         *
-         * SystemView reads trace data from the target RAM via J-Link RTT.
-         * Entering sleep from WFI can stop or disturb debugger/RTT access,
-         * causing missing or stalled SystemView logs.
-         *
-         * Keep the CPU awake in trace builds; use real idle sleep otherwise.
+         * Keep the CPU awake while tracing so RTT-based trace transport and
+         * debugger access remain responsive. Non-trace builds may sleep until
+         * the next interrupt.
          */
         port_no_operation();
 #else

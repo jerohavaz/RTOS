@@ -1,9 +1,24 @@
+/**
+ * @file timeout_list.c
+ * @brief Ordered kernel timeout-list implementation.
+ * @author Jerome
+ */
+
 #include "timeout_list.h"
 #include "kernel_panic.h"
 #include "kernel_task.h"
 #include "task_list.h"
 #include <stdbool.h>
 
+/**
+ * @brief Select a task's dedicated timeout-list node.
+ *
+ * @param task Task whose timeout node is required.
+ *
+ * @return Pointer to @c task->timeout_node.
+ *
+ * @pre @p task must not be null.
+ */
 static kernel_task_list_node_t *timeout_node(kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
 

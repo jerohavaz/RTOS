@@ -1,5 +1,13 @@
+/**
+ * @file ring_msgbuf.c
+ * @brief Fixed-size-message ring-buffer implementation.
+ * @author Jerome
+ * @author Martin
+ */
+
 #include "ring_msgbuf.h"
 #include "kernel_panic.h"
+
 #include <stdbool.h>
 #include <string.h>
 

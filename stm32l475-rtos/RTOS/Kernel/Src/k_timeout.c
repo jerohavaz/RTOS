@@ -1,3 +1,9 @@
+/**
+ * @file k_timeout.c
+ * @brief Kernel tick and task-timeout implementation.
+ * @author Jerome
+ */
+
 #include "k_timeout.h"
 #include "k_delay.h"
 #include "k_mutex.h"
@@ -8,6 +14,7 @@
 #include "port.h"
 #include "timeout_list.h"
 #include "os_types.h"
+#include "trace.h"
 #include <stdbool.h>
 
 static volatile uint32_t g_tick = 0u;

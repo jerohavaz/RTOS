@@ -1,0 +1,23 @@
+0: state_id = 0
+0: state_old = 0
+0: state_new = 1
+
+1: ready_id = 0
+1: ready_prio = 1
+
+2: state_id = 0
+2: state_old = 1
+2: state_new = 2
+
+3: running_id = 0
+3: running_prio = 1
+
+4: tick = 1
+
+5: state_id = 0
+5: state_old = 2
+5: state_new = 3
+
+6: blocked_id = 0
+
+7: idle = true
