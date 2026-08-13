@@ -2,8 +2,8 @@
 
 CHECKS = [
     (
-        "sensor_read_to_transmission_within_interval",
-        "sensor_interval_deviation",
+        "transmission_interval_within_100ms",
+        "transmission_interval_deviation",
     ),
 ]
 
@@ -38,34 +38,39 @@ def PASS_{public_name} :=
 """
 
 
-def emit_latency_check(target_interval_ticks: int, tolerance_ticks: int) -> str:
+def emit_transmission_interval_check(
+    target_interval_ticks: int,
+    tolerance_ticks: int,
+) -> str:
     min_ticks = target_interval_ticks - tolerance_ticks
     max_ticks = target_interval_ticks + tolerance_ticks
 
-    return f"""# ==================== Sensor Latency Check ====================
-# Speichert den Tick-Stand beim Auslösen von sensor_read
-def last_read_tick: Events[Int] =
-  merge(
-    last(tick_sum, sensor_read),
-    default(last(last_read_tick, tick), -1)
-  )
+    return f"""# ==================== Transmission Interval Check ====================
+# Tick-Stand der AKTUELLEN Übertragung
+def current_tx_tick: Events[Int] = last(tick_sum, transmission_complete)
 
-# Latenzberechnung beim Eintreffen von transmission_complete
-def elapsed_ticks: Events[Int] =
-  last(tick_sum, transmission_complete) - last(last_read_tick, transmission_complete)
+# Tick-Stand der VORHERIGEN Übertragung (-1 bei der allerersten Übertragung)
+def prev_tx_tick: Events[Int] = default(last(current_tx_tick, transmission_complete), -1)
 
-# Bedingung für Intervallabweichung (Erlaubter Bereich: [{min_ticks}, {max_ticks}] Ticks)
-def is_interval_violation: Events[Bool] = elapsed_ticks < {min_ticks} || elapsed_ticks > {max_ticks}
+# Vergangene Ticks seit der letzten Übertragung
+def elapsed_ticks: Events[Int] = current_tx_tick - prev_tx_tick
 
-# Violation: Nimmt das Event 'transmission_complete' und filtert es basierend auf der Boolean-Bedingung
-def violation_sensor_interval_deviation :=
-  filter(transmission_complete, is_interval_violation)
+# Prüft, ob bereits eine vorherige Übertragung für einen Vergleich existiert
+def is_valid_measurement: Events[Bool] = prev_tx_tick != -1
+
+# Bedingung für Intervallabweichung (Soll: {target_interval_ticks} Ticks, Erlaubt: [{min_ticks}, {max_ticks}])
+def is_interval_violation: Events[Bool] =
+  is_valid_measurement && (elapsed_ticks < {min_ticks} || elapsed_ticks > {max_ticks})
+
+# Output der gemessenen Tick-Anzahl bei einer Intervall-Verletzung
+def violation_transmission_interval_deviation :=
+  filter(elapsed_ticks, is_interval_violation)
 
 {emit_pass_fail_pair(
-    "sensor_read_to_transmission_within_interval",
-    "sensor_interval_deviation",
-    "transmission_complete",
-    "is_interval_violation",
+    "transmission_interval_within_100ms",
+    "transmission_interval_deviation",
+    "elapsed_ticks",
+    "is_valid_measurement && is_interval_violation",
 )}
 """
 
@@ -95,7 +100,7 @@ def generate(
 ) -> str:
     parts = [
         emit_header(),
-        emit_latency_check(target_interval_ticks, tolerance_ticks),
+        emit_transmission_interval_check(target_interval_ticks, tolerance_ticks),
         emit_outputs(mode),
     ]
 

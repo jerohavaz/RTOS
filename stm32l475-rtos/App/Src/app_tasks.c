@@ -57,17 +57,12 @@ static bool sensor_available;
 static volatile uint32_t sensor_interrupt_count;
 static uint32_t sensor_sample_count;
 static uint32_t sensor_queue_drop_count;
-static volatile bool start_new_packet = true; // gibt an wann ein neues Bündel für UART anfängt
 
 /* HAL handles generated in main.c */
 extern I2C_HandleTypeDef hi2c2;
 extern UART_HandleTypeDef huart1;
 
-static volatile uint32_t start_tick = 0; //Tick bei Sensor read bzw. sensor read trace
-static volatile uint32_t real_uart_tick = 0; //Echte Tick, ab welchem die Daten über UART gesendet werden
 volatile uint32_t test_error_count;
-volatile uint32_t sensor_reads = 0;         //für debuggen
-volatile uint32_t uart_transmissions = 0;   //für debuggen
 
 static void test_fail(void) {
     test_error_count++;
@@ -379,18 +374,12 @@ static void sensor_task(void) {
             continue;
         }
 
+        trace_sensor_read();
 
         if (sensor_read_sample(&message.payload.sample) != HAL_OK) {
             uart_queue_text("ERROR,SENSOR,DATA_READ_FAILED\r\n");
 
             continue;
-        }
-        //was beim ersten sample des pakets passiert
-        if(start_new_packet){
-        start_tick = HAL_GetTick();
-        trace_sensor_read();
-        sensor_reads++;
-        start_new_packet = false;
         }
 
         sensor_sample_count++;
@@ -460,10 +449,7 @@ static void uart_send_average(const sensor_sample_t *sum, uint32_t sample_count)
                           (unsigned long)sample_count);
 
     if ((length > 0) && (length < (int)sizeof(line))) {
-        trace_transmission_complete(); //davor, da uart transmit auch ein paar Ticks benötigt (ca. 5 - 8 ms)
-        uart_transmissions++;
-        real_uart_tick = HAL_GetTick();
-        
+        trace_transmission_complete();
         HAL_UART_Transmit(&huart1, (uint8_t *)line, (uint16_t)length, HAL_MAX_DELAY);
 
     } else {
@@ -493,7 +479,7 @@ static void uart_task(void) {
     uart_message_t message;
     sensor_sample_t sum = { 0 };
     uint32_t sample_count = 0u;
-    uint32_t next_transmission = start_tick + UART_PERIOD_MS;
+    uint32_t next_transmission = HAL_GetTick() + UART_PERIOD_MS;
 
     HAL_UART_Transmit(&huart1,
                       (uint8_t *)"TYPE,"
@@ -529,24 +515,17 @@ static void uart_task(void) {
         }
 
         uint32_t now = HAL_GetTick();
-         if(next_transmission != start_tick + UART_PERIOD_MS ){
-            next_transmission = start_tick + UART_PERIOD_MS;
-            }
-
 
         if ((int32_t)(now - next_transmission) >= 0) {
-            start_new_packet = true; //sample Paket geschlossen
-            
             uart_send_average(&sum, sample_count);
             memset(&sum, 0, sizeof(sum));
             sample_count = 0u;
-       
 
-            //next_transmission += UART_PERIOD_MS;
+            next_transmission += UART_PERIOD_MS;
 
-            /*if ((int32_t)(now - next_transmission) >= 0) {
-                next_transmission = start_tick + UART_PERIOD_MS;
-            }*/
+            if ((int32_t)(now - next_transmission) >= 0) {
+                next_transmission = now + UART_PERIOD_MS;
+            }
         }
 
         /*
