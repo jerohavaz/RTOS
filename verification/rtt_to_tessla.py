@@ -1,8 +1,7 @@
-"""Convert sequenced SEGGER RTT records into TeSSLa input.
+"""Convert binary SEGGER RTT records into TeSSLa input.
 
-For live RTT capture, ``TESSLA_START`` defines the beginning of a firmware
-session. Input received before the marker is discarded. A later marker resets
-the sequence state and replaces file output with the new session.
+Records use little-endian ``<HBB`` headers: sequence, event ID, payload length.
+Event ID 0 with sequence 0 and an empty payload starts a firmware session.
 
 Author: Jerome
 Author: Martin
@@ -10,268 +9,324 @@ Author: Martin
 
 import argparse
 import socket
+import struct
 import sys
 from contextlib import nullcontext
-from typing import Callable, Iterable, TextIO
+from dataclasses import dataclass
+from enum import IntEnum
+from queue import SimpleQueue
+from threading import Thread
+from typing import Iterable, Iterator, TextIO
 
 FLUSH_INTERVAL = 1000
 SUMMARY_INTERVAL = 1000
+HEADER = struct.Struct("<HBB")
+SEQUENCE_MASK = 0xFFFF
+SOCKET_READ_SIZE = 64 * 1024
+SOCKET_RECEIVE_BUFFER_SIZE = 4 * 1024 * 1024
 
-EVENTS: dict[str, list[tuple[str, Callable[[str], object]]]] = {
-    "TASK_CREATE": [
-        ("task_create_id", int),
-        ("task_create_prio", int),
-    ],
-    "STATE": [
-        ("state_id", int),
-        ("state_old", int),
-        ("state_new", int),
-    ],
-    "READY": [
-        ("ready_id", int),
-        ("ready_prio", int),
-    ],
-    "RUNNING": [
-        ("running_id", int),
-        ("running_prio", int),
-    ],
-    "BLOCKED": [
-        ("blocked_id", int),
-    ],
-    "IDLE": [
-        ("idle", lambda _value: True),
-    ],
-    "TICK": [
-        ("tick", int),
-    ],
-    "DELAY_BUSY_START": [
-        ("delay_busy_start_id", int),
-        ("delay_busy_start_ticks", int),
-    ],
-    "DELAY_BUSY_END": [
-        ("delay_busy_end_id", int),
-    ],
-    "DELAY_START": [
-        ("delay_start_id", int),
-        ("delay_start_ticks", int),
-    ],
-    "DELAY_END": [
-        ("delay_end_id", int),
-    ],
-    "SEM_CREATE": [
-        ("sem_create_id", int),
-        ("sem_create_initial_count", int),
-        ("sem_create_max_count", int),
-    ],
-    "SEM_ACQUIRE_ENTER": [
-        ("sem_acquire_enter_id", int),
-        ("sem_acquire_enter_task", int),
-        ("sem_acquire_enter_count", int),
-        ("sem_acquire_enter_timeout", int),
-        ("sem_acquire_enter_finite", int),
-    ],
-    "SEM_ACQUIRE_EXIT": [
-        ("sem_acquire_exit_id", int),
-        ("sem_acquire_exit_task", int),
-        ("sem_acquire_exit_count", int),
-        ("sem_acquire_exit_succeeded", int),
-    ],
-    "SEM_BLOCK": [
-        ("sem_block_id", int),
-        ("sem_block_task", int),
-        ("sem_block_prio", int),
-        ("sem_block_timeout", int),
-        ("sem_block_finite", int),
-    ],
-    "SEM_TIMEOUT": [
-        ("sem_timeout_id", int),
-        ("sem_timeout_task", int),
-        ("sem_timeout_count", int),
-    ],
-    "SEM_RELEASE": [
-        ("sem_release_id", int),
-        ("sem_release_count_before", int),
-        ("sem_release_count_after", int),
-        ("sem_release_max_count", int),
-        ("sem_release_succeeded", int),
-    ],
-    "SEM_WAKE": [
-        ("sem_wake_id", int),
-        ("sem_wake_task", int),
-        ("sem_wake_prio", int),
-    ],
-    "MUTEX_CREATE": [
-        ("mutex_create_id", int),
-    ],
-    "MUTEX_LOCK_ENTER": [
-        ("mutex_lock_enter_id", int),
-        ("mutex_lock_enter_task", int),
-        ("mutex_lock_enter_owner", int),
-        ("mutex_lock_enter_timeout", int),
-        ("mutex_lock_enter_finite", int),
-    ],
-    "MUTEX_LOCK_EXIT": [
-        ("mutex_lock_exit_id", int),
-        ("mutex_lock_exit_task", int),
-        ("mutex_lock_exit_owner", int),
-        ("mutex_lock_exit_succeeded", int),
-    ],
-    "MUTEX_BLOCK": [
-        ("mutex_block_id", int),
-        ("mutex_block_task", int),
-        ("mutex_block_prio", int),
-        ("mutex_block_owner", int),
-        ("mutex_block_timeout", int),
-        ("mutex_block_finite", int),
-    ],
-    "MUTEX_TIMEOUT": [
-        ("mutex_timeout_id", int),
-        ("mutex_timeout_task", int),
-        ("mutex_timeout_owner", int),
-    ],
-    "MUTEX_UNLOCK": [
-        ("mutex_unlock_id", int),
-        ("mutex_unlock_task", int),
-        ("mutex_unlock_owner_before", int),
-        ("mutex_unlock_owner_after", int),
-        ("mutex_unlock_succeeded", int),
-    ],
-    "MUTEX_WAKE": [
-        ("mutex_wake_id", int),
-        ("mutex_wake_task", int),
-        ("mutex_wake_prio", int),
-    ],
-    "QUEUE_CREATE": [
-        ("queue_create_id", int),
-        ("queue_create_capacity", int),
-    ],
-    "QUEUE_SEND_ATTEMPT": [
-        ("queue_send_attempt_queue_id", int),
-        ("queue_send_attempt_task_id", int),
-        ("queue_send_attempt_task_prio", int),
-        ("queue_send_attempt_timeout", int),
-        ("queue_send_attempt_hash", int),
-    ],
-    "QUEUE_SEND_SUCCESS": [
-        ("queue_send_success_queue_id", int),
-        ("queue_send_success_task_id", int),
-        ("queue_send_success_hash", int),
-    ],
-    "QUEUE_SEND_BLOCK": [
-        ("queue_send_block_queue_id", int),
-        ("queue_send_block_task_id", int),
-        ("queue_send_block_task_prio", int),
-    ],
-    "QUEUE_SEND_TIMEOUT": [
-        ("queue_send_timeout_queue_id", int),
-        ("queue_send_timeout_task_id", int),
-    ],
-    "QUEUE_RECV_ATTEMPT": [
-        ("queue_recv_attempt_queue_id", int),
-        ("queue_recv_attempt_task_id", int),
-        ("queue_recv_attempt_task_prio", int),
-        ("queue_recv_attempt_timeout", int),
-    ],
-    "QUEUE_RECV_SUCCESS": [
-        ("queue_recv_success_queue_id", int),
-        ("queue_recv_success_task_id", int),
-        ("queue_recv_success_hash", int),
-    ],
-    "QUEUE_RECV_BLOCK": [
-        ("queue_recv_block_queue_id", int),
-        ("queue_recv_block_task_id", int),
-        ("queue_recv_block_task_prio", int),
-    ],
-    "QUEUE_RECV_TIMEOUT": [
-        ("queue_recv_timeout_queue_id", int),
-        ("queue_recv_timeout_task_id", int),
-    ],
-    "QUEUE_WAKE_SEND": [
-        ("queue_wake_send_queue_id", int),
-        ("queue_wake_send_task_id", int),
-    ],
-    "QUEUE_WAKE_RECV": [
-        ("queue_wake_recv_queue_id", int),
-        ("queue_wake_recv_task_id", int),
-    ],
-    "QUEUE_HANDOFF": [
-        ("queue_handoff_queue_id", int),
-        ("queue_handoff_sender_id", int),
-        ("queue_handoff_receiver_id", int),
-        ("queue_handoff_hash", int),
-    ],
-    "QUEUE_FILL": [
-        ("queue_fill_queue_id", int),
-        ("queue_fill_value", int),
-    ],
-    "TRANSMISSION_COMPLETE": [
-        ("transmission_complete", lambda _value: True),
-    ],
+
+class EventId(IntEnum):
+    SESSION_START = 0
+    TASK_CREATE = 1
+    STATE = 2
+    READY = 3
+    RUNNING = 4
+    STOP_RUNNING = 5
+    BLOCKED = 6
+    IDLE = 7
+    TICK = 8
+    DELAY_BUSY_START = 9
+    DELAY_BUSY_END = 10
+    DELAY_START = 11
+    DELAY_END = 12
+    SEM_CREATE = 13
+    SEM_ACQUIRE_ENTER = 14
+    SEM_ACQUIRE_EXIT = 15
+    SEM_BLOCK = 16
+    SEM_TIMEOUT = 17
+    SEM_RELEASE = 18
+    SEM_WAKE = 19
+    MUTEX_CREATE = 20
+    MUTEX_LOCK_ENTER = 21
+    MUTEX_LOCK_EXIT = 22
+    MUTEX_BLOCK = 23
+    MUTEX_TIMEOUT = 24
+    MUTEX_UNLOCK = 25
+    MUTEX_WAKE = 26
+    QUEUE_CREATE = 27
+    QUEUE_SEND_ATTEMPT = 28
+    QUEUE_SEND_SUCCESS = 29
+    QUEUE_SEND_BLOCK = 30
+    QUEUE_SEND_TIMEOUT = 31
+    QUEUE_RECV_ATTEMPT = 32
+    QUEUE_RECV_SUCCESS = 33
+    QUEUE_RECV_BLOCK = 34
+    QUEUE_RECV_TIMEOUT = 35
+    QUEUE_WAKE_SEND = 36
+    QUEUE_WAKE_RECV = 37
+    QUEUE_HANDOFF = 38
+    QUEUE_FILL = 39
+    TRANSMISSION_COMPLETE = 40
+    LOG = 41
+
+
+@dataclass(frozen=True)
+class EventDefinition:
+    payload: struct.Struct | None
+    streams: tuple[str, ...] = ()
+    pulse_stream: str | None = None
+
+
+EVENTS: dict[EventId, EventDefinition] = {
+    EventId.SESSION_START: EventDefinition(struct.Struct("<")),
+    EventId.TASK_CREATE: EventDefinition(
+        struct.Struct("<BB"), ("task_create_id", "task_create_prio")
+    ),
+    EventId.STATE: EventDefinition(
+        struct.Struct("<BBB"), ("state_id", "state_old", "state_new")
+    ),
+    EventId.READY: EventDefinition(struct.Struct("<BB"), ("ready_id", "ready_prio")),
+    EventId.RUNNING: EventDefinition(
+        struct.Struct("<BB"), ("running_id", "running_prio")
+    ),
+    EventId.STOP_RUNNING: EventDefinition(struct.Struct("<")),
+    EventId.BLOCKED: EventDefinition(struct.Struct("<B"), ("blocked_id",)),
+    EventId.IDLE: EventDefinition(struct.Struct("<"), pulse_stream="idle"),
+    EventId.TICK: EventDefinition(struct.Struct("<I"), ("tick",)),
+    EventId.DELAY_BUSY_START: EventDefinition(
+        struct.Struct("<BI"), ("delay_busy_start_id", "delay_busy_start_ticks")
+    ),
+    EventId.DELAY_BUSY_END: EventDefinition(
+        struct.Struct("<B"), ("delay_busy_end_id",)
+    ),
+    EventId.DELAY_START: EventDefinition(
+        struct.Struct("<BI"), ("delay_start_id", "delay_start_ticks")
+    ),
+    EventId.DELAY_END: EventDefinition(struct.Struct("<B"), ("delay_end_id",)),
+    EventId.SEM_CREATE: EventDefinition(
+        struct.Struct("<III"),
+        ("sem_create_id", "sem_create_initial_count", "sem_create_max_count"),
+    ),
+    EventId.SEM_ACQUIRE_ENTER: EventDefinition(
+        struct.Struct("<IBIIB"),
+        (
+            "sem_acquire_enter_id",
+            "sem_acquire_enter_task",
+            "sem_acquire_enter_count",
+            "sem_acquire_enter_timeout",
+            "sem_acquire_enter_finite",
+        ),
+    ),
+    EventId.SEM_ACQUIRE_EXIT: EventDefinition(
+        struct.Struct("<IBIB"),
+        (
+            "sem_acquire_exit_id",
+            "sem_acquire_exit_task",
+            "sem_acquire_exit_count",
+            "sem_acquire_exit_succeeded",
+        ),
+    ),
+    EventId.SEM_BLOCK: EventDefinition(
+        struct.Struct("<IBBIB"),
+        (
+            "sem_block_id",
+            "sem_block_task",
+            "sem_block_prio",
+            "sem_block_timeout",
+            "sem_block_finite",
+        ),
+    ),
+    EventId.SEM_TIMEOUT: EventDefinition(
+        struct.Struct("<IBI"),
+        ("sem_timeout_id", "sem_timeout_task", "sem_timeout_count"),
+    ),
+    EventId.SEM_RELEASE: EventDefinition(
+        struct.Struct("<IIIIB"),
+        (
+            "sem_release_id",
+            "sem_release_count_before",
+            "sem_release_count_after",
+            "sem_release_max_count",
+            "sem_release_succeeded",
+        ),
+    ),
+    EventId.SEM_WAKE: EventDefinition(
+        struct.Struct("<IBB"), ("sem_wake_id", "sem_wake_task", "sem_wake_prio")
+    ),
+    EventId.MUTEX_CREATE: EventDefinition(struct.Struct("<I"), ("mutex_create_id",)),
+    EventId.MUTEX_LOCK_ENTER: EventDefinition(
+        struct.Struct("<IBBIB"),
+        (
+            "mutex_lock_enter_id",
+            "mutex_lock_enter_task",
+            "mutex_lock_enter_owner",
+            "mutex_lock_enter_timeout",
+            "mutex_lock_enter_finite",
+        ),
+    ),
+    EventId.MUTEX_LOCK_EXIT: EventDefinition(
+        struct.Struct("<IBBB"),
+        (
+            "mutex_lock_exit_id",
+            "mutex_lock_exit_task",
+            "mutex_lock_exit_owner",
+            "mutex_lock_exit_succeeded",
+        ),
+    ),
+    EventId.MUTEX_BLOCK: EventDefinition(
+        struct.Struct("<IBBBIB"),
+        (
+            "mutex_block_id",
+            "mutex_block_task",
+            "mutex_block_prio",
+            "mutex_block_owner",
+            "mutex_block_timeout",
+            "mutex_block_finite",
+        ),
+    ),
+    EventId.MUTEX_TIMEOUT: EventDefinition(
+        struct.Struct("<IBB"),
+        ("mutex_timeout_id", "mutex_timeout_task", "mutex_timeout_owner"),
+    ),
+    EventId.MUTEX_UNLOCK: EventDefinition(
+        struct.Struct("<IBBBB"),
+        (
+            "mutex_unlock_id",
+            "mutex_unlock_task",
+            "mutex_unlock_owner_before",
+            "mutex_unlock_owner_after",
+            "mutex_unlock_succeeded",
+        ),
+    ),
+    EventId.MUTEX_WAKE: EventDefinition(
+        struct.Struct("<IBB"), ("mutex_wake_id", "mutex_wake_task", "mutex_wake_prio")
+    ),
+    EventId.QUEUE_CREATE: EventDefinition(
+        struct.Struct("<II"), ("queue_create_id", "queue_create_capacity")
+    ),
+    EventId.QUEUE_SEND_ATTEMPT: EventDefinition(
+        struct.Struct("<IBBII"),
+        (
+            "queue_send_attempt_queue_id",
+            "queue_send_attempt_task_id",
+            "queue_send_attempt_task_prio",
+            "queue_send_attempt_timeout",
+            "queue_send_attempt_hash",
+        ),
+    ),
+    EventId.QUEUE_SEND_SUCCESS: EventDefinition(
+        struct.Struct("<IBI"),
+        (
+            "queue_send_success_queue_id",
+            "queue_send_success_task_id",
+            "queue_send_success_hash",
+        ),
+    ),
+    EventId.QUEUE_SEND_BLOCK: EventDefinition(
+        struct.Struct("<IBB"),
+        (
+            "queue_send_block_queue_id",
+            "queue_send_block_task_id",
+            "queue_send_block_task_prio",
+        ),
+    ),
+    EventId.QUEUE_SEND_TIMEOUT: EventDefinition(
+        struct.Struct("<IB"),
+        ("queue_send_timeout_queue_id", "queue_send_timeout_task_id"),
+    ),
+    EventId.QUEUE_RECV_ATTEMPT: EventDefinition(
+        struct.Struct("<IBBI"),
+        (
+            "queue_recv_attempt_queue_id",
+            "queue_recv_attempt_task_id",
+            "queue_recv_attempt_task_prio",
+            "queue_recv_attempt_timeout",
+        ),
+    ),
+    EventId.QUEUE_RECV_SUCCESS: EventDefinition(
+        struct.Struct("<IBI"),
+        (
+            "queue_recv_success_queue_id",
+            "queue_recv_success_task_id",
+            "queue_recv_success_hash",
+        ),
+    ),
+    EventId.QUEUE_RECV_BLOCK: EventDefinition(
+        struct.Struct("<IBB"),
+        (
+            "queue_recv_block_queue_id",
+            "queue_recv_block_task_id",
+            "queue_recv_block_task_prio",
+        ),
+    ),
+    EventId.QUEUE_RECV_TIMEOUT: EventDefinition(
+        struct.Struct("<IB"),
+        ("queue_recv_timeout_queue_id", "queue_recv_timeout_task_id"),
+    ),
+    EventId.QUEUE_WAKE_SEND: EventDefinition(
+        struct.Struct("<IB"), ("queue_wake_send_queue_id", "queue_wake_send_task_id")
+    ),
+    EventId.QUEUE_WAKE_RECV: EventDefinition(
+        struct.Struct("<IB"), ("queue_wake_recv_queue_id", "queue_wake_recv_task_id")
+    ),
+    EventId.QUEUE_HANDOFF: EventDefinition(
+        struct.Struct("<IBBI"),
+        (
+            "queue_handoff_queue_id",
+            "queue_handoff_sender_id",
+            "queue_handoff_receiver_id",
+            "queue_handoff_hash",
+        ),
+    ),
+    EventId.QUEUE_FILL: EventDefinition(
+        struct.Struct("<II"), ("queue_fill_queue_id", "queue_fill_value")
+    ),
+    EventId.TRANSMISSION_COMPLETE: EventDefinition(
+        struct.Struct("<"), pulse_stream="transmission_complete"
+    ),
+    EventId.LOG: EventDefinition(None),
 }
 
+SESSION_START_RECORD = HEADER.pack(0, EventId.SESSION_START, 0)
 last_trace_sequence: int | None = None
 missing_trace_records = 0
+summary_line_active = False
 
 
-def reset_trace_state(*, expect_sequence_zero: bool) -> None:
-    """Reset sequence tracking for a new target session.
-
-    Args:
-        expect_sequence_zero: Require the first sequenced record to have
-            sequence number zero. This is enabled after ``TESSLA_START`` and
-            disabled for legacy input without a session marker.
-    """
+def reset_trace_state(sequence: int | None = None) -> None:
     global last_trace_sequence
     global missing_trace_records
 
-    last_trace_sequence = 0xFFFFFFFF if expect_sequence_zero else None
+    last_trace_sequence = sequence
     missing_trace_records = 0
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Convert SEGGER RTT trace lines to TeSSLa input.")
-
-    parser.add_argument(
-        "--host",
-        default="127.0.0.1",
-        help="RTT server host. Default: 127.0.0.1.",
+    parser = argparse.ArgumentParser(
+        description="Convert binary SEGGER RTT trace records to TeSSLa input."
     )
-
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=19021,
-        help="RTT server port. Default: 19021.",
-    )
-
+    parser.add_argument("--host", default="127.0.0.1", help="RTT server host. Default: 127.0.0.1.")
+    parser.add_argument("--port", type=int, default=19021, help="RTT server port. Default: 19021.")
     parser.add_argument(
         "--channel",
         type=int,
         default=0,
-        help=("RTT up-buffer channel containing the TeSSLa text trace. " "Default: 0."),
+        help="RTT up-buffer channel containing the TeSSLa binary trace. Default: 0.",
     )
-
     parser.add_argument(
         "--stdin",
         action="store_true",
-        help="Read trace lines from stdin instead of the RTT socket.",
+        help="Read binary trace records from stdin instead of the RTT socket.",
     )
 
     output_group = parser.add_mutually_exclusive_group()
-
     output_group.add_argument(
-        "-o",
-        "--output",
-        metavar="FILE",
-        help="Write converted TeSSLa input to FILE.",
+        "-o", "--output", metavar="FILE", help="Write converted TeSSLa input to FILE."
     )
-
     output_group.add_argument(
-        "--stdout",
-        action="store_true",
-        help="Write converted TeSSLa input to stdout.",
+        "--stdout", action="store_true", help="Write converted TeSSLa input to stdout."
     )
-
     parser.add_argument(
         "--no-summary",
         action="store_false",
@@ -279,175 +334,188 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="Disable the live received and dropped event totals.",
     )
-
     return parser.parse_args()
 
 
-def clean_line(line: str) -> str | None:
-    line = line.strip()
+def iter_binary_records(
+    chunks: Iterable[bytes], *, sync_to_session: bool
+) -> Iterator[tuple[int, int, bytes]]:
+    """Reassemble records split across arbitrary socket or file chunks."""
+    buffer = bytearray()
+    synchronized = not sync_to_session
 
-    if not line:
-        return None
+    for chunk in chunks:
+        if not chunk:
+            continue
 
-    garbage_prefixes = (
-        "###RTT Client:",
-        "SEGGER ",
-        "Process:",
-        "Connecting",
-        "Connected",
-        "Searching",
-        "Found",
-        "Reading",
-        "Channel",
-    )
+        buffer.extend(chunk)
 
-    if line.startswith(garbage_prefixes):
-        return None
+        while True:
+            if not synchronized:
+                marker_offset = buffer.find(SESSION_START_RECORD)
 
-    if line == "TESSLA_START":
-        return None
+                if marker_offset < 0:
+                    if len(buffer) > len(SESSION_START_RECORD) - 1:
+                        del buffer[: -(len(SESSION_START_RECORD) - 1)]
+                    break
 
-    parts = line.split()
+                del buffer[:marker_offset]
+                synchronized = True
 
-    if not parts:
-        return None
+            if len(buffer) < HEADER.size:
+                break
 
-    event = parts[0]
+            sequence, event_id, payload_length = HEADER.unpack_from(buffer)
+            record_length = HEADER.size + payload_length
 
-    if event not in EVENTS:
-        return None
+            if len(buffer) < record_length:
+                break
 
-    return line
+            payload = bytes(buffer[HEADER.size:record_length])
+            del buffer[:record_length]
+            yield sequence, event_id, payload
 
 
-def parse_trace_record(line: str) -> tuple[str | None, int]:
-    """Remove trace metadata and report missing logical records.
-
-    Legacy, unsequenced input remains supported for existing fixtures and
-    manually authored traces.
-    """
+def trace_gap(sequence: int) -> int:
     global last_trace_sequence
     global missing_trace_records
-
-    stripped = line.strip()
-
-    if stripped == "TESSLA_START":
-        last_trace_sequence = None
-        return None, 0
-
-    if not stripped.startswith("TRACE "):
-        return stripped, 0
-
-    parts = stripped.split(maxsplit=2)
-
-    if len(parts) != 3:
-        print(f"Malformed trace record: {stripped}", file=sys.stderr)
-        return None, 0
-
-    try:
-        sequence = int(parts[1])
-    except ValueError:
-        print(f"Invalid trace sequence: {parts[1]}", file=sys.stderr)
-        return None, 0
+    global summary_line_active
 
     missing = 0
 
     if last_trace_sequence is not None:
-        distance = (sequence - last_trace_sequence) & 0xFFFFFFFF
+        distance = (sequence - last_trace_sequence) & SEQUENCE_MASK
 
         if distance != 1:
-            missing = distance - 1
-            missing_trace_records += missing
-            expected = (last_trace_sequence + 1) & 0xFFFFFFFF
+            expected = (last_trace_sequence + 1) & SEQUENCE_MASK
+
+            if distance > 1:
+                missing = distance - 1
+                missing_trace_records += missing
+
+            if summary_line_active:
+                print(file=sys.stderr)
+                summary_line_active = False
 
             print(
-                f"Trace incomplete: expected sequence {expected}, " f"received {sequence}; {missing} record(s) missing",
+                f"Trace incomplete: expected sequence {expected}, received {sequence}; "
+                f"{missing} record(s) missing",
                 file=sys.stderr,
             )
 
     last_trace_sequence = sequence
-    return parts[2], missing
+    return missing
 
 
-def format_value(value: object) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-
-    return str(value)
-
-
-def convert_line(line: str, timestamp: int) -> list[str]:
-    parts = line.split()
-    event = parts[0]
-    mapping = EVENTS[event]
-
-    if event in ("IDLE", "TRANSMISSION_COMPLETE"):
-        if len(parts) != 1:
-            return []
-
-        stream_name = EVENTS[event][0][0]
-        return [f"{timestamp}: {stream_name} = true"]
-
-    expected_length = 1 + len(mapping)
-
-    if len(parts) != expected_length:
+def convert_record(event_id: int, payload: bytes, timestamp: int) -> list[str]:
+    try:
+        event = EventId(event_id)
+    except ValueError:
+        print(f"Unknown trace event ID: {event_id}", file=sys.stderr)
         return []
 
-    output_lines: list[str] = []
+    definition = EVENTS[event]
 
-    for index, (stream_name, converter) in enumerate(mapping):
-        raw_value = parts[index + 1]
+    if definition.payload is None:
+        return []
 
-        try:
-            value = converter(raw_value)
-        except (TypeError, ValueError):
-            return []
+    if len(payload) != definition.payload.size:
+        print(
+            f"Malformed {event.name} payload: expected {definition.payload.size} byte(s), "
+            f"received {len(payload)}",
+            file=sys.stderr,
+        )
+        return []
 
-        output_lines.append(f"{timestamp}: {stream_name} = {format_value(value)}")
+    if definition.pulse_stream is not None:
+        return [f"{timestamp}: {definition.pulse_stream} = true"]
 
-    return output_lines
+    values = definition.payload.unpack(payload)
+    return [
+        f"{timestamp}: {stream_name} = {value}"
+        for stream_name, value in zip(definition.streams, values, strict=True)
+    ]
 
 
-def read_from_socket(
-    host: str,
-    port: int,
-    channel: int,
-) -> Iterable[str]:
+def read_from_socket(host: str, port: int, channel: int) -> Iterable[bytes]:
     with socket.create_connection((host, port)) as sock:
+        sock.setsockopt(
+            socket.SOL_SOCKET,
+            socket.SO_RCVBUF,
+            SOCKET_RECEIVE_BUFFER_SIZE,
+        )
         config = f"$$SEGGER_TELNET_ConfigStr=RTTCh;{channel}$$\n"
         sock.sendall(config.encode("ascii"))
-
         print(
-            f"Connected to RTT channel {channel} at {host}:{port}. " "Reset the STM32 now; waiting for TESSLA_START.",
+            f"Connected to RTT channel {channel} at {host}:{port}. "
+            "Reset the STM32 now; waiting for the binary session-start record.",
             file=sys.stderr,
         )
 
-        with sock.makefile(
-            "r",
-            encoding="utf-8",
-            errors="ignore",
-        ) as stream:
-            yield from stream
+        received: SimpleQueue[bytes | OSError | None] = SimpleQueue()
+
+        def receive() -> None:
+            try:
+                while chunk := sock.recv(SOCKET_READ_SIZE):
+                    received.put(chunk)
+            except OSError as error:
+                received.put(error)
+            finally:
+                received.put(None)
+
+        Thread(target=receive, name="rtt-socket-reader", daemon=True).start()
+
+        while True:
+            item = received.get()
+
+            if item is None:
+                break
+
+            if isinstance(item, OSError):
+                raise item
+
+            yield item
 
 
-def read_from_stdin() -> Iterable[str]:
-    yield from sys.stdin
-
-
-def open_output(path: str | None) -> TextIO:
-    if path is None:
-        return sys.stdout
-
-    return open(path, "w", encoding="utf-8")
+def read_from_stdin() -> Iterable[bytes]:
+    while chunk := sys.stdin.buffer.read(4096):
+        yield chunk
 
 
 def print_live_summary(received_events: int) -> None:
+    global summary_line_active
+
     print(
-        f"\rTrace summary: received={received_events}, " f"dropped={missing_trace_records}",
+        f"\rTrace summary: received={received_events}, dropped={missing_trace_records}",
         end="",
         flush=True,
         file=sys.stderr,
     )
+    summary_line_active = True
+
+
+def start_session(
+    output_stream: TextIO,
+    *,
+    output_path: str | None,
+    replacing_session: bool,
+    session_count: int,
+    sequence: int,
+) -> None:
+    reset_trace_state(sequence)
+
+    if output_path is not None:
+        output_stream.seek(0)
+        output_stream.truncate()
+        output_stream.flush()
+    elif replacing_session:
+        print(
+            "Target restarted: stdout consumers have already received the previous session "
+            "and must also be restarted.",
+            file=sys.stderr,
+        )
+
+    print(f"Trace session {session_count} started.", file=sys.stderr)
 
 
 def main() -> int:
@@ -457,88 +525,58 @@ def main() -> int:
         print("RTT channel must be non-negative.", file=sys.stderr)
         return 1
 
-    if args.stdin:
-        source = read_from_stdin()
-    else:
-        source = read_from_socket(args.host, args.port, args.channel)
-
+    source = (
+        read_from_stdin()
+        if args.stdin
+        else read_from_socket(args.host, args.port, args.channel)
+    )
+    records = iter_binary_records(source, sync_to_session=not args.stdin)
     timestamp = 0
     received_events = 0
     session_started = args.stdin
     session_count = 0
     show_live_summary = args.output is not None and args.summary
-
-    reset_trace_state(expect_sequence_zero=False)
+    reset_trace_state()
 
     output_context = (
         nullcontext(sys.stdout)
         if args.stdout or args.output is None
-        else open(
-            args.output,
-            "w",
-            encoding="utf-8",
-        )
+        else open(args.output, "w", encoding="utf-8")
     )
 
     try:
         with output_context as output_stream:
-            for raw_line in source:
-                if raw_line.strip() == "TESSLA_START":
-                    replacing_session = session_started
+            for sequence, event_id, payload in records:
+                if event_id == EventId.SESSION_START:
+                    if sequence != 0 or payload:
+                        print("Malformed session-start record.", file=sys.stderr)
+                        continue
+
+                    replacing_session = session_count > 0 or timestamp > 0
                     session_started = True
                     session_count += 1
                     timestamp = 0
                     received_events = 0
-                    reset_trace_state(expect_sequence_zero=True)
-
-                    if args.output is not None:
-                        output_stream.seek(0)
-                        output_stream.truncate()
-                        output_stream.flush()
-                    elif replacing_session:
-                        print(
-                            "Target restarted: stdout consumers have already "
-                            "received the previous session and must also be "
-                            "restarted.",
-                            file=sys.stderr,
-                        )
-
-                    print(
-                        f"Trace session {session_count} started.",
-                        file=sys.stderr,
+                    start_session(
+                        output_stream,
+                        output_path=args.output,
+                        replacing_session=replacing_session,
+                        session_count=session_count,
+                        sequence=sequence,
                     )
                     continue
 
                 if not session_started:
                     continue
 
-                event_line, missing = parse_trace_record(raw_line)
-
-                if event_line is None:
-                    continue
-
+                missing = trace_gap(sequence)
                 wrote_integrity_event = False
 
                 if missing > 0:
                     output_stream.write(f"{timestamp}: trace_incomplete = {missing}\n")
                     wrote_integrity_event = True
 
-                line = clean_line(event_line)
-
-                if line is None:
-                    if wrote_integrity_event:
-                        output_stream.flush()
-                        timestamp += 1
-
-                    if show_live_summary and missing > 0:
-                        print_live_summary(received_events)
-
-                    continue
-
-                converted_lines = convert_line(
-                    line,
-                    timestamp,
-                )
+                converted_lines = convert_record(event_id, payload, timestamp)
 
                 if not converted_lines:
                     if wrote_integrity_event:
@@ -567,19 +605,13 @@ def main() -> int:
             print(file=sys.stderr)
 
             if missing_trace_records > 0:
-                print(
-                    "Trace incomplete: TeSSLa results are inconclusive.",
-                    file=sys.stderr,
-                )
+                print("Trace incomplete: TeSSLa results are inconclusive.", file=sys.stderr)
 
     except ConnectionRefusedError:
         if show_live_summary:
             print(file=sys.stderr)
 
-        print(
-            f"Could not connect to RTT server at " f"{args.host}:{args.port}.",
-            file=sys.stderr,
-        )
+        print(f"Could not connect to RTT server at {args.host}:{args.port}.", file=sys.stderr)
         return 1
 
     except OSError as error:

@@ -69,11 +69,11 @@ Recommended debugger workflow:
 2. Wait until execution stops at the `HAL_Init()` breakpoint.
 3. Start `rtt_to_tessla.py` and wait until it has connected to the RTT stream.
 4. Resume execution in the debugger.
-5. Confirm that `Trace session 1 started.` appears when the firmware emits `TESSLA_START`.
+5. Confirm that `Trace session 1 started.` appears when the firmware emits the binary session-start record.
 
 Attaching while the target is still halted ensures that the collector is already listening when tracing starts, so the first events of the firmware run are not missed.
 
-For file output with `-o`, the same attach-before-resume workflow is recommended when a complete trace is required. A new `TESSLA_START` also resets the converter's session state and truncates the output file to the current target session.
+For file output with `-o`, the same attach-before-resume workflow is recommended when a complete trace is required. A new session-start record also resets the converter's sequence state and truncates the output file to the current target session.
 
 The firmware initializes RTT during startup with `SEGGER_RTT_Init()` before the RTOS starts and must not reinitialize RTT during normal execution.
 
@@ -96,6 +96,34 @@ python3 rtt_to_tessla.py --no-summary -o trace.input
 ```
 
 The converter emits `trace_incomplete` when sequenced RTT records are missing. Verification results affected by missing events must be treated as inconclusive. See [Trace integrity](integrity_spec/README.md) for details.
+
+The RTT up-buffer is 64 KiB and remains non-blocking. The static task array is placed in the 32 KiB SRAM2 bank so the larger RTT buffer does not consume the task-stack budget in the 96 KiB primary SRAM bank. This absorbs short RTT discovery and host-polling stalls but cannot guarantee lossless capture when the enabled event categories continuously produce data faster than the debug probe drains it. The receiver continuously drains raw socket bytes on a dedicated thread into an unbounded host-memory queue so TeSSLa conversion and file output cannot back-pressure the J-Link RTT connection. If gaps remain at an 8 MHz or faster SWD clock, inspect the probe's RTT polling behavior before changing trace categories; reducing the event set changes which properties can be verified. A sequence gap confirms target-side RTT buffer exhaustion because `SEGGER_RTT_WriteSkipNoLock()` discards the complete record when it cannot fit.
+
+### Binary RTT protocol
+
+The firmware writes each event with one non-blocking `SEGGER_RTT_WriteSkipNoLock()` call. Every multi-byte value is little-endian, and records are concatenated without line delimiters:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `sequence` | `u16` | Increments for every attempted record and wraps modulo 65536 |
+| `event_id` | `u8` | Numeric event identifier listed below |
+| `payload_length` | `u8` | Number of payload bytes following the header |
+| `payload` | bytes | Event fields in table order |
+
+`rtt_to_tessla.py` reads raw socket chunks into a byte buffer, waits for a `SESSION_START` header when capturing live data, and removes a record only after all `4 + payload_length` bytes are available. It compares consecutive `u16` sequence values modulo 65536 and emits `trace_incomplete` for each gap. `--stdin` accepts the same binary record stream and assumes the first byte is record-aligned.
+
+Payload notation uses `B` for `u8`, `I` for `u32`, and `-` for an empty payload:
+
+| IDs | Events and payloads |
+| --- | --- |
+| 0-8 | `SESSION_START -`, `TASK_CREATE BB`, `STATE BBB`, `READY BB`, `RUNNING BB`, `STOP_RUNNING -`, `BLOCKED B`, `IDLE -`, `TICK I` |
+| 9-12 | `DELAY_BUSY_START BI`, `DELAY_BUSY_END B`, `DELAY_START BI`, `DELAY_END B` |
+| 13-19 | `SEM_CREATE III`, `SEM_ACQUIRE_ENTER IBIIB`, `SEM_ACQUIRE_EXIT IBIB`, `SEM_BLOCK IBBIB`, `SEM_TIMEOUT IBI`, `SEM_RELEASE IIIIB`, `SEM_WAKE IBB` |
+| 20-26 | `MUTEX_CREATE I`, `MUTEX_LOCK_ENTER IBBIB`, `MUTEX_LOCK_EXIT IBBB`, `MUTEX_BLOCK IBBBIB`, `MUTEX_TIMEOUT IBB`, `MUTEX_UNLOCK IBBBB`, `MUTEX_WAKE IBB` |
+| 27-35 | `QUEUE_CREATE II`, `QUEUE_SEND_ATTEMPT IBBII`, `QUEUE_SEND_SUCCESS IBI`, `QUEUE_SEND_BLOCK IBB`, `QUEUE_SEND_TIMEOUT IB`, `QUEUE_RECV_ATTEMPT IBBI`, `QUEUE_RECV_SUCCESS IBI`, `QUEUE_RECV_BLOCK IBB`, `QUEUE_RECV_TIMEOUT IB` |
+| 36-41 | `QUEUE_WAKE_SEND IB`, `QUEUE_WAKE_RECV IB`, `QUEUE_HANDOFF IBBI`, `QUEUE_FILL II`, `TRANSMISSION_COMPLETE -`, `LOG bytes` |
+
+The session-start record is exactly `00 00 00 00`: sequence 0, event ID 0, and an empty payload. The next record has sequence 1. Task IDs, priorities, task states, and booleans use `u8`; addresses, queue IDs, counts, tick values, timeouts, and hashes retain `u32`.
 
 ## Generate Specifications
 
@@ -466,7 +494,7 @@ cat trace.input | build/combined-monitor
 
 ## Stream Live RTT Data
 
-For live verification, start the target under the debugger and wait at the `HAL_Init()` breakpoint. Attach `rtt_to_tessla.py` while the target is halted, then resume execution. This ensures that the collector is already listening when `TESSLA_START` and the first trace events are emitted.
+For live verification, start the target under the debugger and wait at the `HAL_Init()` breakpoint. Attach `rtt_to_tessla.py` while the target is halted, then resume execution. This ensures that the collector is already listening when the session-start record and the first trace events are emitted.
 
 ### RTT into the TeSSLa interpreter
 

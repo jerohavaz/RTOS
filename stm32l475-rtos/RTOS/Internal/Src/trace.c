@@ -19,7 +19,6 @@
 
 #if OS_TRACE_SEGGER_SYSVIEW || OS_TRACE_TESSLA_RTT
 #include "SEGGER_RTT.h"
-#include <stdio.h>
 #endif
 
 #if OS_TRACE_SEGGER_SYSVIEW
@@ -76,17 +75,82 @@ typedef enum {
 #endif
 
 #if OS_TRACE_TESSLA_RTT
-#include <stdarg.h>
 #include <stddef.h>
+#include <string.h>
 
-#define TRACE_TESSLA_RTT_CHANNEL  (0u)
-#define TRACE_TESSLA_PAYLOAD_SIZE (96u)
-#define TRACE_TESSLA_RECORD_SIZE  (128u)
+#define TRACE_TESSLA_RTT_CHANNEL       (0u)
+#define TRACE_TESSLA_HEADER_SIZE       (4u)
+#define TRACE_TESSLA_MAX_PAYLOAD_SIZE  (96u)
+#define TRACE_TESSLA_FIXED_PAYLOAD_SIZE (20u)
 
-static uint32_t g_trace_sequence;
+typedef enum {
+    TRACE_TESSLA_EVT_SESSION_START = 0u,
+    TRACE_TESSLA_EVT_TASK_CREATE = 1u,
+    TRACE_TESSLA_EVT_STATE = 2u,
+    TRACE_TESSLA_EVT_READY = 3u,
+    TRACE_TESSLA_EVT_RUNNING = 4u,
+    TRACE_TESSLA_EVT_STOP_RUNNING = 5u,
+    TRACE_TESSLA_EVT_BLOCKED = 6u,
+    TRACE_TESSLA_EVT_IDLE = 7u,
+    TRACE_TESSLA_EVT_TICK = 8u,
+    TRACE_TESSLA_EVT_DELAY_BUSY_START = 9u,
+    TRACE_TESSLA_EVT_DELAY_BUSY_END = 10u,
+    TRACE_TESSLA_EVT_DELAY_START = 11u,
+    TRACE_TESSLA_EVT_DELAY_END = 12u,
+    TRACE_TESSLA_EVT_SEM_CREATE = 13u,
+    TRACE_TESSLA_EVT_SEM_ACQUIRE_ENTER = 14u,
+    TRACE_TESSLA_EVT_SEM_ACQUIRE_EXIT = 15u,
+    TRACE_TESSLA_EVT_SEM_BLOCK = 16u,
+    TRACE_TESSLA_EVT_SEM_TIMEOUT = 17u,
+    TRACE_TESSLA_EVT_SEM_RELEASE = 18u,
+    TRACE_TESSLA_EVT_SEM_WAKE = 19u,
+    TRACE_TESSLA_EVT_MUTEX_CREATE = 20u,
+    TRACE_TESSLA_EVT_MUTEX_LOCK_ENTER = 21u,
+    TRACE_TESSLA_EVT_MUTEX_LOCK_EXIT = 22u,
+    TRACE_TESSLA_EVT_MUTEX_BLOCK = 23u,
+    TRACE_TESSLA_EVT_MUTEX_TIMEOUT = 24u,
+    TRACE_TESSLA_EVT_MUTEX_UNLOCK = 25u,
+    TRACE_TESSLA_EVT_MUTEX_WAKE = 26u,
+    TRACE_TESSLA_EVT_QUEUE_CREATE = 27u,
+    TRACE_TESSLA_EVT_QUEUE_SEND_ATTEMPT = 28u,
+    TRACE_TESSLA_EVT_QUEUE_SEND_SUCCESS = 29u,
+    TRACE_TESSLA_EVT_QUEUE_SEND_BLOCK = 30u,
+    TRACE_TESSLA_EVT_QUEUE_SEND_TIMEOUT = 31u,
+    TRACE_TESSLA_EVT_QUEUE_RECV_ATTEMPT = 32u,
+    TRACE_TESSLA_EVT_QUEUE_RECV_SUCCESS = 33u,
+    TRACE_TESSLA_EVT_QUEUE_RECV_BLOCK = 34u,
+    TRACE_TESSLA_EVT_QUEUE_RECV_TIMEOUT = 35u,
+    TRACE_TESSLA_EVT_QUEUE_WAKE_SEND = 36u,
+    TRACE_TESSLA_EVT_QUEUE_WAKE_RECV = 37u,
+    TRACE_TESSLA_EVT_QUEUE_HANDOFF = 38u,
+    TRACE_TESSLA_EVT_QUEUE_FILL = 39u,
+    TRACE_TESSLA_EVT_TRANSMISSION_COMPLETE = 40u,
+    TRACE_TESSLA_EVT_LOG = 41u
+} trace_tessla_event_id_t;
+
+typedef struct {
+    uint8_t bytes[TRACE_TESSLA_FIXED_PAYLOAD_SIZE];
+    uint8_t length;
+} trace_tessla_payload_t;
+
+static uint16_t g_trace_sequence;
+
+static void trace_tessla_put_u8(trace_tessla_payload_t *payload, uint8_t value) {
+    payload->bytes[payload->length++] = value;
+}
+
+static void trace_tessla_put_u32(trace_tessla_payload_t *payload, uint32_t value) {
+    uint8_t *destination = &payload->bytes[payload->length];
+
+    destination[0] = (uint8_t)value;
+    destination[1] = (uint8_t)(value >> 8u);
+    destination[2] = (uint8_t)(value >> 16u);
+    destination[3] = (uint8_t)(value >> 24u);
+    payload->length += 4u;
+}
 
 /**
- * @brief Format and submit one logical TeSSLa event as an RTT record.
+ * @brief Submit one binary TeSSLa event as an RTT record.
  *
  * Sequence allocation and RTT insertion occur within the same critical
  * section, preventing task and SysTick producers from appearing out of order.
@@ -95,31 +159,35 @@ static uint32_t g_trace_sequence;
  * discarded. Because its sequence number has already been consumed, the
  * receiver detects the loss when the next record arrives.
  *
- * @param format printf-style format string for the event payload.
- * @param ... Arguments referenced by @p format.
+ * @param event_id Numeric event identifier.
+ * @param payload Binary event fields in protocol order, or null when empty.
+ * @param payload_length Number of payload bytes.
  */
-static void trace_tessla_emit(const char *format, ...) {
-    char payload[TRACE_TESSLA_PAYLOAD_SIZE];
-    char record[TRACE_TESSLA_RECORD_SIZE];
+static void trace_tessla_emit(trace_tessla_event_id_t event_id,
+                              const uint8_t *payload,
+                              uint8_t payload_length) {
+    uint8_t record[TRACE_TESSLA_HEADER_SIZE + TRACE_TESSLA_MAX_PAYLOAD_SIZE];
 
-    va_list args;
-    va_start(args, format);
-    int payload_length = vsnprintf(payload, sizeof(payload), format, args);
-    va_end(args);
-
-    if (payload_length < 0 || (size_t)payload_length >= sizeof(payload)) {
+    if (payload_length > TRACE_TESSLA_MAX_PAYLOAD_SIZE ||
+        (payload_length != 0u && payload == 0)) {
         return;
     }
 
-    uint32_t key = port_enter_critical();
-    uint32_t sequence = g_trace_sequence++;
+    record[2] = (uint8_t)event_id;
+    record[3] = payload_length;
 
-    int record_length =
-        snprintf(record, sizeof(record), "TRACE %lu %s\n", (unsigned long)sequence, payload);
-
-    if (record_length > 0 && (size_t)record_length < sizeof(record)) {
-        SEGGER_RTT_WriteSkipNoLock(TRACE_TESSLA_RTT_CHANNEL, record, (unsigned int)record_length);
+    if (payload_length != 0u) {
+        memcpy(&record[TRACE_TESSLA_HEADER_SIZE], payload, payload_length);
     }
+
+    uint32_t key = port_enter_critical();
+    uint16_t sequence = g_trace_sequence++;
+
+    record[0] = (uint8_t)sequence;
+    record[1] = (uint8_t)(sequence >> 8u);
+    SEGGER_RTT_WriteSkipNoLock(TRACE_TESSLA_RTT_CHANNEL,
+                               record,
+                               TRACE_TESSLA_HEADER_SIZE + (unsigned int)payload_length);
 
     port_exit_critical(key);
 }
@@ -178,8 +246,19 @@ static void sv_send_task_info(const trace_task_info_t *task) {
     }
 
     char name[4]; /* "255" plus '\0' */
+    uint8_t id = task->task.id;
+    uint8_t index = 0u;
 
-    snprintf(name, sizeof(name), "%u", (unsigned int)task->task.id);
+    if (id >= 100u) {
+        name[index++] = (char)('0' + (id / 100u));
+        id %= 100u;
+        name[index++] = (char)('0' + (id / 10u));
+    } else if (id >= 10u) {
+        name[index++] = (char)('0' + (id / 10u));
+    }
+
+    name[index++] = (char)('0' + (id % 10u));
+    name[index] = '\0';
 
     const SEGGER_SYSVIEW_TASKINFO info = {
         .TaskID = (U32)task->runtime_id,
@@ -249,7 +328,7 @@ void trace_init(void) {
 #if OS_TRACE_TESSLA_RTT
     g_trace_sequence = 0u;
     SEGGER_RTT_Init();
-    SEGGER_RTT_WriteString(TRACE_TESSLA_RTT_CHANNEL, "TESSLA_START\n");
+    trace_tessla_emit(TRACE_TESSLA_EVT_SESSION_START, 0, 0u);
 #endif
 
 #if OS_TRACE_SEGGER_SYSVIEW
@@ -285,15 +364,20 @@ void trace_task_register(const trace_task_info_t *info) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
-    trace_tessla_emit(
-        "TASK_CREATE %u %u", (unsigned int)info->task.id, (unsigned int)info->task.priority);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u8(&payload, info->task.id);
+    trace_tessla_put_u8(&payload, info->task.priority);
+    trace_tessla_emit(TRACE_TESSLA_EVT_TASK_CREATE, payload.bytes, payload.length);
 #endif
 }
 
 void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_TASKS
-    trace_tessla_emit(
-        "STATE %u %u %u", (unsigned int)task_id, (unsigned int)old_state, (unsigned int)new_state);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u8(&payload, old_state);
+    trace_tessla_put_u8(&payload, new_state);
+    trace_tessla_emit(TRACE_TESSLA_EVT_STATE, payload.bytes, payload.length);
 #endif
 }
 
@@ -312,7 +396,10 @@ void trace_task_ready(trace_task_ref_t task) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     if (trace_task_ref_valid(task) != 0u) {
-        trace_tessla_emit("READY %u %u", (unsigned int)task.id, (unsigned int)task.priority);
+        trace_tessla_payload_t payload = { 0 };
+        trace_tessla_put_u8(&payload, task.id);
+        trace_tessla_put_u8(&payload, task.priority);
+        trace_tessla_emit(TRACE_TESSLA_EVT_READY, payload.bytes, payload.length);
     }
 #endif
 }
@@ -328,7 +415,10 @@ void trace_task_run(trace_task_ref_t task) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     if (trace_task_ref_valid(task) != 0u) {
-        trace_tessla_emit("RUNNING %u %u", (unsigned int)task.id, (unsigned int)task.priority);
+        trace_tessla_payload_t payload = { 0 };
+        trace_tessla_put_u8(&payload, task.id);
+        trace_tessla_put_u8(&payload, task.priority);
+        trace_tessla_emit(TRACE_TESSLA_EVT_RUNNING, payload.bytes, payload.length);
     }
 #endif
 }
@@ -339,7 +429,7 @@ void trace_task_stop_run(void) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    trace_tessla_emit("STOP_RUNNING");
+    trace_tessla_emit(TRACE_TESSLA_EVT_STOP_RUNNING, 0, 0u);
 #endif
 }
 
@@ -354,7 +444,7 @@ void trace_task_block(trace_task_ref_t task) {
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
     if (trace_task_ref_valid(task) != 0u) {
-        trace_tessla_emit("BLOCKED %u", (unsigned int)task.id);
+        trace_tessla_emit(TRACE_TESSLA_EVT_BLOCKED, &task.id, 1u);
     }
 #endif
 }
@@ -365,13 +455,15 @@ void trace_idle(void) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    trace_tessla_emit("IDLE");
+    trace_tessla_emit(TRACE_TESSLA_EVT_IDLE, 0, 0u);
 #endif
 }
 
 void trace_tick(uint32_t dt) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SCHEDULER
-    trace_tessla_emit("TICK %lu", (unsigned long)dt);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, dt);
+    trace_tessla_emit(TRACE_TESSLA_EVT_TICK, payload.bytes, payload.length);
 #endif
 }
 
@@ -407,7 +499,10 @@ void trace_task_delay_busy_start(trace_task_ref_t task, uint32_t delay_ticks) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_BUSY_START %u %u", (unsigned int)task.id, (unsigned int)delay_ticks);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u32(&payload, delay_ticks);
+    trace_tessla_emit(TRACE_TESSLA_EVT_DELAY_BUSY_START, payload.bytes, payload.length);
 #endif
 }
 
@@ -417,7 +512,7 @@ void trace_task_delay_busy_end(trace_task_ref_t task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_BUSY_END %u", (unsigned int)task.id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_DELAY_BUSY_END, &task.id, 1u);
 #endif
 }
 
@@ -427,7 +522,10 @@ void trace_task_delay_start(trace_task_ref_t task, uint32_t delay_ticks) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_START %u %u", (unsigned int)task.id, (unsigned int)delay_ticks);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u32(&payload, delay_ticks);
+    trace_tessla_emit(TRACE_TESSLA_EVT_DELAY_START, payload.bytes, payload.length);
 #endif
 }
 
@@ -437,7 +535,7 @@ void trace_task_delay_end(trace_task_ref_t task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_DELAY
-    trace_tessla_emit("DELAY_END %u", (unsigned int)task.id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_DELAY_END, &task.id, 1u);
 #endif
 }
 
@@ -452,8 +550,8 @@ void trace_task_delay_end(trace_task_ref_t task) {
  * @param semaphore Semaphore object whose stable address is required.
  * @return Address of @p semaphore represented as an unsigned integer.
  */
-static unsigned long trace_sem_id(const void *semaphore) {
-    return (semaphore != 0) ? (unsigned long)(uintptr_t)semaphore : 0ul;
+static uint32_t trace_sem_id(const void *semaphore) {
+    return (semaphore != 0) ? (uint32_t)(uintptr_t)semaphore : 0u;
 }
 #endif
 
@@ -468,10 +566,11 @@ void trace_sem_create(const void *semaphore, uint32_t initial_count, uint32_t ma
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_CREATE %lu %lu %lu",
-                      trace_sem_id(semaphore),
-                      (unsigned long)initial_count,
-                      (unsigned long)max_count);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u32(&payload, initial_count);
+    trace_tessla_put_u32(&payload, max_count);
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_CREATE, payload.bytes, payload.length);
 #endif
 }
 
@@ -494,12 +593,13 @@ void trace_sem_acquire_enter(const void *semaphore,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_ACQUIRE_ENTER %lu %u %lu %lu %u",
-                      trace_sem_id(semaphore),
-                      (unsigned int)task.id,
-                      (unsigned long)count,
-                      (unsigned long)timeout_ticks,
-                      (unsigned int)(finite_timeout != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u32(&payload, count);
+    trace_tessla_put_u32(&payload, timeout_ticks);
+    trace_tessla_put_u8(&payload, (uint8_t)(finite_timeout != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_ACQUIRE_ENTER, payload.bytes, payload.length);
 #endif
 }
 
@@ -520,11 +620,12 @@ void trace_sem_acquire_exit(const void *semaphore,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_ACQUIRE_EXIT %lu %u %lu %u",
-                      trace_sem_id(semaphore),
-                      (unsigned int)task.id,
-                      (unsigned long)count,
-                      (unsigned int)(succeeded != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u32(&payload, count);
+    trace_tessla_put_u8(&payload, (uint8_t)(succeeded != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_ACQUIRE_EXIT, payload.bytes, payload.length);
 #endif
 }
 
@@ -546,12 +647,13 @@ void trace_sem_block(const void *semaphore,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_BLOCK %lu %u %u %lu %u",
-                      trace_sem_id(semaphore),
-                      (unsigned int)task.id,
-                      (unsigned int)task.priority,
-                      (unsigned long)timeout_ticks,
-                      (unsigned int)(finite_timeout != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, task.priority);
+    trace_tessla_put_u32(&payload, timeout_ticks);
+    trace_tessla_put_u8(&payload, (uint8_t)(finite_timeout != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_BLOCK, payload.bytes, payload.length);
 #endif
 }
 
@@ -566,10 +668,11 @@ void trace_sem_timeout(const void *semaphore, trace_task_ref_t task, uint32_t co
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_TIMEOUT %lu %u %lu",
-                      trace_sem_id(semaphore),
-                      (unsigned int)task.id,
-                      (unsigned long)count);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u32(&payload, count);
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_TIMEOUT, payload.bytes, payload.length);
 #endif
 }
 
@@ -592,12 +695,13 @@ void trace_sem_release(const void *semaphore,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_RELEASE %lu %lu %lu %lu %u",
-                      trace_sem_id(semaphore),
-                      (unsigned long)count_before,
-                      (unsigned long)count_after,
-                      (unsigned long)max_count,
-                      (unsigned int)(succeeded != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u32(&payload, count_before);
+    trace_tessla_put_u32(&payload, count_after);
+    trace_tessla_put_u32(&payload, max_count);
+    trace_tessla_put_u8(&payload, (uint8_t)(succeeded != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_RELEASE, payload.bytes, payload.length);
 #endif
 }
 
@@ -612,10 +716,11 @@ void trace_sem_wake(const void *semaphore, trace_task_ref_t task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_SEMAPHORE
-    trace_tessla_emit("SEM_WAKE %lu %u %u",
-                      trace_sem_id(semaphore),
-                      (unsigned int)task.id,
-                      (unsigned int)task.priority);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_sem_id(semaphore));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, task.priority);
+    trace_tessla_emit(TRACE_TESSLA_EVT_SEM_WAKE, payload.bytes, payload.length);
 #endif
 }
 
@@ -630,8 +735,8 @@ void trace_sem_wake(const void *semaphore, trace_task_ref_t task) {
  * @param mutex Mutex object whose stable address is required.
  * @return Address of @p mutex represented as an unsigned integer.
  */
-static unsigned long trace_mutex_id(const void *mutex) {
-    return (mutex != 0) ? (unsigned long)(uintptr_t)mutex : 0ul;
+static uint32_t trace_mutex_id(const void *mutex) {
+    return (mutex != 0) ? (uint32_t)(uintptr_t)mutex : 0u;
 }
 #endif
 
@@ -645,7 +750,9 @@ void trace_mutex_create(const void *mutex) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_CREATE %lu", trace_mutex_id(mutex));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_CREATE, payload.bytes, payload.length);
 #endif
 }
 
@@ -668,12 +775,13 @@ void trace_mutex_lock_enter(const void *mutex,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_LOCK_ENTER %lu %u %u %lu %u",
-                      trace_mutex_id(mutex),
-                      (unsigned int)task.id,
-                      (unsigned int)owner.id,
-                      (unsigned long)timeout_ticks,
-                      (unsigned int)(finite_timeout != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, owner.id);
+    trace_tessla_put_u32(&payload, timeout_ticks);
+    trace_tessla_put_u8(&payload, (uint8_t)(finite_timeout != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_LOCK_ENTER, payload.bytes, payload.length);
 #endif
 }
 
@@ -694,11 +802,12 @@ void trace_mutex_lock_exit(const void *mutex,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_LOCK_EXIT %lu %u %u %u",
-                      trace_mutex_id(mutex),
-                      (unsigned int)task.id,
-                      (unsigned int)owner.id,
-                      (unsigned int)(succeeded != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, owner.id);
+    trace_tessla_put_u8(&payload, (uint8_t)(succeeded != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_LOCK_EXIT, payload.bytes, payload.length);
 #endif
 }
 
@@ -722,13 +831,14 @@ void trace_mutex_block(const void *mutex,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_BLOCK %lu %u %u %u %lu %u",
-                      trace_mutex_id(mutex),
-                      (unsigned int)task.id,
-                      (unsigned int)task.priority,
-                      (unsigned int)owner.id,
-                      (unsigned long)timeout_ticks,
-                      (unsigned int)(finite_timeout != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, task.priority);
+    trace_tessla_put_u8(&payload, owner.id);
+    trace_tessla_put_u32(&payload, timeout_ticks);
+    trace_tessla_put_u8(&payload, (uint8_t)(finite_timeout != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_BLOCK, payload.bytes, payload.length);
 #endif
 }
 
@@ -743,10 +853,11 @@ void trace_mutex_timeout(const void *mutex, trace_task_ref_t task, trace_task_re
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_TIMEOUT %lu %u %u",
-                      trace_mutex_id(mutex),
-                      (unsigned int)task.id,
-                      (unsigned int)owner.id);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, owner.id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_TIMEOUT, payload.bytes, payload.length);
 #endif
 }
 
@@ -769,12 +880,13 @@ void trace_mutex_unlock(const void *mutex,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_UNLOCK %lu %u %u %u %u",
-                      trace_mutex_id(mutex),
-                      (unsigned int)task.id,
-                      (unsigned int)owner_before.id,
-                      (unsigned int)owner_after.id,
-                      (unsigned int)(succeeded != 0u));
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, owner_before.id);
+    trace_tessla_put_u8(&payload, owner_after.id);
+    trace_tessla_put_u8(&payload, (uint8_t)(succeeded != 0u));
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_UNLOCK, payload.bytes, payload.length);
 #endif
 }
 
@@ -789,10 +901,11 @@ void trace_mutex_wake(const void *mutex, trace_task_ref_t task) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_MUTEX
-    trace_tessla_emit("MUTEX_WAKE %lu %u %u",
-                      trace_mutex_id(mutex),
-                      (unsigned int)task.id,
-                      (unsigned int)task.priority);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, trace_mutex_id(mutex));
+    trace_tessla_put_u8(&payload, task.id);
+    trace_tessla_put_u8(&payload, task.priority);
+    trace_tessla_emit(TRACE_TESSLA_EVT_MUTEX_WAKE, payload.bytes, payload.length);
 #endif
 }
 
@@ -806,7 +919,10 @@ void trace_queue_create(uint32_t queue_id, uint32_t capacity) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_CREATE %lu %lu", (unsigned long)queue_id, (unsigned long)capacity);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u32(&payload, capacity);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_CREATE, payload.bytes, payload.length);
 #endif
 }
 
@@ -825,12 +941,13 @@ void trace_queue_send_attempt(uint32_t queue_id,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_SEND_ATTEMPT %lu %u %u %lu %lu",
-                      (unsigned long)queue_id,
-                      (unsigned int)task_id,
-                      (unsigned int)task_priority,
-                      (unsigned long)timeout_ticks,
-                      (unsigned long)message_hash);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u8(&payload, task_priority);
+    trace_tessla_put_u32(&payload, timeout_ticks);
+    trace_tessla_put_u32(&payload, message_hash);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_SEND_ATTEMPT, payload.bytes, payload.length);
 #endif
 }
 
@@ -841,10 +958,11 @@ void trace_queue_send_success(uint32_t queue_id, uint8_t task_id, uint32_t messa
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_SEND_SUCCESS %lu %u %lu",
-                      (unsigned long)queue_id,
-                      (unsigned int)task_id,
-                      (unsigned long)message_hash);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u32(&payload, message_hash);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_SEND_SUCCESS, payload.bytes, payload.length);
 #endif
 }
 
@@ -855,10 +973,11 @@ void trace_queue_send_block(uint32_t queue_id, uint8_t task_id, uint8_t task_pri
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_SEND_BLOCK %lu %u %u",
-                      (unsigned long)queue_id,
-                      (unsigned int)task_id,
-                      (unsigned int)task_priority);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u8(&payload, task_priority);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_SEND_BLOCK, payload.bytes, payload.length);
 #endif
 }
 
@@ -868,7 +987,10 @@ void trace_queue_send_timeout(uint32_t queue_id, uint8_t task_id) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_SEND_TIMEOUT %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_SEND_TIMEOUT, payload.bytes, payload.length);
 #endif
 }
 
@@ -885,11 +1007,12 @@ void trace_queue_receive_attempt(uint32_t queue_id,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_RECV_ATTEMPT %lu %u %u %lu",
-                      (unsigned long)queue_id,
-                      (unsigned int)task_id,
-                      (unsigned int)task_priority,
-                      (unsigned long)timeout_ticks);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u8(&payload, task_priority);
+    trace_tessla_put_u32(&payload, timeout_ticks);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_RECV_ATTEMPT, payload.bytes, payload.length);
 #endif
 }
 
@@ -900,10 +1023,11 @@ void trace_queue_receive_success(uint32_t queue_id, uint8_t task_id, uint32_t me
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_RECV_SUCCESS %lu %u %lu",
-                      (unsigned long)queue_id,
-                      (unsigned int)task_id,
-                      (unsigned long)message_hash);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u32(&payload, message_hash);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_RECV_SUCCESS, payload.bytes, payload.length);
 #endif
 }
 
@@ -914,10 +1038,11 @@ void trace_queue_receive_block(uint32_t queue_id, uint8_t task_id, uint8_t task_
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_RECV_BLOCK %lu %u %u",
-                      (unsigned long)queue_id,
-                      (unsigned int)task_id,
-                      (unsigned int)task_priority);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_put_u8(&payload, task_priority);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_RECV_BLOCK, payload.bytes, payload.length);
 #endif
 }
 
@@ -927,7 +1052,10 @@ void trace_queue_receive_timeout(uint32_t queue_id, uint8_t task_id) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_RECV_TIMEOUT %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_RECV_TIMEOUT, payload.bytes, payload.length);
 #endif
 }
 
@@ -937,7 +1065,10 @@ void trace_queue_wake_sender(uint32_t queue_id, uint8_t task_id) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_WAKE_SEND %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_WAKE_SEND, payload.bytes, payload.length);
 #endif
 }
 
@@ -947,7 +1078,10 @@ void trace_queue_wake_receiver(uint32_t queue_id, uint8_t task_id) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_WAKE_RECV %lu %u", (unsigned long)queue_id, (unsigned int)task_id);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, task_id);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_WAKE_RECV, payload.bytes, payload.length);
 #endif
 }
 
@@ -964,11 +1098,12 @@ void trace_queue_handoff(uint32_t queue_id,
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_HANDOFF %lu %u %u %lu",
-                      (unsigned long)queue_id,
-                      (unsigned int)sender_id,
-                      (unsigned int)receiver_id,
-                      (unsigned long)message_hash);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u8(&payload, sender_id);
+    trace_tessla_put_u8(&payload, receiver_id);
+    trace_tessla_put_u32(&payload, message_hash);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_HANDOFF, payload.bytes, payload.length);
 #endif
 }
 
@@ -978,7 +1113,10 @@ void trace_queue_fill(uint32_t queue_id, uint32_t fill) {
 #endif
 
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_QUEUE
-    trace_tessla_emit("QUEUE_FILL %lu %lu", (unsigned long)queue_id, (unsigned long)fill);
+    trace_tessla_payload_t payload = { 0 };
+    trace_tessla_put_u32(&payload, queue_id);
+    trace_tessla_put_u32(&payload, fill);
+    trace_tessla_emit(TRACE_TESSLA_EVT_QUEUE_FILL, payload.bytes, payload.length);
 #endif
 }
 
@@ -988,7 +1126,7 @@ void trace_queue_fill(uint32_t queue_id, uint32_t fill) {
 
 void trace_transmission_complete(void) {
 #if OS_TRACE_TESSLA_RTT && OS_TRACE_PROJECT
-    trace_tessla_emit("TRANSMISSION_COMPLETE");
+    trace_tessla_emit(TRACE_TESSLA_EVT_TRANSMISSION_COMPLETE, 0, 0u);
 #endif
 }
 
@@ -1005,7 +1143,13 @@ void trace_log(const char *text) {
 
 #if OS_TRACE_TESSLA_RTT
     if (text != 0) {
-        trace_tessla_emit("LOG %s", text);
+        size_t length = 0u;
+
+        while (length < TRACE_TESSLA_MAX_PAYLOAD_SIZE && text[length] != '\0') {
+            ++length;
+        }
+
+        trace_tessla_emit(TRACE_TESSLA_EVT_LOG, (const uint8_t *)text, (uint8_t)length);
     }
 #endif
 }

@@ -25,7 +25,8 @@
 #error "K_MAX_TASKS must fit in uint8_t task IDs"
 #endif
 
-static kernel_task_t g_tasks[K_MAX_TASKS];
+static kernel_task_t g_tasks[K_MAX_TASKS]
+    __attribute__((section(".ram2_bss"), aligned(8)));
 static uint32_t g_task_count = 0u;
 static bool g_task_creation_locked = false;
 

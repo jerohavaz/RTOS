@@ -11,7 +11,7 @@
  * emitting an event.
  *
  * The trace implementation can route events to SEGGER SystemView and/or to the
- * TeSSLa-compatible text stream over SEGGER RTT. SystemView task metadata is
+ * compact TeSSLa binary stream over SEGGER RTT. SystemView task metadata is
  * cached inside the trace subsystem when a task is registered. This allows the
  * SystemView OS callback to resend the complete task list when recording starts
  * later, without querying the kernel and without introducing a Trace -> Kernel
@@ -104,8 +104,8 @@ static inline trace_task_ref_t trace_task_ref_none(void) {
 /**
  * @brief Initialize every enabled trace backend.
  *
- * The RTT backend is initialized and emits @c TESSLA_START. SystemView is
- * configured and receives a startup message.
+ * The RTT backend is initialized and emits the binary session-start record.
+ * SystemView is configured and receives a startup message.
  *
  * @pre Call once during @c os_init() before task creation and scheduler start.
  */
@@ -138,7 +138,7 @@ void trace_task_register(const trace_task_info_t *info);
  * @param old_state Previous task-state value.
  * @param new_state New task-state value.
  *
- * @note The current implementation emits this event only through the RTT text
+ * @note The current implementation emits this event only through the RTT binary
  *       backend when @c OS_TRACE_TASKS is enabled.
  */
 void trace_task_state(uint8_t task_id, uint8_t old_state, uint8_t new_state);
@@ -193,7 +193,7 @@ void trace_idle(void);
  *
  * @param dt Number of elapsed kernel ticks represented by the event.
  *
- * @note The current implementation emits this event through the RTT text
+ * @note The current implementation emits this event through the RTT binary
  *       backend when @c OS_TRACE_SCHEDULER is enabled.
  */
 void trace_tick(uint32_t dt);
@@ -717,8 +717,8 @@ void trace_transmission_complete(void);
  *
  * @param text Message to emit. A null pointer is ignored.
  *
- * SystemView receives the string directly. The RTT text backend appends one
- * newline after the supplied string.
+ * SystemView receives the string directly. The RTT binary backend emits the
+ * bounded string bytes as a LOG payload.
  *
  * @warning The caller must keep @p text valid for the duration of the call.
  */
