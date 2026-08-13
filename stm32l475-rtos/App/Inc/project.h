@@ -38,7 +38,7 @@
 /**
  * @brief Integration test selected for the current firmware image.
  *
- * The default exercises the queue. Define @c PROJECT through the compiler or
+ * The default exercises the sensor application. Define @c PROJECT through the compiler or
  * change the value below to build another scenario.
  */
 #ifndef PROJECT
