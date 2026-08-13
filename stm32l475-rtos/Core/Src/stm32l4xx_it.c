@@ -197,7 +197,7 @@ void USART1_IRQHandler(void) {
  */
 void EXTI15_10_IRQHandler(void) {
     /* USER CODE BEGIN EXTI15_10_IRQn 0 */
-
+    os_isr_enter();
     /* USER CODE END EXTI15_10_IRQn 0 */
     HAL_GPIO_EXTI_IRQHandler(LPS22HB_INT_DRDY_EXTI0_Pin);
     HAL_GPIO_EXTI_IRQHandler(LSM6DSL_INT1_EXTI11_Pin);
@@ -205,7 +205,7 @@ void EXTI15_10_IRQHandler(void) {
     HAL_GPIO_EXTI_IRQHandler(ARD_D2_Pin);
     HAL_GPIO_EXTI_IRQHandler(HTS221_DRDY_EXTI15_Pin);
     /* USER CODE BEGIN EXTI15_10_IRQn 1 */
-
+    os_isr_exit();
     /* USER CODE END EXTI15_10_IRQn 1 */
 }
 
