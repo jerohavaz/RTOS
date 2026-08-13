@@ -142,8 +142,8 @@ build:
       - VARIANT: "mutex"
         RTOS_PROJECT: "PROJECT_MUTEX"
         RTOS_TRACE_ENABLED: "1"
-      - VARIANT: "queue-no-trace"
-        RTOS_PROJECT: "PROJECT_QUEUE"
+      - VARIANT: "sensor-no-trace"
+        RTOS_PROJECT: "PROJECT_SENSOR"
         RTOS_TRACE_ENABLED: "0"
 
   script:
@@ -167,7 +167,7 @@ cppcheck:
     - cd "$FIRMWARE_DIR"
     - >
       cmake --preset Debug
-      -DRTOS_PROJECT=PROJECT_QUEUE
+      -DRTOS_PROJECT=PROJECT_SENSOR
       -DRTOS_TRACE_ENABLED=1
     - >
       cppcheck
