@@ -97,7 +97,7 @@
  * Requires the SEGGER SystemView sources, headers, and target configuration.
  * This option is meaningful only when @ref OS_TRACE_ENABLED is @c true.
  */
-#define OS_TRACE_SEGGER_SYSVIEW (false)
+#define OS_TRACE_SEGGER_SYSVIEW (true)
 
 /**
  * @brief Enable the TeSSLa-compatible binary stream over SEGGER RTT.
@@ -142,6 +142,9 @@
  */
 #define OS_TRACE_DELAY (true)
 
+/**
+ * @brief Trace project-specific events.
+ */
 #define OS_TRACE_PROJECT (true)
 
 /** @} */
