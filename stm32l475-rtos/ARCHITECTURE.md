@@ -178,24 +178,32 @@ Task switching is deferred to the PendSV exception. SysTick updates the RTOS tim
 ```mermaid
 sequenceDiagram
     participant T as Running Task
+    participant ISR as Application ISR
     participant ST as SysTick ISR
     participant K as RTOS Kernel
     participant PS as PendSV
     participant N as Next Task
 
-    T->>ST: SysTick interrupt
-    ST->>K: Update tick / timeouts
-    K->>K: Evaluate scheduler
+    alt Normal application interrupt
+        T->>ISR: Peripheral interrupt
+        ISR->>ISR: Handle interrupt
+        ISR-->>T: Exception return
+        Note over T,ISR: Interrupted task continues
+    else SysTick interrupt
+        T->>ST: SysTick interrupt
+        ST->>K: Update tick and timeouts
+        K->>K: Evaluate scheduling state
 
-    alt Context switch required
-        K-->>PS: Set PendSV pending
-        ST-->>PS: Exception return / tail chaining
-        PS->>PS: Save current task context
-        PS->>K: Select / activate next task
-        PS->>PS: Restore next task context
-        PS-->>N: Exception return
-    else No context switch required
-        ST-->>T: Exception return
+        alt Context switch required
+            K-->>PS: Set PendSV pending
+            ST-->>PS: Exception return / tail chaining
+            PS->>PS: Save current task context
+            PS->>K: Select next READY task
+            PS->>PS: Restore next task context
+            PS-->>N: Exception return
+        else No context switch required
+            ST-->>T: Exception return
+        end
     end
 ```
 
