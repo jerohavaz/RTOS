@@ -64,13 +64,14 @@ cmd> status
 Sensor values are shown in the bottom toolbar:
 
 ```text
-ACC: -0.015 +0.202 +0.981 g | GYRO: +2.450 -0.777 -0.707 deg/s | samples= 41 | age=    12 ms | avg interval(10)=  100.1 ms | total=     15420 ms
+ACC: -0.015 +0.202 +0.981 g | GYRO: +2.450 -0.777 -0.707 deg/s | samples= 41 | age=   0.0 s | avg(10)= 100.1 ms | error=  +0.1 ms | total=      15.4 s
 ```
 
 - `samples`: raw sensor readings averaged into the current UART record.
-- `age`: time since the newest UART record arrived.
-- `avg interval(10)`: average interval between the last ten UART records.
-- `total`: elapsed time since the first valid UART record.
+- `age`: seconds since the newest UART record arrived.
+- `avg(10)`: average interval between the last ten UART records.
+- `error`: difference between the average interval and the 100 ms target.
+- `total`: seconds elapsed since the first valid UART record.
 
 ## Verification
 
@@ -94,7 +95,7 @@ With one UART record every 100 ms, the expected sample counts are:
 The test passes when:
 
 - A new record is displayed approximately every 100 ms.
-- `avg interval(10)` remains close to 100 ms.
+- `avg(10)` remains close to 100 ms.
 - `IRQ` and `READ` increase when `status` is requested.
 - `DROPPED` remains `0` during normal operation.
 - Mode commands return `MODE,<mode>,OK`.

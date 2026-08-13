@@ -19,18 +19,6 @@ latest_lock = threading.Lock()
 stop_event = threading.Event()
 
 
-def extract_message(line):
-    """Remove the firmware CLI prompt from asynchronous messages."""
-    markers = ("DATA,", "RESP,", "ERROR,", "TYPE,")
-
-    for marker in markers:
-        position = line.find(marker)
-        if position >= 0:
-            return line[position:]
-
-    return line.replace("CLI> ", "").strip()
-
-
 def serial_reader(ser, session):
     """Continuously receive and process messages from the STM32."""
     global latest_sample
@@ -47,8 +35,6 @@ def serial_reader(ser, session):
 
             if not line:
                 continue
-
-            line = extract_message(line)
 
             if line.startswith("DATA,"):
                 fields = line.split(",")
@@ -117,10 +103,10 @@ def bottom_toolbar():
     now = time.monotonic()
 
     # Time since the latest message arrived.
-    age_ms = (now - sample["time"]) * 1000.0
+    age_s = now - sample["time"]
 
     # Time since the first DATA message arrived.
-    total_age_ms = (now - first_time) * 1000.0
+    total_age_s = now - first_time
 
     # Calculate message-to-message intervals in milliseconds.
     intervals_ms = [
@@ -145,10 +131,10 @@ def bottom_toolbar():
         f"{sample['gy']:+.3f} "
         f"{sample['gz']:+.3f} deg/s"
         f" | samples={sample['count']:3d}"
-        f" | age={age_ms:6.0f} ms"
+        f" | age={age_s:6.1f} s"
         f" | avg({len(intervals_ms):2d})={average_interval_ms:6.1f} ms"
         f" | error={error_ms:+6.1f} ms"
-        f" | total={total_age_ms:10.0f} ms "
+        f" | total={total_age_s:10.1f} s "
     )
 
 
