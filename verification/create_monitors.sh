@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TESSLA_VERIFY="tessla_verify.py"
-TESSLA_JAR="/home/jero/Desktop/tessla.jar"
+TESSLA_JAR="${TESSLA_JAR:?Set TESSLA_JAR first}"
 OUTPUT_DIR="monitors"
 BUILD_DIR="build"
 
