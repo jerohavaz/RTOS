@@ -60,5 +60,5 @@ Device commands are asynchronous. Their completion is returned as `RESP,...` or 
 
 - [Interactive sensor terminal](../../sensor_terminal/README.md) displays the
   latest data and makes commands easy to enter.
-- [Graphical sensor visualization](../../sensor_visualization/README.md)
+- [Graphical sensor visualization](../../sensor_viewer/README.md)
   explains how to view the sensor stream graphically.
