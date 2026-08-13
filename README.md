@@ -1,6 +1,6 @@
 # STM32L475 Bare-Metal RTOS
 
-Custom bare-metal RTOS for the STM32L475VG with fixed-priority preemptive scheduling, synchronization primitives, message queues, SEGGER SystemView instrumentation, TeSSLa runtime verification, integration tests, and GitLab CI/CD.
+Custom bare-metal RTOS for the STM32L475VG with fixed-priority preemptive scheduling, synchronization primitives, message queues, SEGGER SystemView instrumentation, TeSSLa runtime verification, integration tests, a sensor terminal, a sensor viewer, and GitLab CI/CD.
 
 ## Documentation
 
@@ -10,6 +10,8 @@ Custom bare-metal RTOS for the STM32L475VG with fixed-priority preemptive schedu
 * [Integration Tests](stm32l475-rtos/App/README.md)
 * [SEGGER SystemView](stm32l475-rtos/SEGGER.md)
 * [TeSSLa Verification](verification/README.md)
+* [Sensor Terminal](sensor_terminal/README.md)
+* [Sensor Viewer](sensor_viewer/README.md)
 
 ## GitLab CI/CD
 
@@ -19,11 +21,11 @@ The root `.gitlab-ci.yml` defines:
 | --- | --- |
 | `stm32_image`, `doxygen_image`, `verification_image` | Build and publish the CI Docker images when relevant files change; manual fallback |
 | `format` | Run `clang-format --dry-run --Werror` on firmware C and header files |
-| `build` | Build all five integration-test variants with tracing enabled, plus `queue-no-trace` |
-| `cppcheck` | Run static analysis on the queue configuration |
+| `build` | Build all six integration-test variants with tracing enabled, plus `sensor-no-trace` |
+| `cppcheck` | Run static analysis on the sensor configuration |
 | `verification` | Run all TeSSLa verification fixtures using the Rust monitor backend |
 | `pages` | Generate and publish the Doxygen HTML documentation from the default branch |
 
-The firmware build runs as a parallel matrix for `queue`, `scheduler`, `delay`, `semaphore`, and `mutex`. `queue-no-trace` additionally verifies that the firmware compiles with tracing disabled.
+The firmware build runs as a parallel matrix for `sensor`, `queue`, `scheduler`, `delay`, `semaphore`, and `mutex`. `sensor-no-trace` additionally verifies that the firmware compiles with tracing disabled.
 
 TeSSLa verification runs when files below `verification/` or `.gitlab-ci.yml` change. GitLab Pages runs only on the default branch. Merge-request-event pipelines are disabled.

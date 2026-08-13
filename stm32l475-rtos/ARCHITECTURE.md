@@ -201,7 +201,7 @@ sequenceDiagram
 
 If the scheduler does not require a task switch, execution returns to the interrupted task. If a switch is required, PendSV is set pending and may execute directly through exception tail chaining. PendSV saves the current task context, activates the next task, restores its context, and returns to thread execution.
 
-Normal application ISRs return to the interrupted execution context and do not directly perform kernel context switches. SysTick is treated separately because it provides the RTOS time base and can cause a scheduling decision.
+Normal application ISRs do not perform a context switch directly. Instead, RTOS-aware ISRs may request rescheduling before exception return, typically by pending PendSV. If that scheduling decision selects a different READY task, the Cortex-M4 exception mechanism can transition from the current ISR to PendSV through tail-chaining, allowing the context switch to occur before thread-mode execution resumes. SysTick follows the same deferred context-switch mechanism while also providing the RTOS time base.
 
 ## Synchronization and Blocking
 
@@ -265,3 +265,7 @@ The instrumentation supports observation and verification of:
 - Semaphore state and wake-up behavior
 - Message-queue capacity, FIFO ordering, blocking behavior, and data integrity
 - ISR execution behavior
+
+## Reference
+
+* [STMicroelectronics, *PM0214 — STM32 Cortex-M4 MCUs and MPUs Programming Manual*, Rev. 10, Section 2.3.7 "Exception entry and return", p. 42](https://www.st.com/resource/en/programming_manual/pm0214-stm32-cortexm4-mcus-and-mpus-programming-manual-stmicroelectronics.pdf) — describes Cortex-M4 tail-chaining: when an eligible exception is pending at completion of an exception handler, the stack pop is skipped and control transfers directly to the new exception handler.
