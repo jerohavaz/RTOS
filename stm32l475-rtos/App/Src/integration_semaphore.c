@@ -152,7 +152,6 @@ static void semaphore_control_task(void) {
     semaphore_park();
 }
 
-/** @copydoc integration_semaphore_init */
 void integration_semaphore_init(void) {
     g_semaphore_test_observation.probe_complete = 0u;
     g_semaphore_test_observation.high_state = SEM_WAITER_NOT_STARTED;

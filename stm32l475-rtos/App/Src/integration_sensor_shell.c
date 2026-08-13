@@ -1,3 +1,15 @@
+/**
+ * @file integration_sensor_shell.c
+ * @brief UART receive callbacks and interactive sensor command parser.
+ * @author Jerome
+ * @author Martin
+ *
+ *
+ * The HAL receive interrupt collects one line without blocking. The output
+ * task polls @ref shell_update, tokenizes complete lines, and dispatches the
+ * command table. Sensor I/O commands are queued for the sensor task.
+ */
+
 #include "integration_sensor_shell.h"
 
 #include "project.h"
@@ -12,32 +24,56 @@
 #include "integration_sensor_internal.h"
 #include "main.h"
 
-#define SHELL_RX_BUFFER_SIZE 128u
-#define SHELL_MAX_ARGS       8u
-#define SHELL_CMD_ASYNC      4u
+#define SHELL_RX_BUFFER_SIZE 128u /**< Input line capacity including terminator. */
+#define SHELL_MAX_ARGS       8u   /**< Maximum whitespace-separated arguments. */
 
+/** @brief Byte currently armed for interrupt-driven reception. */
 static uint8_t rx_byte;
+
+/** @brief Input line assembled by the UART receive callback. */
 static char rx_buffer[SHELL_RX_BUFFER_SIZE];
+
+/** @brief Next writable position in @ref rx_buffer. */
 static volatile uint16_t rx_index;
+
+/** @brief Nonzero when @ref rx_buffer contains a complete line. */
 static volatile uint8_t line_ready;
+
+/** @brief Nonzero when input exceeded @ref SHELL_RX_BUFFER_SIZE. */
 static volatile uint8_t rx_overflow;
+
+/** @brief Nonzero while periodic @c DATA records are enabled. */
 static volatile uint8_t stream_enabled = 1u;
 
+/** @brief UART shared by receive callbacks and the output task. */
 extern UART_HandleTypeDef huart1;
 
+/** @brief Print all supported commands. */
 static int cmd_help(int argc, char **argv);
+
+/** @brief Set the board LED state. */
 static int cmd_led(int argc, char **argv);
+
+/** @brief Queue a sensor sampling-mode change. */
 static int cmd_mode(int argc, char **argv);
+
+/** @brief Queue a sensor reset. */
 static int cmd_reset(int argc, char **argv);
+
+/** @brief Enable or disable periodic sensor records. */
 static int cmd_stream(int argc, char **argv);
+
+/** @brief Queue a sensor status request. */
 static int cmd_status(int argc, char **argv);
 
+/** @brief Command name, handler, and help-text entry. */
 typedef struct {
-    const char *name;
-    int (*function)(int argc, char **argv);
-    const char *help;
+    const char *name;                       /**< Command token. */
+    int (*function)(int argc, char **argv); /**< Command handler. */
+    const char *help;                       /**< One-line help text. */
 } command_t;
 
+/** @brief Commands recognized by the shell. */
 static const command_t command_table[] = {
     { "help", cmd_help, "Zeigt alle verfuegbaren Befehle" },
     { "led", cmd_led, "Schaltet LED: led <on|off>" },
@@ -47,8 +83,12 @@ static const command_t command_table[] = {
     { "status", cmd_status, "Liest die Sensorregister aus" }
 };
 
-#define NUM_COMMANDS (sizeof(command_table) / sizeof(command_table[0]))
+#define NUM_COMMANDS (sizeof(command_table) / sizeof(command_table[0])) /**< Table length. */
 
+/**
+ * @brief Write shell-owned text directly to the UART.
+ * @param text Null-terminated text to transmit.
+ */
 static void shell_print(const char *text) {
     if ((text != NULL) &&
         (HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY) !=
@@ -57,13 +97,18 @@ static void shell_print(const char *text) {
     }
 }
 
+/**
+ * @brief Queue a device command and report queue saturation.
+ * @param command Command to submit.
+ * @return Zero on success, otherwise @c -1.
+ */
 static int queue_sensor_command(app_sensor_command_t command) {
     if (app_sensor_command_submit(command) != OS_OK) {
         shell_print("ERROR,SHELL,SENSOR_COMMAND_QUEUE_FULL\r\n");
         return -1;
     }
 
-    return SHELL_CMD_ASYNC;
+    return 0;
 }
 
 void shell_init(void) {
@@ -71,13 +116,17 @@ void shell_init(void) {
     line_ready = 0u;
     rx_overflow = 0u;
 
-    shell_print("\r\n--- STM32 Shell bereit ---\r\nCLI> ");
+    shell_print("\r\n--- STM32 Shell bereit ---\r\n");
 
     if (HAL_UART_Receive_IT(&huart1, &rx_byte, 1u) != HAL_OK) {
         shell_print("ERROR,UART,RX_START_FAILED\r\n");
     }
 }
 
+/**
+ * @brief Collect one received UART byte into the shell input line.
+ * @param huart UART whose receive operation completed.
+ */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart != &huart1) {
         return;
@@ -103,6 +152,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     (void)HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
 }
 
+/**
+ * @brief Recover interrupt reception after a UART error.
+ * @param huart UART reporting the error.
+ */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
     if (huart == &huart1) {
         __HAL_UART_CLEAR_OREFLAG(huart);
@@ -118,7 +171,7 @@ void shell_update(void) {
         rx_index = 0u;
         line_ready = 0u;
         rx_overflow = 0u;
-        shell_print("\r\nERROR,SHELL,LINE_TOO_LONG\r\nCLI> ");
+        shell_print("\r\nERROR,SHELL,LINE_TOO_LONG\r\n");
         return;
     }
 
@@ -134,14 +187,12 @@ void shell_update(void) {
         token = strtok(NULL, " ");
     }
 
-    int cmd_result = 0;
-
     if (argc > 0) {
         uint8_t found = 0u;
 
         for (size_t i = 0u; i < NUM_COMMANDS; i++) {
             if (strcmp(argv[0], command_table[i].name) == 0) {
-                cmd_result = command_table[i].function(argc, argv);
+                (void)command_table[i].function(argc, argv);
                 found = 1u;
                 break;
             }
@@ -154,11 +205,14 @@ void shell_update(void) {
 
     rx_index = 0u;
     line_ready = 0u;
-    if (cmd_result != SHELL_CMD_ASYNC) {
-        shell_print("CLI> ");
-    }
 }
 
+/**
+ * @brief Implement the @c help command.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Zero.
+ */
 static int cmd_help(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -174,6 +228,12 @@ static int cmd_help(int argc, char **argv) {
     return 0;
 }
 
+/**
+ * @brief Implement @c led on and @c led off.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Zero on success, otherwise @c -1.
+ */
 static int cmd_led(int argc, char **argv) {
     if (argc < 2) {
         shell_print("Nutzung: led <on|off>\r\n");
@@ -194,6 +254,12 @@ static int cmd_led(int argc, char **argv) {
     return 0;
 }
 
+/**
+ * @brief Implement @c mode low, @c mode normal, and @c mode high.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Zero on success, otherwise @c -1.
+ */
 static int cmd_mode(int argc, char **argv) {
     if (argc < 2) {
         shell_print("Nutzung: mode <low|normal|high>\r\n");
@@ -214,12 +280,24 @@ static int cmd_mode(int argc, char **argv) {
     return -1;
 }
 
+/**
+ * @brief Implement the asynchronous @c reset command.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Zero when queued, otherwise @c -1.
+ */
 static int cmd_reset(int argc, char **argv) {
     (void)argc;
     (void)argv;
     return queue_sensor_command(APP_SENSOR_CMD_RESET);
 }
 
+/**
+ * @brief Implement @c stream on and @c stream off.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Zero on success, otherwise @c -1.
+ */
 static int cmd_stream(int argc, char **argv) {
     if (argc < 2) {
         shell_print("Nutzung: stream <on|off>\r\n");
@@ -240,6 +318,12 @@ static int cmd_stream(int argc, char **argv) {
     return 0;
 }
 
+/**
+ * @brief Implement the asynchronous @c status command.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Zero when queued, otherwise @c -1.
+ */
 static int cmd_status(int argc, char **argv) {
     (void)argc;
     (void)argv;

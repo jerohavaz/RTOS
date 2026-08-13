@@ -107,7 +107,6 @@ static void delay_control_task(void) {
     delay_park();
 }
 
-/** @copydoc integration_delay_init */
 void integration_delay_init(void) {
     g_delay_test_observation.phase = DELAY_PHASE_NOT_STARTED;
     g_delay_test_observation.observer_runs = 0u;

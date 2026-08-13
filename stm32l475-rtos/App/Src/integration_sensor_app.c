@@ -1,3 +1,15 @@
+/**
+ * @file integration_sensor_app.c
+ * @brief Interrupt-driven sensor acquisition and command orchestration.
+ * @author Jerome
+ * @author Martin
+ *
+ * The data-ready interrupt releases a binary semaphore. The sensor task reads
+ * one sample per observed interrupt, accumulates samples, and publishes a
+ * batch on fixed 100 ms deadlines. Shell commands share the same wake-up path
+ * and are executed by the sensor task so device access stays serialized.
+ */
+
 #include "integration_sensor_app.h"
 
 #include "project.h"
@@ -20,21 +32,34 @@
 #include "os_sem.h"
 #include "os_task.h"
 
-#define SENSOR_COMMAND_QUEUE_ID       1u
-#define SENSOR_COMMAND_QUEUE_CAPACITY 8u
-#define SENSOR_BATCH_PERIOD_MS        100u
-#define SENSOR_TASK_PRIORITY          6u
-#define SENSOR_OUTPUT_TASK_PRIORITY   5u
+#define SENSOR_COMMAND_QUEUE_ID       1u   /**< TeSSLa-visible command queue ID. */
+#define SENSOR_COMMAND_QUEUE_CAPACITY 8u   /**< Maximum pending shell commands. */
+#define SENSOR_BATCH_PERIOD_MS        100u /**< Period between output batches. */
+#define SENSOR_TASK_PRIORITY          6u   /**< Acquisition task priority. */
+#define SENSOR_OUTPUT_TASK_PRIORITY   5u   /**< UART output task priority. */
 
+/** @brief Binary wake-up semaphore released by commands and data-ready IRQs. */
 static os_sem_t sensor_data_ready_sem;
+
+/** @brief Shell-to-sensor command queue. */
 static os_queue_t sensor_command_queue;
+
+/** @brief Backing storage for @ref sensor_command_queue. */
 static app_sensor_command_t sensor_command_storage[SENSOR_COMMAND_QUEUE_CAPACITY];
 
+/** @brief Whether the sensor completed its most recent initialization. */
 static bool sensor_available;
+
+/** @brief Number of LSM6DSL data-ready interrupts received. */
 static volatile uint32_t sensor_interrupt_count;
+
+/** @brief Number of sensor samples read successfully. */
 static uint32_t sensor_sample_count;
+
+/** @brief Number of samples discarded with an output batch. */
 static uint32_t sensor_queue_drop_count;
 
+/** @brief Debugger-visible count of runtime sensor-application errors. */
 volatile uint32_t test_error_count;
 
 void sensor_app_record_error(void) {
@@ -42,17 +67,22 @@ void sensor_app_record_error(void) {
     HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
 }
 
+/**
+ * @brief Queue a constant response string and record failure if it cannot be queued.
+ * @param text Null-terminated response or error text.
+ */
 static void post_text(const char *text) {
     if (sensor_output_post_text("%s", text) != OS_OK) {
         sensor_app_record_error();
     }
 }
 
+/** @brief Read and queue the device registers and runtime counters. */
 static void sensor_report_status(void) {
     sensor_device_status_t status;
 
     if (!sensor_device_read_status(&status)) {
-        post_text("ERROR,SENSOR,STATUS_READ_FAILED\r\nCLI>");
+        post_text("ERROR,SENSOR,STATUS_READ_FAILED\r\n");
         return;
     }
 
@@ -61,7 +91,7 @@ static void sensor_report_status(void) {
                                 "CTRL2_G=0x%02X,"
                                 "IRQ=%lu,"
                                 "READ=%lu,"
-                                "DROPPED=%lu\r\nCLI>",
+                                "DROPPED=%lu\r\n",
                                 status.ctrl1_xl,
                                 status.ctrl2_g,
                                 (unsigned long)sensor_interrupt_count,
@@ -71,16 +101,22 @@ static void sensor_report_status(void) {
     }
 }
 
+/**
+ * @brief Apply a sensor mode and queue its asynchronous result.
+ * @param mode Device mode to apply.
+ * @param name Uppercase mode name used in the UART response.
+ */
 static void sensor_set_mode(sensor_mode_t mode, const char *name) {
     if (sensor_device_set_mode(mode)) {
-        if (sensor_output_post_text("RESP,MODE,%s,OK\r\nCLI>", name) != OS_OK) {
+        if (sensor_output_post_text("RESP,MODE,%s,OK\r\n", name) != OS_OK) {
             sensor_app_record_error();
         }
-    } else if (sensor_output_post_text("ERROR,SENSOR,MODE_%s_FAILED\r\nCLI>", name) != OS_OK) {
+    } else if (sensor_output_post_text("ERROR,SENSOR,MODE_%s_FAILED\r\n", name) != OS_OK) {
         sensor_app_record_error();
     }
 }
 
+/** @brief Drain and execute every currently queued sensor command. */
 static void sensor_process_commands(void) {
     app_sensor_command_t command;
 
@@ -97,19 +133,23 @@ static void sensor_process_commands(void) {
                 break;
             case APP_SENSOR_CMD_RESET:
                 sensor_available = sensor_device_reset();
-                post_text(sensor_available ? "RESP,RESET,OK\r\nCLI>"
-                                           : "ERROR,SENSOR,RESET_FAILED\r\nCLI>");
+                post_text(sensor_available ? "RESP,RESET,OK\r\n" : "ERROR,SENSOR,RESET_FAILED\r\n");
                 break;
             case APP_SENSOR_CMD_STATUS:
                 sensor_report_status();
                 break;
             default:
-                post_text("ERROR,SENSOR,UNKNOWN_COMMAND\r\nCLI>");
+                post_text("ERROR,SENSOR,UNKNOWN_COMMAND\r\n");
                 break;
         }
     }
 }
 
+/**
+ * @brief Add one reading to an output batch.
+ * @param[in,out] batch Batch accumulator to update.
+ * @param sample Reading to add.
+ */
 static void batch_add(sensor_sample_batch_t *batch, const sensor_sample_t *sample) {
     for (uint32_t axis = 0u; axis < 3u; ++axis) {
         batch->sum.acceleration_g[axis] += sample->acceleration_g[axis];
@@ -119,6 +159,10 @@ static void batch_add(sensor_sample_batch_t *batch, const sensor_sample_t *sampl
     ++batch->count;
 }
 
+/**
+ * @brief Queue a non-empty batch and clear its accumulator.
+ * @param[in,out] batch Batch to publish and reset.
+ */
 static void batch_publish(sensor_sample_batch_t *batch) {
     if (batch->count == 0u) {
         return;
@@ -132,10 +176,22 @@ static void batch_publish(sensor_sample_batch_t *batch) {
     memset(batch, 0, sizeof(*batch));
 }
 
+/**
+ * @brief Test a wrapping 32-bit millisecond deadline.
+ * @param now Current tick value.
+ * @param deadline Deadline to compare against.
+ * @return @c true when @p deadline has been reached or passed.
+ */
 static bool batch_deadline_reached(uint32_t now, uint32_t deadline) {
     return (int32_t)(now - deadline) >= 0;
 }
 
+/**
+ * @brief Publish a due batch and advance to the next future deadline.
+ * @param[in,out] batch Current batch accumulator.
+ * @param[in,out] deadline Current deadline, advanced in 100 ms increments.
+ * @param now Current tick value.
+ */
 static void batch_publish_due(sensor_sample_batch_t *batch, uint32_t *deadline, uint32_t now) {
     if (!batch_deadline_reached(now, *deadline)) {
         return;
@@ -148,6 +204,13 @@ static void batch_publish_due(sensor_sample_batch_t *batch, uint32_t *deadline, 
     } while (batch_deadline_reached(now, *deadline));
 }
 
+/**
+ * @brief Run acquisition, command processing, and fixed-deadline batching.
+ *
+ * The semaphore timeout is the time remaining until the next batch deadline;
+ * therefore low sample rates do not extend the output period. The task never
+ * returns.
+ */
 static void sensor_task(void) {
     sensor_sample_batch_t batch = { 0 };
     uint32_t batch_deadline = HAL_GetTick() + SENSOR_BATCH_PERIOD_MS;
@@ -213,6 +276,10 @@ os_status_t app_sensor_command_submit(app_sensor_command_t command) {
     return (status == OS_ERR_FULL) ? OS_OK : status;
 }
 
+/**
+ * @brief Handle the board data-ready external interrupt callback.
+ * @param gpio_pin Pin reported by the HAL EXTI dispatcher.
+ */
 void HAL_GPIO_EXTI_Callback(uint16_t gpio_pin) {
     if (gpio_pin != LSM6DSL_INT1_EXTI11_Pin) {
         return;
@@ -227,6 +294,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t gpio_pin) {
     }
 }
 
+/**
+ * @brief Initialize sensor objects, hardware, and worker tasks.
+ *
+ * Device initialization temporarily enables interrupts because the STM32 BSP
+ * I2C implementation requires interrupt delivery. The previous PRIMASK state
+ * is restored afterward.
+ */
 void integration_sensor_app_init(void) {
     sensor_available = false;
     sensor_interrupt_count = 0u;

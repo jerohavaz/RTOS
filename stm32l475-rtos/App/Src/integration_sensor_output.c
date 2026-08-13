@@ -1,3 +1,14 @@
+/**
+ * @file integration_sensor_output.c
+ * @brief Queue-backed UART serialization for sensor data and responses.
+ * @author Jerome
+ * @author Martin
+ *
+ * A single output task owns normal UART transmission. Producers queue either
+ * a completed sample batch or formatted text, preventing interleaved records
+ * from the acquisition and shell paths.
+ */
+
 #include "integration_sensor_output.h"
 
 #include "project.h"
@@ -16,38 +27,64 @@
 #include "os_queue.h"
 #include "trace.h"
 
-#define SENSOR_OUTPUT_QUEUE_ID       2u
-#define SENSOR_OUTPUT_QUEUE_CAPACITY 96u
-#define SENSOR_OUTPUT_TEXT_LENGTH    96u
-#define SENSOR_OUTPUT_POST_TIMEOUT   10u
-#define SENSOR_SHELL_POLL_TICKS      10u
+#define SENSOR_OUTPUT_QUEUE_ID       2u  /**< TeSSLa-visible output queue ID. */
+#define SENSOR_OUTPUT_QUEUE_CAPACITY 96u /**< Maximum queued output messages. */
+#define SENSOR_OUTPUT_TEXT_LENGTH    96u /**< Text bytes stored per message. */
+#define SENSOR_OUTPUT_POST_TIMEOUT   10u /**< Text-producer queue timeout. */
+#define SENSOR_SHELL_POLL_TICKS      10u /**< Maximum interval between shell polls. */
 
-typedef enum { SENSOR_OUTPUT_BATCH = 0, SENSOR_OUTPUT_TEXT } sensor_output_message_type_t;
+/** @brief Payload discriminator for output queue entries. */
+typedef enum {
+    SENSOR_OUTPUT_BATCH = 0, /**< Averaged sensor stream record. */
+    SENSOR_OUTPUT_TEXT       /**< Shell response or error text. */
+} sensor_output_message_type_t;
 
+/** @brief One message serialized by the output task. */
 typedef struct {
-    sensor_output_message_type_t type;
+    sensor_output_message_type_t type; /**< Active member of @ref payload. */
     union {
-        sensor_sample_batch_t batch;
-        char text[SENSOR_OUTPUT_TEXT_LENGTH];
-    } payload;
+        sensor_sample_batch_t batch;          /**< Batch awaiting averaging and output. */
+        char text[SENSOR_OUTPUT_TEXT_LENGTH]; /**< Null-terminated response text. */
+    } payload;                                /**< Message content selected by @ref type. */
 } sensor_output_message_t;
 
+/** @brief Queue consumed by @ref sensor_output_task. */
 static os_queue_t output_queue;
+
+/** @brief Backing storage for @ref output_queue. */
 static sensor_output_message_t output_storage[SENSOR_OUTPUT_QUEUE_CAPACITY];
 
+/** @brief UART used for both sensor streaming and the interactive shell. */
 extern UART_HandleTypeDef huart1;
 
+/**
+ * @brief Transmit one complete UART fragment.
+ * @param text Bytes to transmit.
+ * @param length Number of bytes in @p text.
+ * @return @c true when the length fits the HAL API and transmission succeeds.
+ */
 static bool uart_write(const char *text, size_t length) {
     return (length <= UINT16_MAX) &&
            (HAL_UART_Transmit(&huart1, (uint8_t *)text, (uint16_t)length, HAL_MAX_DELAY) == HAL_OK);
 }
 
+/**
+ * @brief Convert a floating-point value to a rounded fixed-point milli-unit.
+ * @param value Value to scale.
+ * @return Rounded value multiplied by 1000.
+ */
 static int32_t to_milli(float value) {
     float scaled = value * 1000.0f;
 
     return (int32_t)(scaled + ((scaled >= 0.0f) ? 0.5f : -0.5f));
 }
 
+/**
+ * @brief Format a signed milli-unit value with three fractional digits.
+ * @param[out] output Destination buffer.
+ * @param output_size Size of @p output in bytes.
+ * @param milli Fixed-point value to format.
+ */
 static void format_milli(char *output, size_t output_size, int32_t milli) {
     uint32_t magnitude;
 
@@ -68,6 +105,11 @@ static void format_milli(char *output, size_t output_size, int32_t milli) {
     }
 }
 
+/**
+ * @brief Average and transmit one batch as a @c DATA CSV record.
+ * @param batch Batch to serialize.
+ * @return @c true when disabled/empty or when formatting and transmission succeed.
+ */
 static bool uart_send_batch(const sensor_sample_batch_t *batch) {
     static char values[6][20];
     static char line[160];
@@ -104,6 +146,11 @@ static bool uart_send_batch(const sensor_sample_batch_t *batch) {
     return uart_write(line, (size_t)length);
 }
 
+/**
+ * @brief Transmit one bounded, null-terminated text message.
+ * @param text Text stored in an output queue entry.
+ * @return @c true when the string is terminated and transmission succeeds.
+ */
 static bool uart_send_text(const char *text) {
     size_t length = 0u;
 

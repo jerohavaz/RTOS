@@ -15,13 +15,9 @@ The application builds exactly one RTOS integration test. Select it by changing 
 | `PROJECT_QUEUE` | Empty receive and full send blocking, direct handoff, FIFO refill, exact integrity, no-wait rejection, and both finite timeout paths |
 | `PROJECT_SENSOR` | Interrupt-driven LSM6DSL sampling, 100 ms aggregation, UART streaming, and shell commands |
 
-The sensor project separates device register access, sampling orchestration,
-UART output, and shell parsing. Raw samples are accumulated by the sensor task
-and one batch is queued on a fixed 100 ms RTOS-tick deadline. The data-ready
-semaphore uses the remaining deadline as a finite timeout, so low sensor rates
-do not quantize the UART period to the next sample interrupt. Queue 1 carries
-sensor commands with capacity 8; queue 2 carries output batches and responses
-with capacity 96.
+The sensor application is documented separately in [SENSOR.md](SENSOR.md), including its architecture, data path, UART format, operating modes, commands,and companion host tools.
+
+The sensor project separates device register access, sampling orchestration, UART output, and shell parsing. Raw samples are accumulated by the sensor task and one batch is queued on a fixed 100 ms RTOS-tick deadline. The data-ready semaphore uses the remaining deadline as a finite timeout, so low sensor rates do not quantize the UART period to the next sample interrupt. Queue 1 carries sensor commands with capacity 8; queue 2 carries output batches and responses with capacity 96.
 
 Each test has its own source file under `Src/`. Tests are intentionally small and use only public RTOS APIs.
 

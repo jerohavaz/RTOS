@@ -1,3 +1,13 @@
+/**
+ * @file integration_sensor_device.c
+ * @brief LSM6DSL initialization, register access, and sample conversion.
+ * @author Jerome
+ * @author Martin
+ *
+ * Uses the board BSP for device setup and low-power selection, and direct I2C
+ * register access for synchronized six-axis reads, status, and reset control.
+ */
+
 #include "integration_sensor_device.h"
 
 #include "project.h"
@@ -11,14 +21,21 @@
 #include "stm32l475e_iot01_accelero.h"
 #include "stm32l475e_iot01_gyro.h"
 
-#define LSM6DSL_INT1_DRDY_XL_BIT 0x01u
-#define LSM6DSL_DRDY_PULSED_BIT  0x80u
-#define LSM6DSL_SW_RESET_BIT     0x01u
-#define SENSOR_IO_TIMEOUT_MS     100u
-#define SENSOR_RESET_TIMEOUT_MS  20u
+#define LSM6DSL_INT1_DRDY_XL_BIT 0x01u /**< Route accelerometer data-ready to INT1. */
+#define LSM6DSL_DRDY_PULSED_BIT  0x80u /**< Select pulsed data-ready signaling. */
+#define LSM6DSL_SW_RESET_BIT     0x01u /**< Software-reset bit in @c CTRL3_C. */
+#define SENSOR_IO_TIMEOUT_MS     100u  /**< HAL I2C transaction timeout. */
+#define SENSOR_RESET_TIMEOUT_MS  20u   /**< Maximum software-reset wait. */
 
+/** @brief I2C peripheral connected to the board sensor. */
 extern I2C_HandleTypeDef hi2c2;
 
+/**
+ * @brief Read one LSM6DSL register.
+ * @param reg Register address.
+ * @param[out] value Destination byte.
+ * @return @c true when the HAL transaction succeeds.
+ */
 static bool sensor_reg_read(uint8_t reg, uint8_t *value) {
     return HAL_I2C_Mem_Read(&hi2c2,
                             LSM6DSL_ACC_GYRO_I2C_ADDRESS_LOW,
@@ -29,6 +46,12 @@ static bool sensor_reg_read(uint8_t reg, uint8_t *value) {
                             SENSOR_IO_TIMEOUT_MS) == HAL_OK;
 }
 
+/**
+ * @brief Write one LSM6DSL register.
+ * @param reg Register address.
+ * @param value Byte to write.
+ * @return @c true when the HAL transaction succeeds.
+ */
 static bool sensor_reg_write(uint8_t reg, uint8_t value) {
     return HAL_I2C_Mem_Write(&hi2c2,
                              LSM6DSL_ACC_GYRO_I2C_ADDRESS_LOW,
@@ -39,11 +62,20 @@ static bool sensor_reg_write(uint8_t reg, uint8_t value) {
                              SENSOR_IO_TIMEOUT_MS) == HAL_OK;
 }
 
+/**
+ * @brief Configure a pulsed accelerometer data-ready signal on INT1.
+ * @return @c true when both register writes succeed.
+ */
 static bool sensor_enable_data_ready_interrupt(void) {
     return sensor_reg_write(LSM6DSL_ACC_GYRO_DRDY_PULSE_CFG_G, LSM6DSL_DRDY_PULSED_BIT) &&
            sensor_reg_write(LSM6DSL_ACC_GYRO_INT1_CTRL, LSM6DSL_INT1_DRDY_XL_BIT);
 }
 
+/**
+ * @brief Decode one little-endian signed 16-bit sensor value.
+ * @param bytes Two bytes in low-byte, high-byte order.
+ * @return Decoded signed value.
+ */
 static int16_t decode_int16(const uint8_t *bytes) {
     return (int16_t)(((uint16_t)bytes[1] << 8u) | bytes[0]);
 }

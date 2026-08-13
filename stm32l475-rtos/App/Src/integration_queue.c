@@ -227,7 +227,6 @@ static void queue_drainer_task(void) {
     queue_park();
 }
 
-/** @copydoc integration_queue_init */
 void integration_queue_init(void) {
     g_queue_test_observation.empty_receiver_stage = QUEUE_STAGE_NOT_STARTED;
     g_queue_test_observation.full_sender_stage = QUEUE_STAGE_NOT_STARTED;
