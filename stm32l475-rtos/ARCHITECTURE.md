@@ -4,14 +4,17 @@
 
 The project implements a custom real-time operating system for the STM32L475 using a fixed-priority, preemptive Round-Robin scheduler.
 
-The architecture is divided into four main parts:
+The architecture is divided into the following main parts:
 
-- **Application / Test Tasks** use the RTOS services.
-- **RTOS Services** provide the public interfaces for tasks, delays, mutexes, semaphores, and message queues.
-- **Kernel** implements scheduling, task-state management, wait queues, and timeout handling.
-- **Cortex-M4 Port** contains the architecture-specific SysTick, PendSV, and context-switch implementation.
+* **Application / Startup** initializes the system, creates the application tasks, and contains the sensor, UART, and shell functionality.
+* **RTOS API / Services** provide the public interfaces for tasks, delays, mutexes, semaphores, and message queues.
+* **Kernel** implements scheduling, task-state management, wait queues, and timeout handling.
+* **STM32 Platform** provides the hardware-related functionality such as HAL, SysTick, UART, I²C, EXTI, and interrupt handling.
+* **Cortex-M4 Port** contains the architecture-specific PendSV and context-switch implementation.
 
-A separate trace subsystem receives events from the RTOS services, kernel, and Cortex-M4 port. These events are used by SEGGER SystemView and TeSSLa and are transferred using SEGGER RTT.
+The application uses both the RTOS API and the STM32 platform. Interrupt handlers can interact with the RTOS through selected RTOS services, for example by releasing a semaphore.
+
+A separate trace subsystem receives events from the RTOS, kernel, and STM32 platform. These events are used by SEGGER SystemView and TeSSLa and are transferred using SEGGER RTT.
 
 ## Overall Architecture
 
