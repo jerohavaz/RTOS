@@ -10,14 +10,6 @@ Create a virtual environment and install the dependencies:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-On Windows PowerShell, activate the environment with:
-
-```powershell
-.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
