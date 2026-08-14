@@ -15,17 +15,33 @@ Custom bare-metal RTOS for the STM32L475VG with fixed-priority preemptive schedu
 
 ## GitLab CI/CD
 
-The root `.gitlab-ci.yml` defines:
+The root `.gitlab-ci.yml` defines the CI/CD pipeline for firmware builds, static analysis, TeSSLa verification, and documentation.
 
-| Job | Check |
-| --- | --- |
-| `stm32_image`, `doxygen_image`, `verification_image` | Build and publish the CI Docker images when relevant files change; manual fallback |
-| `format` | Run `clang-format --dry-run --Werror` on firmware C and header files |
-| `build` | Build all six integration-test variants with tracing enabled, plus `sensor-no-trace` |
-| `cppcheck` | Run static analysis on the sensor configuration |
-| `verification` | Run all TeSSLa verification fixtures using the Rust monitor backend |
-| `pages` | Generate and publish the Doxygen HTML documentation from the default branch |
+| Job                                                  | Check                                            |
+| ---------------------------------------------------- | ------------------------------------------------ |
+| `stm32_image`, `doxygen_image`, `verification_image` | Build and publish the required CI Docker images  |
+| `format`                                             | Check C and header files using `clang-format`    |
+| `build`                                              | Build all firmware configurations in parallel    |
+| `cppcheck`                                           | Run static analysis for all build configurations |
+| `verification`                                       | Run all TeSSLa verification fixtures             |
+| `pages`                                              | Generate and publish the Doxygen documentation   |
 
-The firmware build runs as a parallel matrix for `sensor`, `queue`, `scheduler`, `delay`, `semaphore`, and `mutex`. `sensor-no-trace` additionally verifies that the firmware compiles with tracing disabled.
+The firmware build uses a parallel matrix for:
 
-TeSSLa verification runs when files below `verification/` or `.gitlab-ci.yml` change. GitLab Pages runs only on the default branch. Merge-request-event pipelines are disabled.
+* `sensor`
+* `queue`
+* `scheduler`
+* `delay`
+* `semaphore`
+* `mutex`
+* `sensor-no-trace`
+
+Each build uses a separate CMake build directory. The generated firmware files and `compile_commands.json` are stored as CI artifacts.
+
+Cppcheck reuses the `compile_commands.json` files from the build jobs, so the project does not need to be configured again for static analysis.
+
+TeSSLa verification runs using the dedicated verification Docker image and executes all available verification fixtures with the Rust monitor backend.
+
+The documentation is generated with Doxygen and published through GitLab Pages on the default branch.
+
+Merge-request-event pipelines are disabled.
