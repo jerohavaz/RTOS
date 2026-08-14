@@ -14,6 +14,7 @@ Each module documents its verified properties, required trace events, test cover
 | [Mutexes](mutex_spec/README.md) | Ownership, non-recursive locking, blocking, timeout, and waiter handoff |
 | [Delays](delay_spec/README.md) | Busy-delay duration and task-state behavior |
 | [Trace integrity](integrity_spec/README.md) | Missing or out-of-order RTT records |
+| [Project (LSM6DSL)](project_spec/README.md) | Evaluate 100 ms transmission rate|
 
 Semaphore and mutex objects are identified by their runtime addresses and assigned dynamically to bounded monitor slots.
 
@@ -97,8 +98,6 @@ python3 rtt_to_tessla.py --no-summary -o trace.input
 
 The converter emits `trace_incomplete` when sequenced RTT records are missing. Verification results affected by missing events must be treated as inconclusive. See [Trace integrity](integrity_spec/README.md) for details.
 
-The RTT up-buffer is 64 KiB and remains non-blocking. The static task array is placed in the 32 KiB SRAM2 bank so the larger RTT buffer does not consume the task-stack budget in the 96 KiB primary SRAM bank. This absorbs short RTT discovery and host-polling stalls but cannot guarantee lossless capture when the enabled event categories continuously produce data faster than the debug probe drains it. The receiver continuously drains raw socket bytes on a dedicated thread into an unbounded host-memory queue so TeSSLa conversion and file output cannot back-pressure the J-Link RTT connection. If gaps remain at an 8 MHz or faster SWD clock, inspect the probe's RTT polling behavior before changing trace categories; reducing the event set changes which properties can be verified. A sequence gap confirms target-side RTT buffer exhaustion because `SEGGER_RTT_WriteSkipNoLock()` discards the complete record when it cannot fit.
-
 ### Binary RTT protocol
 
 The firmware writes each event with one non-blocking `SEGGER_RTT_WriteSkipNoLock()` call. Every multi-byte value is little-endian, and records are concatenated without line delimiters:
@@ -137,6 +136,7 @@ Generation requires every configuration option used by the selected modules.
 | `semaphore` | `--max-tasks`, `--max-semaphores` |
 | `mutex` | `--max-tasks`, `--max-mutexes` |
 | `queue` | `--max-tasks`, one or more `--queue QUEUE_ID:CAPACITY` options |
+| `project` | `--target-interval-ticks`, `--jitter-ticks` |
 
 `--max-tasks` is the number of task IDs modeled by the monitor and includes the idle-task ID. If the application creates nine tasks with IDs `1..9` and the idle task has ID `0`, use:
 
@@ -196,6 +196,24 @@ Queue IDs must be non-negative and capacities must be greater than zero. Duplica
 
 See [Message queue verification](queue_spec/README.md) for the queue trace contract and current limitations.
 
+### Project (LSM6DSL)
+
+Generate a monitor for project with 100ms interval and 5ms jitter:
+
+```bash
+python3 tessla_verify.py generate project \
+    --max-tasks 3 \
+    --max-semaphores 1 \
+    --queue 1:8 \
+    --queue 2:96 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar tessla.jar
+```
+
 ### Integrity
 
 ```bash
@@ -210,7 +228,9 @@ python3 tessla_verify.py generate \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
-    --queue 4:8
+    --queue 4:8 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5
 ```
 
 ### Generate one combined specification
@@ -223,7 +243,9 @@ python3 tessla_verify.py generate --combined \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
-    --queue 4:8
+    --queue 4:8 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5
 ```
 
 This creates:
@@ -252,6 +274,8 @@ python3 tessla_verify.py generate scheduler queue mutex integrity \
 --max-semaphores N           Number of tracked semaphore instances
 --max-mutexes N              Number of tracked mutex instances
 --queue ID:CAPACITY          Queue ID and capacity; repeat for multiple queues
+--target-interval-ticks      Time between transmission complete events
+--jitter-ticks                     Deviation from target interval ticks
 --rust                       Compile generated specifications to native monitors
 --tessla-jar PATH            TeSSLa JAR used by --rust
 ```
@@ -321,6 +345,8 @@ python3 tessla_verify.py generate --combined \
     --max-mutexes 2 \
     --queue 1:2 \
     --queue 4:8 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
     --rust \
     --tessla-jar /path/to/tessla.jar
 ```
@@ -476,6 +502,8 @@ python3 tessla_verify.py generate --combined \
     --max-semaphores 10 \
     --max-mutexes 2 \
     --queue 536871000:4 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
     --rust \
     --tessla-jar /path/to/tessla.jar
 ```

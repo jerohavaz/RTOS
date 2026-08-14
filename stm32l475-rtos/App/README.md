@@ -153,6 +153,8 @@ python3 tessla_verify.py generate integrity delay scheduler semaphore queue \
     --max-semaphores 1 \
     --queue 1:8 \
     --queue 2:96 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
     --combined \
     --mode MODE \
     --rust \
