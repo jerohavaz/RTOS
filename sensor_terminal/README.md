@@ -1,7 +1,6 @@
 # STM32 LSM6DSL Test Terminal
 
-`terminal.py` connects to the STM32 UART, displays the latest averaged
-accelerometer/gyroscope values, and provides an interactive command shell.
+`terminal.py` connects to the STM32 UART, displays the latest averaged accelerometer/gyroscope values, and provides an interactive command shell.
 
 ## Setup
 
@@ -92,7 +91,6 @@ The test passes when:
 - `DROPPED` remains `0` during normal operation.
 - Mode commands return `MODE,<mode>,OK`.
 - `reset` returns `RESET,OK` and streaming resumes.
-- No `[Malformed data]`, `[Invalid data]`, `[Error]`, or `[Serial error]`
-  messages appear.
+- No `[Malformed data]`, `[Invalid data]`, `[Error]`, or `[Serial error]` messages appear.
 
 Use `quit` or `Ctrl+C` to close the terminal cleanly.
