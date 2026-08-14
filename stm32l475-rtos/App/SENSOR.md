@@ -31,7 +31,7 @@ The task accumulates converted six-axis samples and publishes on an absolute 100
 | --- | ---: | --- | ---: |
 | `low` | 52 Hz | Low power | 5-6 |
 | `normal` | 104 Hz | Normal | 10-11 |
-| `high` | 416 Hz | Normal | 40-42 |
+| `high` | 416 Hz | High Performance | 40-42 |
 
 Streaming starts enabled. Each non-empty batch is averaged and emitted as:
 
