@@ -38,6 +38,10 @@ from queue_spec.config import EXPECTED as QUEUE_EXPECTED
 from queue_spec.config import GENERATOR_OPTIONS as QUEUE_OPTIONS
 from queue_spec.generate_tessla import generate as generate_queue
 
+from project_spec.config import EXPECTED as PROJECT_EXPECTED
+from project_spec.config import GENERATOR_OPTIONS as PROJECT_OPTIONS
+from project_spec.generate_tessla import generate as generate_project
+
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 
@@ -103,6 +107,13 @@ MODULES = {
         generator_options=QUEUE_OPTIONS,
         expected=QUEUE_EXPECTED,
     ),
+    "project": VerificationModule(
+        name="project",
+        directory=ROOT_DIR / "project_spec",
+        generator=generate_project,
+        generator_options=PROJECT_OPTIONS,
+        expected=PROJECT_EXPECTED,
+    ),
 }
 
 
@@ -122,6 +133,14 @@ GENERATOR_ARGUMENTS = {
     "queue_capacities": (
         "queues",
         "--queue",
+    ),
+    "target_interval_ticks": (
+        "target_interval_ticks",
+        "--target-interval-ticks",
+    ),
+    "jitter_ticks": (
+        "jitter_ticks",
+        "--jitter-ticks",
     ),
 }
 
@@ -602,6 +621,12 @@ def command_generate(
     if args.max_mutexes is not None:
         overrides["max_mutexes"] = args.max_mutexes
 
+    if args.target_interval_ticks is not None:
+        overrides["target_interval_ticks"] = args.target_interval_ticks
+
+    if args.jitter_ticks is not None:
+        overrides["jitter_ticks"] = args.jitter_ticks
+
     if args.queues is not None:
         queue_capacities = dict(args.queues)
 
@@ -966,6 +991,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
+        "--target-interval-ticks",
+        type=int,
+        help=("Required when the project module " "is selected."),
+    )
+
+    generate_parser.add_argument(
+        "--jitter-ticks",
+        dest="jitter_ticks",
+        type=int,
+        help=("Required when the project module is selected. " "Allowed jitter around the target interval."),
+    )
+
+    generate_parser.add_argument(
         "--queue",
         dest="queues",
         action="append",
@@ -1059,6 +1097,14 @@ def main() -> int:
     if hasattr(args, "max_mutexes"):
         if args.max_mutexes is not None and args.max_mutexes <= 0:
             parser.error("--max-mutexes must be greater than 0")
+
+    if hasattr(args, "target_interval_ticks"):
+        if args.target_interval_ticks is not None and args.target_interval_ticks <= 0:
+            parser.error("--target-interval-ticks must be greater than 0")
+
+    if hasattr(args, "jitter-ticks"):
+        if args.jitter_ticks is not None and args.jitter_ticks < 0:
+            parser.error("--jitter-ticks must be non-negative")
 
     try:
         return args.handler(args)

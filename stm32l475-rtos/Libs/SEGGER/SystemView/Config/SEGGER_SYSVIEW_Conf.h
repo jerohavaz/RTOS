@@ -58,6 +58,7 @@ Additional information:
 **********************************************************************
 */
 
+#define SEGGER_SYSVIEW_SECTION         ".ram2_bss"
 #define SEGGER_SYSVIEW_RTT_CHANNEL     (1)
 #define SEGGER_SYSVIEW_RTT_BUFFER_SIZE (16384)
 

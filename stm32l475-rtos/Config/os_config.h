@@ -31,7 +31,7 @@
  * The kernel allocates one additional internal task slot for the idle task.
  * The total task capacity is therefore @c OS_MAX_TASKS + 1.
  */
-#define OS_MAX_TASKS (9u)
+#define OS_MAX_TASKS (5u)
 
 /**
  * @brief Stack capacity allocated to each task, in 32-bit words.
@@ -100,7 +100,7 @@
 #define OS_TRACE_SEGGER_SYSVIEW (true)
 
 /**
- * @brief Enable the Tessla-compatible text stream over SEGGER RTT.
+ * @brief Enable the TeSSLa-compatible binary stream over SEGGER RTT.
  *
  * Requires the SEGGER RTT sources, headers, and target configuration. This
  * option is meaningful only when @ref OS_TRACE_ENABLED is @c true.
@@ -141,6 +141,11 @@
  * @brief Trace task-delay operations.
  */
 #define OS_TRACE_DELAY (true)
+
+/**
+ * @brief Trace project-specific events.
+ */
+#define OS_TRACE_PROJECT (true)
 
 /** @} */
 

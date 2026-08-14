@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TESSLA_VERIFY="tessla_verify.py"
-TESSLA_JAR="/home/jero/Desktop/tessla.jar"
+TESSLA_JAR="${TESSLA_JAR:?Set TESSLA_JAR first}"
 OUTPUT_DIR="monitors"
 BUILD_DIR="build"
 
@@ -88,6 +88,16 @@ for mode in "${MODES[@]}"; do
         integrity delay scheduler queue \
         --max-tasks 4 \
         --queue 1:1
+
+    # PROJECT_SENSOR    
+    generate_monitor sensor "$mode" \
+         integrity delay scheduler semaphore queue project \
+        --max-tasks 3 \
+        --max-semaphores 1 \
+        --queue 1:8 \
+        --queue 2:96 \
+        --target-interval-ticks 100 \
+        --jitter-ticks 5 
 
 done
 

@@ -10,7 +10,7 @@ Verifies configured queues from queue and task events.
 - Buffered messages preserve their 32-bit hash and FIFO order.
 - Direct-handoff success events match the sender, receiver, and message hash.
 - Blocking and waking are followed by the matching state transition and scheduler event.
-- A send to a waiting receiver requires direct handoff and receiver wakeup.
+- A successful send while a receiver is still waiting requires direct handoff and receiver wakeup.
 - Freeing a buffered slot while a sender waits requires sender completion and wakeup.
 - Finite timeout events cannot occur early; `OS_NO_WAIT` cannot block or time out, and `OS_WAIT_FOREVER` cannot time out.
 
@@ -23,6 +23,7 @@ Verifies configured queues from queue and task events.
 ## Limits
 
 - The monitor does not require a finite timeout event eventually to occur.
-- Final missing block, ready, handoff, or wake obligations need a later event or `TICK` to be classified.
+- Final missing block, ready, or wake obligations need a later `TICK` to be classified.
+- Receiver handoff is checked at send success, after the queue operation's outcome is known. A receiver may time out or a tick may preempt the sender after send attempt without constituting a violation.
 - Hash collisions are possible, so message equality is probabilistic rather than byte-exact.
 - Only configured queue IDs, capacities, and task IDs are modeled; waiter priority order is not checked.

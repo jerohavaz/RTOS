@@ -227,6 +227,15 @@ SECTIONS
   PROVIDE( __bss_start = __tbss_start );
   PROVIDE( __bss_size = __bss_end - __bss_start );
 
+  .ram2_bss (NOLOAD) : ALIGN(8)
+  {
+    *(.ram2_bss)
+    *(.ram2_bss*)
+    . = ALIGN(8);
+  } >RAM2
+
+  ASSERT(SIZEOF(.ram2_bss) <= LENGTH(RAM2), "RAM2 overflow")
+
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack (NOLOAD) :
   {

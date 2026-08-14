@@ -4,40 +4,48 @@
 
 The project implements a custom real-time operating system for the STM32L475 using a fixed-priority, preemptive Round-Robin scheduler.
 
-The architecture is divided into four main parts:
+The architecture is divided into the following main parts:
 
-- **Application / Test Tasks** use the RTOS services.
-- **RTOS Services** provide the public interfaces for tasks, delays, mutexes, semaphores, and message queues.
-- **Kernel** implements scheduling, task-state management, wait queues, and timeout handling.
-- **Cortex-M4 Port** contains the architecture-specific SysTick, PendSV, and context-switch implementation.
+* **Application / Startup** initializes the system, creates the application tasks, and contains the sensor, UART, and shell functionality.
+* **RTOS API / Services** provide the public interfaces for tasks, delays, mutexes, semaphores, and message queues.
+* **Kernel** implements scheduling, task-state management, wait queues, and timeout handling.
+* **STM32 Platform** provides the hardware-related functionality such as HAL, SysTick, UART, I²C, EXTI, and interrupt handling.
+* **Cortex-M4 Port** contains the architecture-specific PendSV and context-switch implementation.
 
-A separate trace subsystem receives events from the RTOS services, kernel, and Cortex-M4 port. These events are used by SEGGER SystemView and TeSSLa and are transferred using SEGGER RTT.
+The application uses both the RTOS API and the STM32 platform. Interrupt handlers can interact with the RTOS through selected RTOS services, for example by releasing a semaphore.
+
+A separate trace subsystem receives events from the RTOS, kernel, and STM32 platform. These events are used by SEGGER SystemView and TeSSLa and are transferred using SEGGER RTT.
 
 ## Overall Architecture
 
 ```mermaid
 flowchart TB
-    APP["Application / Test Tasks"]
+    APP["Application / Startup<br/>Init • Tasks • Shell • Sensor • UART"]
 
     subgraph RTOS["RTOS"]
-        SERVICES["RTOS Services<br/>Tasks • Delays • Mutexes • Semaphores • Queues"]
-        KERNEL["Kernel<br/>Scheduler • Task States • Wait Queues • Timeouts"]
+        API["RTOS API<br/>Tasks • Delays • Mutexes • Semaphores • Queues"]
+        KERNEL["Kernel<br/>Scheduler • States • Timeouts"]
     end
 
-    PORT["Cortex-M4 Port<br/>SysTick • PendSV • Context Switching"]
-
-    TRACE["Trace Subsystem<br/>SystemView • TeSSLa • RTT"]
-
+    PLATFORM["STM32 Platform<br/>HAL • SysTick • UART • I²C • EXTI"]
+    PORT["Cortex-M4 Port<br/>PendSV • Context Switch"]
+    TRACE["Trace<br/>SystemView • TeSSLa • RTT"]
     HW["STM32L475 Hardware"]
 
-    APP --> SERVICES
-    SERVICES --> KERNEL
+    APP --> API
+    APP --> PLATFORM
+
+    API --> KERNEL
     KERNEL --> PORT
+
+    PLATFORM --> HW
     PORT --> HW
 
-    SERVICES -. trace events .-> TRACE
-    KERNEL -. trace events .-> TRACE
-    PORT -. ISR events .-> TRACE
+    PLATFORM -. ISR / RTOS events .-> API
+
+    API -.-> TRACE
+    KERNEL -.-> TRACE
+    PLATFORM -.-> TRACE
 ```
 
 ### Application / Test Tasks
@@ -178,30 +186,38 @@ Task switching is deferred to the PendSV exception. SysTick updates the RTOS tim
 ```mermaid
 sequenceDiagram
     participant T as Running Task
+    participant ISR as Application ISR
     participant ST as SysTick ISR
     participant K as RTOS Kernel
     participant PS as PendSV
     participant N as Next Task
 
-    T->>ST: SysTick interrupt
-    ST->>K: Update tick / timeouts
-    K->>K: Evaluate scheduler
+    alt Normal application interrupt
+        T->>ISR: Peripheral interrupt
+        ISR->>ISR: Handle interrupt
+        ISR-->>T: Exception return
+        Note over T,ISR: Interrupted task continues
+    else SysTick interrupt
+        T->>ST: SysTick interrupt
+        ST->>K: Update tick and timeouts
+        K->>K: Evaluate scheduling state
 
-    alt Context switch required
-        K-->>PS: Set PendSV pending
-        ST-->>PS: Exception return / tail chaining
-        PS->>PS: Save current task context
-        PS->>K: Select / activate next task
-        PS->>PS: Restore next task context
-        PS-->>N: Exception return
-    else No context switch required
-        ST-->>T: Exception return
+        alt Context switch required
+            K-->>PS: Set PendSV pending
+            ST-->>PS: Exception return / tail chaining
+            PS->>PS: Save current task context
+            PS->>K: Select next READY task
+            PS->>PS: Restore next task context
+            PS-->>N: Exception return
+        else No context switch required
+            ST-->>T: Exception return
+        end
     end
 ```
 
 If the scheduler does not require a task switch, execution returns to the interrupted task. If a switch is required, PendSV is set pending and may execute directly through exception tail chaining. PendSV saves the current task context, activates the next task, restores its context, and returns to thread execution.
 
-Normal application ISRs return to the interrupted execution context and do not directly perform kernel context switches. SysTick is treated separately because it provides the RTOS time base and can cause a scheduling decision.
+Normal application ISRs do not perform a context switch directly. Instead, RTOS-aware ISRs may request rescheduling before exception return, typically by pending PendSV. If that scheduling decision selects a different READY task, the Cortex-M4 exception mechanism can transition from the current ISR to PendSV through tail-chaining, allowing the context switch to occur before thread-mode execution resumes. SysTick follows the same deferred context-switch mechanism while also providing the RTOS time base.
 
 ## Synchronization and Blocking
 
@@ -265,3 +281,7 @@ The instrumentation supports observation and verification of:
 - Semaphore state and wake-up behavior
 - Message-queue capacity, FIFO ordering, blocking behavior, and data integrity
 - ISR execution behavior
+
+## Reference
+
+* [STMicroelectronics, *PM0214 — STM32 Cortex-M4 MCUs and MPUs Programming Manual*, Rev. 10, Section 2.3.7 "Exception entry and return", p. 42](https://www.st.com/resource/en/programming_manual/pm0214-stm32-cortexm4-mcus-and-mpus-programming-manual-stmicroelectronics.pdf) — describes Cortex-M4 tail-chaining: when an eligible exception is pending at completion of an exception handler, the stack pop is skipped and control transfers directly to the new exception handler.

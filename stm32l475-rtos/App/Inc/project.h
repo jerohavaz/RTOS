@@ -32,17 +32,20 @@
 /** @brief Build the message-queue communication and integrity test. */
 #define PROJECT_QUEUE (5u)
 
+/** @brief Build the interactive LSM6DSL sensor application. */
+#define PROJECT_SENSOR (6u)
+
 /**
  * @brief Integration test selected for the current firmware image.
  *
- * The default exercises the queue. Define @c PROJECT through the compiler or
+ * The default exercises the sensor application. Define @c PROJECT through the compiler or
  * change the value below to build another scenario.
  */
 #ifndef PROJECT
-#define PROJECT PROJECT_QUEUE
+#define PROJECT PROJECT_SENSOR
 #endif
 
-#if (PROJECT < PROJECT_SCHEDULER) || (PROJECT > PROJECT_QUEUE)
+#if (PROJECT < PROJECT_SCHEDULER) || (PROJECT > PROJECT_SENSOR)
 #error "PROJECT must select a defined integration test"
 #endif
 

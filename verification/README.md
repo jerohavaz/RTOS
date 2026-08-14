@@ -14,6 +14,7 @@ Each module documents its verified properties, required trace events, test cover
 | [Mutexes](mutex_spec/README.md) | Ownership, non-recursive locking, blocking, timeout, and waiter handoff |
 | [Delays](delay_spec/README.md) | Busy-delay duration and task-state behavior |
 | [Trace integrity](integrity_spec/README.md) | Missing or out-of-order RTT records |
+| [Project (LSM6DSL)](project_spec/README.md) | Evaluate 100 ms transmission rate|
 
 Semaphore and mutex objects are identified by their runtime addresses and assigned dynamically to bounded monitor slots.
 
@@ -69,11 +70,11 @@ Recommended debugger workflow:
 2. Wait until execution stops at the `HAL_Init()` breakpoint.
 3. Start `rtt_to_tessla.py` and wait until it has connected to the RTT stream.
 4. Resume execution in the debugger.
-5. Confirm that `Trace session 1 started.` appears when the firmware emits `TESSLA_START`.
+5. Confirm that `Trace session 1 started.` appears when the firmware emits the binary session-start record.
 
 Attaching while the target is still halted ensures that the collector is already listening when tracing starts, so the first events of the firmware run are not missed.
 
-For file output with `-o`, the same attach-before-resume workflow is recommended when a complete trace is required. A new `TESSLA_START` also resets the converter's session state and truncates the output file to the current target session.
+For file output with `-o`, the same attach-before-resume workflow is recommended when a complete trace is required. A new session-start record also resets the converter's sequence state and truncates the output file to the current target session.
 
 The firmware initializes RTT during startup with `SEGGER_RTT_Init()` before the RTOS starts and must not reinitialize RTT during normal execution.
 
@@ -97,6 +98,32 @@ python3 rtt_to_tessla.py --no-summary -o trace.input
 
 The converter emits `trace_incomplete` when sequenced RTT records are missing. Verification results affected by missing events must be treated as inconclusive. See [Trace integrity](integrity_spec/README.md) for details.
 
+### Binary RTT protocol
+
+The firmware writes each event with one non-blocking `SEGGER_RTT_WriteSkipNoLock()` call. Every multi-byte value is little-endian, and records are concatenated without line delimiters:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `sequence` | `u16` | Increments for every attempted record and wraps modulo 65536 |
+| `event_id` | `u8` | Numeric event identifier listed below |
+| `payload_length` | `u8` | Number of payload bytes following the header |
+| `payload` | bytes | Event fields in table order |
+
+`rtt_to_tessla.py` reads raw socket chunks into a byte buffer, waits for a `SESSION_START` header when capturing live data, and removes a record only after all `4 + payload_length` bytes are available. It compares consecutive `u16` sequence values modulo 65536 and emits `trace_incomplete` for each gap. `--stdin` accepts the same binary record stream and assumes the first byte is record-aligned.
+
+Payload notation uses `B` for `u8`, `I` for `u32`, and `-` for an empty payload:
+
+| IDs | Events and payloads |
+| --- | --- |
+| 0-8 | `SESSION_START -`, `TASK_CREATE BB`, `STATE BBB`, `READY BB`, `RUNNING BB`, `STOP_RUNNING -`, `BLOCKED B`, `IDLE -`, `TICK I` |
+| 9-12 | `DELAY_BUSY_START BI`, `DELAY_BUSY_END B`, `DELAY_START BI`, `DELAY_END B` |
+| 13-19 | `SEM_CREATE III`, `SEM_ACQUIRE_ENTER IBIIB`, `SEM_ACQUIRE_EXIT IBIB`, `SEM_BLOCK IBBIB`, `SEM_TIMEOUT IBI`, `SEM_RELEASE IIIIB`, `SEM_WAKE IBB` |
+| 20-26 | `MUTEX_CREATE I`, `MUTEX_LOCK_ENTER IBBIB`, `MUTEX_LOCK_EXIT IBBB`, `MUTEX_BLOCK IBBBIB`, `MUTEX_TIMEOUT IBB`, `MUTEX_UNLOCK IBBBB`, `MUTEX_WAKE IBB` |
+| 27-35 | `QUEUE_CREATE II`, `QUEUE_SEND_ATTEMPT IBBII`, `QUEUE_SEND_SUCCESS IBI`, `QUEUE_SEND_BLOCK IBB`, `QUEUE_SEND_TIMEOUT IB`, `QUEUE_RECV_ATTEMPT IBBI`, `QUEUE_RECV_SUCCESS IBI`, `QUEUE_RECV_BLOCK IBB`, `QUEUE_RECV_TIMEOUT IB` |
+| 36-41 | `QUEUE_WAKE_SEND IB`, `QUEUE_WAKE_RECV IB`, `QUEUE_HANDOFF IBBI`, `QUEUE_FILL II`, `TRANSMISSION_COMPLETE -`, `LOG bytes` |
+
+The session-start record is exactly `00 00 00 00`: sequence 0, event ID 0, and an empty payload. The next record has sequence 1. Task IDs, priorities, task states, and booleans use `u8`; addresses, queue IDs, counts, tick values, timeouts, and hashes retain `u32`.
+
 ## Generate Specifications
 
 Generation requires every configuration option used by the selected modules.
@@ -109,6 +136,7 @@ Generation requires every configuration option used by the selected modules.
 | `semaphore` | `--max-tasks`, `--max-semaphores` |
 | `mutex` | `--max-tasks`, `--max-mutexes` |
 | `queue` | `--max-tasks`, one or more `--queue QUEUE_ID:CAPACITY` options |
+| `project` | `--target-interval-ticks`, `--jitter-ticks` |
 
 `--max-tasks` is the number of task IDs modeled by the monitor and includes the idle-task ID. If the application creates nine tasks with IDs `1..9` and the idle task has ID `0`, use:
 
@@ -168,6 +196,24 @@ Queue IDs must be non-negative and capacities must be greater than zero. Duplica
 
 See [Message queue verification](queue_spec/README.md) for the queue trace contract and current limitations.
 
+### Project (LSM6DSL)
+
+Generate a monitor for project with 100ms interval and 5ms jitter:
+
+```bash
+python3 tessla_verify.py generate project \
+    --max-tasks 3 \
+    --max-semaphores 1 \
+    --queue 1:8 \
+    --queue 2:96 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar tessla.jar
+```
+
 ### Integrity
 
 ```bash
@@ -182,7 +228,9 @@ python3 tessla_verify.py generate \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
-    --queue 4:8
+    --queue 4:8 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5
 ```
 
 ### Generate one combined specification
@@ -195,7 +243,9 @@ python3 tessla_verify.py generate --combined \
     --max-semaphores 2 \
     --max-mutexes 2 \
     --queue 1:2 \
-    --queue 4:8
+    --queue 4:8 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5
 ```
 
 This creates:
@@ -224,6 +274,8 @@ python3 tessla_verify.py generate scheduler queue mutex integrity \
 --max-semaphores N           Number of tracked semaphore instances
 --max-mutexes N              Number of tracked mutex instances
 --queue ID:CAPACITY          Queue ID and capacity; repeat for multiple queues
+--target-interval-ticks      Time between transmission complete events
+--jitter-ticks                     Deviation from target interval ticks
 --rust                       Compile generated specifications to native monitors
 --tessla-jar PATH            TeSSLa JAR used by --rust
 ```
@@ -293,6 +345,8 @@ python3 tessla_verify.py generate --combined \
     --max-mutexes 2 \
     --queue 1:2 \
     --queue 4:8 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
     --rust \
     --tessla-jar /path/to/tessla.jar
 ```
@@ -448,6 +502,8 @@ python3 tessla_verify.py generate --combined \
     --max-semaphores 10 \
     --max-mutexes 2 \
     --queue 536871000:4 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
     --rust \
     --tessla-jar /path/to/tessla.jar
 ```
@@ -466,7 +522,7 @@ cat trace.input | build/combined-monitor
 
 ## Stream Live RTT Data
 
-For live verification, start the target under the debugger and wait at the `HAL_Init()` breakpoint. Attach `rtt_to_tessla.py` while the target is halted, then resume execution. This ensures that the collector is already listening when `TESSLA_START` and the first trace events are emitted.
+For live verification, start the target under the debugger and wait at the `HAL_Init()` breakpoint. Attach `rtt_to_tessla.py` while the target is halted, then resume execution. This ensures that the collector is already listening when the session-start record and the first trace events are emitted.
 
 ### RTT into the TeSSLa interpreter
 

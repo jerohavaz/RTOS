@@ -1,0 +1,5 @@
+# First completion at lower bound 95; second interval at upper bound 105.
+0: tick = 95
+1: transmission_complete = true
+2: tick = 105
+3: transmission_complete = true

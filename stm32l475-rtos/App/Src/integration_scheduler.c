@@ -169,7 +169,6 @@ static void scheduler_control_task(void) {
     scheduler_park();
 }
 
-/** @copydoc integration_scheduler_init */
 void integration_scheduler_init(void) {
     g_scheduler_test_observation.controller_started = 0u;
     g_scheduler_test_observation.rr_runs[0] = 0u;

@@ -37,9 +37,10 @@ os_status_t os_delay(uint32_t delay_ticks);
 /**
  * @brief Busy-wait for a number of system ticks.
  *
- * Keeps the current task running while repeatedly polling the system tick.
- * Unlike os_delay(), this function does not block or yield the processor.
- * Higher-priority interrupt-driven preemption may still occur.
+ * Keeps the current task active while repeatedly polling the system tick.
+ * Unlike os_delay(), this function does not place the task in the BLOCKED state.
+ * The task remains preemptible, and the scheduler may switch to another READY
+ * task according to the normal priority and time-slicing rules.
  *
  * @param delay_ticks Nonzero delay duration in ticks.
  *

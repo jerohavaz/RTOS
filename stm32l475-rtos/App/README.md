@@ -13,14 +13,19 @@ The application builds exactly one RTOS integration test. Select it by changing 
 | `PROJECT_SEMAPHORE` | Binary empty/full/success paths, low-first contention with high-priority wake-up, finite timeout, and counting range |
 | `PROJECT_MUTEX` | Low-first contention with high-priority handoff, one-owner invariant, recursive/non-owner rejection, finite timeout, and reuse |
 | `PROJECT_QUEUE` | Empty receive and full send blocking, direct handoff, FIFO refill, exact integrity, no-wait rejection, and both finite timeout paths |
+| `PROJECT_SENSOR` | Interrupt-driven LSM6DSL sampling, 100 ms aggregation, UART streaming, and shell commands |
+
+The sensor application is documented separately in [SENSOR.md](SENSOR.md), including its architecture, data path, UART format, operating modes, commands,and companion host tools.
+
+The sensor project separates device register access, sampling orchestration, UART output, and shell parsing. Raw samples are accumulated by the sensor task and one batch is queued on a fixed 100 ms RTOS-tick deadline. The data-ready semaphore uses the remaining deadline as a finite timeout, so low sensor rates do not quantize the UART period to the next sample interrupt. Queue 1 carries sensor commands with capacity 8; queue 2 carries output batches and responses with capacity 96.
 
 Each test has its own source file under `Src/`. Tests are intentionally small and use only public RTOS APIs.
 
 ## Prebuilt TeSSLa monitors
 
-> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/14ZYGdIdYDtGIfDYc_Zr4cvj2_mcTdS1F/view?usp=sharing)**
+> **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/1FiHaoeGVnvxhUGxd2dAXaXvNWMbt5crq/view?usp=sharing)**
 
-The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, and verification modules used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
+The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, verification modules, and trace configuration used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
 
 For more information about monitor generation, trace capture, running monitors, verification modes, and interpreting results, see the **[TeSSLa verification guide](../../verification/README.md)**.
 
@@ -38,7 +43,9 @@ monitors/
 │   ├── scheduler-monitor
 │   ├── scheduler.tessla
 │   ├── semaphore-monitor
-│   └── semaphore.tessla
+│   ├── semaphore.tessla
+│   ├── sensor-monitor
+│   └── sensor.tessla
 └── violations/
     ├── delay-monitor
     ├── delay.tessla
@@ -49,10 +56,35 @@ monitors/
     ├── scheduler-monitor
     ├── scheduler.tessla
     ├── semaphore-monitor
-    └── semaphore.tessla
+    ├── semaphore.tessla
+    ├── sensor-monitor
+    └── sensor.tessla
 ```
 
 The files under `checks/` were generated with `--mode checks`. The files under `violations/` were generated with `--mode violations`. Each command below was run once for each mode by replacing `MODE` with `checks` and then `violations`. The resulting `build/combined.tessla` and `build/combined-monitor` were renamed to the project-specific filenames shown above.
+
+All projects use the following base trace configuration in `Config/os_config.h`:
+
+```c
+#define OS_TRACE_ENABLED (true)
+#define OS_TRACE_TESSLA_RTT (true)
+#define OS_TRACE_SCHEDULER (true)
+#define OS_TRACE_TASKS (true)
+#define OS_TRACE_DELAY (true)
+```
+
+Additional trace sources are enabled per project:
+
+| Project             | Additional `Config/os_config.h` traces                     |
+| ------------------- | ---------------------------------------------------------- |
+| `PROJECT_SCHEDULER` | —                                                          |
+| `PROJECT_DELAY`     | —                                                          |
+| `PROJECT_SEMAPHORE` | `OS_TRACE_SEMAPHORE`                                       |
+| `PROJECT_MUTEX`     | `OS_TRACE_SEMAPHORE`, `OS_TRACE_MUTEX`                     |
+| `PROJECT_QUEUE`     | `OS_TRACE_QUEUE`                                           |
+| `PROJECT_SENSOR`    | `OS_TRACE_SEMAPHORE`, `OS_TRACE_QUEUE`, `OS_TRACE_PROJECT` |
+
+> **Note:** Reported violations can occasionally be caused by dropped trace events rather than an actual application violation. If a result is unexpected, check the trace for event loss before treating the violation as conclusive.
 
 ### `PROJECT_SCHEDULER`
 
@@ -107,6 +139,22 @@ python3 tessla_verify.py generate integrity delay scheduler semaphore mutex \
 python3 tessla_verify.py generate integrity delay scheduler queue \
     --max-tasks 4 \
     --queue 1:1 \
+    --combined \
+    --mode MODE \
+    --rust \
+    --tessla-jar tessla.jar
+```
+
+### `PROJECT_SENSOR`
+
+```bash
+python3 tessla_verify.py generate integrity delay scheduler semaphore queue project \
+    --max-tasks 3 \
+    --max-semaphores 1 \
+    --queue 1:8 \
+    --queue 2:96 \
+    --target-interval-ticks 100 \
+    --jitter-ticks 5 \
     --combined \
     --mode MODE \
     --rust \

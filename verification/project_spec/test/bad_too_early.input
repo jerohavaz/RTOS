@@ -1,0 +1,3 @@
+# 94 ticks is below the accepted 95-tick lower bound.
+0: tick = 94
+1: transmission_complete = true

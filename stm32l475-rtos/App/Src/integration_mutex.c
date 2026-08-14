@@ -184,7 +184,6 @@ static void mutex_control_task(void) {
     mutex_park();
 }
 
-/** @copydoc integration_mutex_init */
 void integration_mutex_init(void) {
     g_mutex_test_observation.owner_state = MUTEX_TASK_NOT_STARTED;
     g_mutex_test_observation.high_state = MUTEX_TASK_NOT_STARTED;

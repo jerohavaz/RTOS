@@ -1,10 +1,16 @@
 # Development Setup
 
-This guide covers the local firmware workflow. Run firmware commands from `stm32l475-rtos/` unless stated otherwise.
+This guide covers the local firmware development workflow for `stm32l475-rtos`.
+
+Unless stated otherwise, run firmware commands from:
+
+```text
+stm32l475-rtos/
+```
 
 ## Prerequisites
 
-Install the build and development tools:
+Install the required build and development tools:
 
 ```bash
 sudo apt update
@@ -12,14 +18,18 @@ sudo apt install cmake ninja-build gcc-arm-none-eabi gdb-multiarch \
   clang-format cppcheck doxygen
 ```
 
-Install the SEGGER J-Link Software and Documentation Pack separately. Ensure these commands are available on `PATH`:
+Install the **SEGGER J-Link Software and Documentation Pack** separately.
+
+Ensure the following commands are available on `PATH`:
 
 ```text
 JLinkExe
 JLinkGDBServer
 ```
 
-## Build
+## Quick Start
+
+Configure and build the Debug firmware:
 
 ```bash
 cd stm32l475-rtos
@@ -27,14 +37,19 @@ cmake --preset Debug
 cmake --build --preset Debug
 ```
 
-The available presets are:
+The resulting firmware image is:
 
-| Preset | Flags | Output |
-| --- | --- | --- |
-| `Debug` | `-O0 -g3` | `build/Debug/rtos.elf`, `build/Debug/rtos.map` |
-| `Release` | `-Os -g0` | `build/Release/rtos.elf`, `build/Release/rtos.map` |
+```text
+build/Debug/rtos.elf
+```
 
-Select the on-target integration scenario in `App/Inc/project.h` before building:
+Before building, select the desired on-target integration scenario in:
+
+```text
+App/Inc/project.h
+```
+
+For example:
 
 ```c
 #define PROJECT PROJECT_QUEUE
@@ -42,7 +57,57 @@ Select the on-target integration scenario in `App/Inc/project.h` before building
 
 See [stm32l475-rtos/App/README.md](stm32l475-rtos/App/README.md) for the available scenarios and debugger-visible results.
 
-## Flash
+## STM32CubeIDE
+
+STM32CubeIDE can import the existing CMake project directly. Do not create a separate Cube-generated firmware project.
+
+### Import the project
+
+1. Open **File → STM32 Project Create/Import**.
+2. Under **Import STM32 Project**, select **STM32 CMake Project** and click **Next**.
+3. Enter a project name.
+4. Set **Source Directory** to the `stm32l475-rtos` directory and click **Next**.
+5. Under **STM32 Device**, click **Select**.
+6. Select **STM32L475VGTx** as the target MCU.
+7. Click **Finish**.
+
+### Configure debugging
+
+Configure the project to use the **SEGGER J-Link Debugger**.
+
+Use:
+
+```text
+Debug interface: SWD
+J-Link speed:    8000 kHz
+```
+
+The project should continue to use the repository's existing CMake configuration and source tree.
+
+## Command-Line Workflow
+
+### Build
+
+The project provides separate Debug and Release CMake presets.
+
+```bash
+cmake --preset Debug
+cmake --build --preset Debug
+```
+
+or:
+
+```bash
+cmake --preset Release
+cmake --build --preset Release
+```
+
+| Preset    | Compiler flags | Output                                             |
+| --------- | -------------- | -------------------------------------------------- |
+| `Debug`   | `-O0 -g3`      | `build/Debug/rtos.elf`, `build/Debug/rtos.map`     |
+| `Release` | `-Os -g0`      | `build/Release/rtos.elf`, `build/Release/rtos.map` |
+
+### Flash with J-Link
 
 Connect the STM32L475 target through J-Link, then run:
 
@@ -51,7 +116,7 @@ JLinkExe -device STM32L475VG -if SWD -speed 4000 \
   -CommanderScript scripts/flash.jlink
 ```
 
-## Debug with GDB
+### Debug with GDB
 
 Start the J-Link GDB server:
 
@@ -59,7 +124,7 @@ Start the J-Link GDB server:
 JLinkGDBServer -device STM32L475VG -if SWD -speed 4000 -port 50000
 ```
 
-Connect from another terminal:
+From another terminal, connect GDB:
 
 ```bash
 gdb-multiarch build/Debug/rtos.elf \
@@ -71,25 +136,33 @@ gdb-multiarch build/Debug/rtos.elf \
   -ex "continue"
 ```
 
-Inspect `g_integration_test_result` for the selected test's state, check count, and failure count.
+For integration scenarios, inspect:
 
-## Formatting and static analysis
+```text
+g_integration_test_result
+```
 
-Check formatting without modifying files:
+This exposes the selected test's state, check count, and failure count.
+
+## Formatting and Static Analysis
+
+### Check formatting
 
 ```bash
 find App Config Core Port RTOS -type f \( -name '*.c' -o -name '*.h' \) \
   -print0 | xargs -0 clang-format --dry-run --Werror
 ```
 
-Apply formatting:
+### Apply formatting
 
 ```bash
 find App Config Core Port RTOS -type f \( -name '*.c' -o -name '*.h' \) \
   -print0 | xargs -0 clang-format -i
 ```
 
-Run the same `cppcheck` profile used by CI after configuring the Debug build:
+### Run static analysis
+
+Configure the Debug build first so that `compile_commands.json` is available, then run the same `cppcheck` profile used by CI:
 
 ```bash
 cppcheck \
@@ -102,23 +175,29 @@ cppcheck \
   -iCore/Src/syscalls.c
 ```
 
-## API documentation
+## API Documentation
 
-Generate Doxygen HTML:
+Generate the Doxygen documentation with:
 
 ```bash
 doxygen Doxyfile
 ```
 
-Open `docs/html/index.html` in a browser. GitLab CI publishes the same Doxygen output through Pages from the default branch.
+Open:
+
+```text
+docs/html/index.html
+```
+
+GitLab CI publishes the same Doxygen output through Pages from the default branch.
 
 ## VS Code
 
 Recommended extensions:
 
-- CMake Tools
-- clangd, or Microsoft C/C++
-- Cortex-Debug
+* CMake Tools
+* clangd, or Microsoft C/C++
+* Cortex-Debug
 
 The STM32Cube extension is not required.
 
@@ -160,7 +239,7 @@ Example `.vscode/launch.json`:
 }
 ```
 
-## Local GitLab runner
+## Local GitLab Runner
 
 From the repository root:
 
@@ -169,8 +248,12 @@ cd gitlab-runner
 docker compose up -d
 ```
 
-The supplied runner uses the Docker executor and mounts the host Docker socket. `config.toml` is instance-specific: replace its GitLab URL and registration details before use.
+The supplied runner uses the Docker executor and mounts the host Docker socket.
 
-## Runtime verification
+`config.toml` is instance-specific. Replace its GitLab URL and registration details before use.
 
-Verification has additional Python, Java, TeSSLa, Rust, and RTT requirements. See the dedicated [verification guide](verification/README.md).
+## Runtime Verification
+
+Runtime verification has additional Python, Java, TeSSLa, Rust, and RTT requirements.
+
+See the dedicated [verification guide](verification/README.md).
