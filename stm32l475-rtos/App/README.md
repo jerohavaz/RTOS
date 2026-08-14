@@ -148,7 +148,7 @@ python3 tessla_verify.py generate integrity delay scheduler queue \
 ### `PROJECT_SENSOR`
 
 ```bash
-python3 tessla_verify.py generate integrity delay scheduler semaphore queue \
+python3 tessla_verify.py generate integrity delay scheduler semaphore queue project \
     --max-tasks 3 \
     --max-semaphores 1 \
     --queue 1:8 \
