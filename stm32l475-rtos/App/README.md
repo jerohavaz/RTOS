@@ -25,7 +25,7 @@ Each test has its own source file under `Src/`. Tests are intentionally small an
 
 > **[Download the integration-test monitors (`monitors.zip`)](https://drive.google.com/file/d/1FiHaoeGVnvxhUGxd2dAXaXvNWMbt5crq/view?usp=sharing)**
 
-The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, and verification modules used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
+The archive contains native Rust monitors and their generated TeSSLa specifications. They were generated specifically for the task counts, kernel objects, verification modules, and trace configuration used by the integration tests in this application. Do not assume that these bounds are suitable for another application configuration.
 
 For more information about monitor generation, trace capture, running monitors, verification modes, and interpreting results, see the **[TeSSLa verification guide](../../verification/README.md)**.
 
@@ -62,6 +62,29 @@ monitors/
 ```
 
 The files under `checks/` were generated with `--mode checks`. The files under `violations/` were generated with `--mode violations`. Each command below was run once for each mode by replacing `MODE` with `checks` and then `violations`. The resulting `build/combined.tessla` and `build/combined-monitor` were renamed to the project-specific filenames shown above.
+
+All projects use the following base trace configuration in `Config/os_config.h`:
+
+```c
+#define OS_TRACE_ENABLED (true)
+#define OS_TRACE_TESSLA_RTT (true)
+#define OS_TRACE_SCHEDULER (true)
+#define OS_TRACE_TASKS (true)
+#define OS_TRACE_DELAY (true)
+```
+
+Additional trace sources are enabled per project:
+
+| Project             | Additional `Config/os_config.h` traces                     |
+| ------------------- | ---------------------------------------------------------- |
+| `PROJECT_SCHEDULER` | —                                                          |
+| `PROJECT_DELAY`     | —                                                          |
+| `PROJECT_SEMAPHORE` | `OS_TRACE_SEMAPHORE`                                       |
+| `PROJECT_MUTEX`     | `OS_TRACE_SEMAPHORE`, `OS_TRACE_MUTEX`                     |
+| `PROJECT_QUEUE`     | `OS_TRACE_QUEUE`                                           |
+| `PROJECT_SENSOR`    | `OS_TRACE_SEMAPHORE`, `OS_TRACE_QUEUE`, `OS_TRACE_PROJECT` |
+
+> **Note:** Reported violations can occasionally be caused by dropped trace events rather than an actual application violation. If a result is unexpected, check the trace for event loss before treating the violation as conclusive.
 
 ### `PROJECT_SCHEDULER`
 
