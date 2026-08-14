@@ -17,27 +17,33 @@ A separate trace subsystem receives events from the RTOS services, kernel, and C
 
 ```mermaid
 flowchart TB
-    APP["Application / Test Tasks"]
+    APP["Application Tasks"]
 
     subgraph RTOS["RTOS"]
         SERVICES["RTOS Services<br/>Tasks • Delays • Mutexes • Semaphores • Queues"]
-        KERNEL["Kernel<br/>Scheduler • Task States • Wait Queues • Timeouts"]
+        KERNEL["Kernel<br/>Scheduler • Task States • Timeouts"]
     end
 
-    PORT["Cortex-M4 Port<br/>SysTick • PendSV • Context Switching"]
+    CORE["STM32 Core<br/>HAL • SysTick • UART • I²C • EXTI • Interrupts"]
 
-    TRACE["Trace Subsystem<br/>SystemView • TeSSLa • RTT"]
+    PORT["Cortex-M4 Port<br/>PendSV • Context Switch"]
+
+    TRACE["Trace<br/>SystemView • TeSSLa • RTT"]
 
     HW["STM32L475 Hardware"]
 
     APP --> SERVICES
     SERVICES --> KERNEL
     KERNEL --> PORT
+
+    APP --> CORE
+    CORE --> HW
     PORT --> HW
 
-    SERVICES -. trace events .-> TRACE
-    KERNEL -. trace events .-> TRACE
-    PORT -. ISR events .-> TRACE
+    SERVICES -. trace .-> TRACE
+    KERNEL -. trace .-> TRACE
+    CORE -. ISR events .-> TRACE
+    PORT -. trace .-> TRACE
 ```
 
 ### Application / Test Tasks
