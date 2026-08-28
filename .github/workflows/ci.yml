@@ -15,6 +15,9 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
+  pages: write
+  id-token: write
 
 
 env:
