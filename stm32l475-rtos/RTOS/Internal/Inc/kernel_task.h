@@ -79,7 +79,7 @@ struct kernel_task {
      * Stores task identity, priority, scheduling state, stack storage, and the
      * saved stack pointer used by the Cortex-M context switch.
      */
-    TCB_sctTCB_t tcb;
+    tcb_t tcb;
 
     /**
      * @brief Node used by ready queues and synchronization-object wait queues.

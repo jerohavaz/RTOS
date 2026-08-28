@@ -60,9 +60,9 @@ bool prio_waitq_is_empty(const prio_waitq_t *q) {
 void prio_waitq_push(prio_waitq_t *q, kernel_task_t *task) {
     KERNEL_REQUIRE(q != 0);
     KERNEL_REQUIRE(task != 0);
-    KERNEL_REQUIRE(task->tcb.u8TaskPrio < OS_MAX_PRIORITIES);
+    KERNEL_REQUIRE(task->tcb.priority < OS_MAX_PRIORITIES);
 
-    uint32_t p = task->tcb.u8TaskPrio;
+    uint32_t p = task->tcb.priority;
 
     task_list_push_back(&q->prio[p], task);
     q->bitmap |= (1u << p);
@@ -107,9 +107,9 @@ kernel_task_t *prio_waitq_peek_highest(prio_waitq_t *q) {
 void prio_waitq_remove(prio_waitq_t *q, kernel_task_t *task) {
     KERNEL_REQUIRE(q != 0);
     KERNEL_REQUIRE(task != 0);
-    KERNEL_REQUIRE(task->tcb.u8TaskPrio < OS_MAX_PRIORITIES);
+    KERNEL_REQUIRE(task->tcb.priority < OS_MAX_PRIORITIES);
 
-    uint32_t p = task->tcb.u8TaskPrio;
+    uint32_t p = task->tcb.priority;
 
     task_list_remove(&q->prio[p], task);
 

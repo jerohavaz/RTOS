@@ -239,19 +239,6 @@ Example `.vscode/launch.json`:
 }
 ```
 
-## Local GitLab Runner
-
-From the repository root:
-
-```bash
-cd gitlab-runner
-docker compose up -d
-```
-
-The supplied runner uses the Docker executor and mounts the host Docker socket.
-
-`config.toml` is instance-specific. Replace its GitLab URL and registration details before use.
-
 ## Runtime Verification
 
 Runtime verification has additional Python, Java, TeSSLa, Rust, and RTT requirements.

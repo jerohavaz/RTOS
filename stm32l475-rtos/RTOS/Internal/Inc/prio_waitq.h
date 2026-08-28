@@ -77,7 +77,7 @@ void prio_waitq_init(prio_waitq_t *q, task_node_fn_t get_node);
 /**
  * @brief Append a task to its priority's FIFO list.
  *
- * Uses @c task->tcb.u8TaskPrio as the destination index and sets the
+ * Uses @c task->tcb.priority as the destination index and sets the
  * corresponding bitmap bit.
  *
  * @param q Initialized queue.
@@ -127,7 +127,7 @@ kernel_task_t *prio_waitq_peek_highest(prio_waitq_t *q);
 /**
  * @brief Remove a specific task from its priority list.
  *
- * Selects the list using @c task->tcb.u8TaskPrio and clears the corresponding
+ * Selects the list using @c task->tcb.priority and clears the corresponding
  * bitmap bit if removal leaves that list empty.
  *
  * @param q Initialized queue containing @p task.

@@ -90,18 +90,18 @@ static void format_milli(char *output, size_t output_size, int32_t milli) {
 
     if (milli < 0) {
         magnitude = (uint32_t)(-(int64_t)milli);
-        (void)snprintf(output,
-                       output_size,
-                       "-%lu.%03lu",
-                       (unsigned long)(magnitude / 1000u),
-                       (unsigned long)(magnitude % 1000u));
+        snprintf(output,
+                 output_size,
+                 "-%lu.%03lu",
+                 (unsigned long)(magnitude / 1000u),
+                 (unsigned long)(magnitude % 1000u));
     } else {
         magnitude = (uint32_t)milli;
-        (void)snprintf(output,
-                       output_size,
-                       "%lu.%03lu",
-                       (unsigned long)(magnitude / 1000u),
-                       (unsigned long)(magnitude % 1000u));
+        snprintf(output,
+                 output_size,
+                 "%lu.%03lu",
+                 (unsigned long)(magnitude / 1000u),
+                 (unsigned long)(magnitude % 1000u));
     }
 }
 

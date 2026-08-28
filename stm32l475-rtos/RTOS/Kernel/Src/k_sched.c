@@ -46,16 +46,16 @@ static kernel_task_list_node_t *sched_node(kernel_task_t *task) {
  * @pre @p task must not be 0.
  * @pre The caller must provide the required kernel synchronization.
  */
-static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
+static void sched_task_set_state(kernel_task_t *task, task_state_t state) {
     KERNEL_REQUIRE(task != 0);
 
-    TCB_eTaskStates_t old_state = task->tcb.eTaskState;
+    task_state_t old_state = task->tcb.state;
 
-    trace_task_state(task->tcb.u8TaskId, (uint8_t)old_state, (uint8_t)state);
+    trace_task_state(task->tcb.id, (uint8_t)old_state, (uint8_t)state);
 
     switch (state) {
-        case TaskState_Ready:
-            task->tcb.eTaskState = TaskState_Ready;
+        case TASK_STATE_READY:
+            task->tcb.state = TASK_STATE_READY;
 
             /*
              * Idle is never queue-managed.
@@ -71,15 +71,15 @@ static void sched_task_set_state(kernel_task_t *task, TCB_eTaskStates_t state) {
             trace_task_ready(k_trace_task_ref(task));
             break;
 
-        case TaskState_Blocked:
+        case TASK_STATE_BLOCKED:
             KERNEL_REQUIRE(!k_sched_is_idle(task));
 
-            task->tcb.eTaskState = TaskState_Blocked;
+            task->tcb.state = TASK_STATE_BLOCKED;
             trace_task_block(k_trace_task_ref(task));
             break;
 
-        case TaskState_Running:
-            task->tcb.eTaskState = TaskState_Running;
+        case TASK_STATE_RUNNING:
+            task->tcb.state = TASK_STATE_RUNNING;
             g_current_task = task;
 
             if (k_sched_is_idle(task)) {
@@ -148,7 +148,7 @@ static bool sched_switch_needed(bool allow_same_prio) {
      * Current blocked/exited itself.
      * Scheduler must select another context, possibly idle.
      */
-    if (current->tcb.eTaskState != TaskState_Running) {
+    if (current->tcb.state != TASK_STATE_RUNNING) {
         return true;
     }
 
@@ -178,16 +178,16 @@ static bool sched_switch_needed(bool allow_same_prio) {
 
     /*
      * Higher-priority ready task always preempts.
-     * This assumes larger u8TaskPrio means higher priority.
+     * This assumes larger priority means higher priority.
      */
-    if (next->tcb.u8TaskPrio > current->tcb.u8TaskPrio) {
+    if (next->tcb.priority > current->tcb.priority) {
         return true;
     }
 
     /*
      * Same-priority ready task only rotates on yield/SysTick.
      */
-    if (allow_same_prio && (next->tcb.u8TaskPrio == current->tcb.u8TaskPrio)) {
+    if (allow_same_prio && (next->tcb.priority == current->tcb.priority)) {
         return true;
     }
 
@@ -247,8 +247,8 @@ void k_sched_start(void) {
 
         KERNEL_REQUIRE(task != 0);
 
-        if (task->tcb.eTaskState == TaskState_Created) {
-            sched_task_set_state(task, TaskState_Ready);
+        if (task->tcb.state == TASK_STATE_CREATED) {
+            sched_task_set_state(task, TASK_STATE_READY);
         }
     }
 
@@ -261,19 +261,19 @@ void k_sched_start(void) {
 
 port_stack_t *k_sched_start_first_context(void) {
     KERNEL_REQUIRE(g_current_task != 0);
-    KERNEL_REQUIRE(g_current_task->tcb.pu32TaskSP != 0);
+    KERNEL_REQUIRE(g_current_task->tcb.stack_ptr != 0);
 
-    sched_task_set_state(g_current_task, TaskState_Running);
+    sched_task_set_state(g_current_task, TASK_STATE_RUNNING);
 
     g_sched_started = true;
 
-    return g_current_task->tcb.pu32TaskSP;
+    return g_current_task->tcb.stack_ptr;
 }
 
 void k_sched_task_ready(kernel_task_t *task) {
     uint32_t key = port_enter_critical();
 
-    sched_task_set_state(task, TaskState_Ready);
+    sched_task_set_state(task, TASK_STATE_READY);
 
     port_exit_critical(key);
 }
@@ -281,7 +281,7 @@ void k_sched_task_ready(kernel_task_t *task) {
 void k_sched_task_block(kernel_task_t *task) {
     uint32_t key = port_enter_critical();
 
-    sched_task_set_state(task, TaskState_Blocked);
+    sched_task_set_state(task, TASK_STATE_BLOCKED);
 
     port_exit_critical(key);
 }
@@ -320,24 +320,24 @@ port_stack_t *k_sched_switch_context(port_stack_t *outgoing_sp) {
      * PendSV already saved R4-R11, so this SP is the complete software-saved
      * task context.
      */
-    old->tcb.pu32TaskSP = outgoing_sp;
+    old->tcb.stack_ptr = outgoing_sp;
 
     /*
      * If old is still Running, it was preempted or time-sliced and becomes
      * Ready again. If it blocked before PendSV, its state is already Blocked
      * and it must not be reinserted.
      */
-    if (old->tcb.eTaskState == TaskState_Running) {
-        sched_task_set_state(old, TaskState_Ready);
+    if (old->tcb.state == TASK_STATE_RUNNING) {
+        sched_task_set_state(old, TASK_STATE_READY);
     }
 
     kernel_task_t *next = sched_pick_next();
 
     KERNEL_REQUIRE(next != 0);
 
-    sched_task_set_state(next, TaskState_Running);
+    sched_task_set_state(next, TASK_STATE_RUNNING);
 
-    port_stack_t *incoming_sp = next->tcb.pu32TaskSP;
+    port_stack_t *incoming_sp = next->tcb.stack_ptr;
 
     if (incoming_sp == 0) {
         port_exit_critical(key);

@@ -8,6 +8,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        bash \
         build-essential \
         ca-certificates \
         cargo \
@@ -25,12 +26,10 @@ RUN apt-get update \
     && java -jar "${TESSLA_JAR}" --version \
     && rustc --version \
     && cargo --version \
+    && python3 --version \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /verification
+WORKDIR /workspace
 
-COPY . /verification
-
-ENTRYPOINT ["python3", "tessla_verify.py"]
-CMD ["test"]
+ENTRYPOINT []
