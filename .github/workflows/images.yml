@@ -1,5 +1,6 @@
 name: CI Images
 
+# Builds and publishes CI container images.
 on:
   pull_request:
     paths:
