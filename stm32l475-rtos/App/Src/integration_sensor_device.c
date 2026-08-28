@@ -177,7 +177,7 @@ bool sensor_device_reset(void) {
             return sensor_device_init();
         }
 
-        (void)os_delay(1u);
+        os_delay(1u);
     } while ((HAL_GetTick() - start) < SENSOR_RESET_TIMEOUT_MS);
 
     return false;

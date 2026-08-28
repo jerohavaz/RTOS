@@ -33,10 +33,7 @@ default:
 # =============================================================================
 
 .docker_login: &docker_login
-  - echo "$CI_REGISTRY_PASSWORD" |
-    docker login "$CI_REGISTRY" \
-      -u "$CI_REGISTRY_USER" \
-      --password-stdin
+  - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
 
 
 stm32_image:
@@ -58,13 +55,13 @@ stm32_image:
       docker build
       --pull
       -t "$STM32_CI_IMAGE"
-      -f gitlab-runner/stm32.Dockerfile
-      .
+      -f ci/images/stm32/Dockerfile
+      ci/images/stm32
     - docker push "$STM32_CI_IMAGE"
 
   rules:
     - changes:
-        - gitlab-runner/stm32.Dockerfile
+        - ci/images/stm32/Dockerfile
       when: on_success
 
     - when: manual
@@ -90,13 +87,13 @@ doxygen_image:
       docker build
       --pull
       -t "$DOXYGEN_CI_IMAGE"
-      -f gitlab-runner/doxygen.Dockerfile
-      .
+      -f ci/images/doxygen/Dockerfile
+      ci/images/doxygen
     - docker push "$DOXYGEN_CI_IMAGE"
 
   rules:
     - changes:
-        - gitlab-runner/doxygen.Dockerfile
+        - ci/images/doxygen/Dockerfile
       when: on_success
 
     - when: manual
@@ -122,13 +119,13 @@ verification_image:
       docker build
       --pull
       -t "$VERIFICATION_CI_IMAGE"
-      -f verification/Dockerfile
-      verification
+      -f ci/images/verification/Dockerfile
+      ci/images/verification
     - docker push "$VERIFICATION_CI_IMAGE"
 
   rules:
     - changes:
-        - verification/Dockerfile
+        - ci/images/verification/Dockerfile
       when: on_success
 
     - when: manual
@@ -352,7 +349,6 @@ verification:
 
   image:
     name: "$VERIFICATION_CI_IMAGE"
-    entrypoint: [""]
 
   dependencies: []
 
@@ -382,7 +378,6 @@ pages:
 
   image:
     name: "$DOXYGEN_CI_IMAGE"
-    entrypoint: [""]
 
   dependencies: []
 

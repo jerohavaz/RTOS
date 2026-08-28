@@ -54,10 +54,10 @@ static void task_exit_error(void) {
 static void task_clear(kernel_task_t *task) {
     KERNEL_REQUIRE(task != 0);
 
-    task->tcb.pu32TaskSP = 0;
-    task->tcb.u8TaskId = 0u;
-    task->tcb.u8TaskPrio = 0u;
-    task->tcb.eTaskState = TaskState_MAX_STATE;
+    task->tcb.stack_ptr = 0;
+    task->tcb.id = 0u;
+    task->tcb.priority = 0u;
+    task->tcb.state = TASK_STATE_MAX;
 
     task->sched_node.next = 0;
     task->sched_node.prev = 0;
@@ -110,12 +110,12 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
     KERNEL_REQUIRE(g_task_count < K_MAX_TASKS);
 
     kernel_task_t *task = &g_tasks[g_task_count];
-    TCB_sctTCB_t *tcb = &task->tcb;
+    tcb_t *tcb = &task->tcb;
 
     KERNEL_REQUIRE(task != 0);
 
-    KERNEL_REQUIRE(task->tcb.pu32TaskSP == 0);
-    KERNEL_REQUIRE(task->tcb.eTaskState == TaskState_MAX_STATE);
+    KERNEL_REQUIRE(task->tcb.stack_ptr == 0);
+    KERNEL_REQUIRE(task->tcb.state == TASK_STATE_MAX);
 
     KERNEL_REQUIRE(task->sched_node.next == 0);
     KERNEL_REQUIRE(task->sched_node.prev == 0);
@@ -123,14 +123,14 @@ os_status_t k_task_create_internal(os_task_func_t task_func,
     KERNEL_REQUIRE(task->timeout_node.next == 0);
     KERNEL_REQUIRE(task->timeout_node.prev == 0);
 
-    tcb->u8TaskId = (uint8_t)g_task_count;
-    tcb->u8TaskPrio = prio;
-    tcb->eTaskState = TaskState_Created;
+    tcb->id = (uint8_t)g_task_count;
+    tcb->priority = prio;
+    tcb->state = TASK_STATE_CREATED;
 
-    tcb->pu32TaskSP =
-        port_init_task_stack(tcb->au32TaskStack, OS_TASK_STACK_SIZE, task_func, task_exit_error);
+    tcb->stack_ptr =
+        port_init_task_stack(tcb->stack, OS_TASK_STACK_SIZE, task_func, task_exit_error);
 
-    if (tcb->pu32TaskSP == 0) {
+    if (tcb->stack_ptr == 0) {
         task_clear(task);
         return OS_ERR_INVALID_STATE;
     }

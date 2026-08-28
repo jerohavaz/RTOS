@@ -47,7 +47,7 @@ static uint8_t queue_trace_task_id(const kernel_task_t *task) {
         return QUEUE_TRACE_NO_TASK;
     }
 
-    return task->tcb.u8TaskId;
+    return task->tcb.id;
 }
 
 /**
@@ -63,7 +63,7 @@ static uint8_t queue_trace_task_priority(const kernel_task_t *task) {
         return 0u;
     }
 
-    return task->tcb.u8TaskPrio;
+    return task->tcb.priority;
 }
 
 /**

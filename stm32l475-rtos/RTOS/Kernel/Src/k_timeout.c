@@ -61,7 +61,7 @@ void k_timeout_process_tick(void) {
     uint32_t now = k_tick_get();
 
     while ((task = timeout_list_pop_expired(&g_timeout_list, now)) != 0) {
-        KERNEL_REQUIRE(task->tcb.eTaskState == TaskState_Blocked);
+        KERNEL_REQUIRE(task->tcb.state == TASK_STATE_BLOCKED);
 
         const void *object = task->wait_object;
 

@@ -40,7 +40,7 @@ void k_task_lock_creation(void);
  *
  * Initializes the next free task slot, constructs its initial port stack
  * frame, assigns its task ID and priority, and emits a task-creation trace.
- * The task is left in @ref TaskState_Created; this function does not make it
+ * The task is left in @ref TASK_STATE_CREATED; this function does not make it
  * ready to run.
  *
  * @param task_func Entry function executed by the task.

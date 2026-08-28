@@ -45,8 +45,8 @@ target_include_directories(rtos_kernel
 target_link_libraries(rtos_kernel
     PUBLIC
         rtos_config
+        rtos_port
 
     PRIVATE
-        rtos_port
         stm32cubemx
 )

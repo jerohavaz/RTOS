@@ -13,18 +13,18 @@ Custom bare-metal RTOS for the STM32L475VG with fixed-priority preemptive schedu
 * [Sensor Terminal](sensor_terminal/README.md)
 * [Sensor Viewer](sensor_viewer/README.md)
 
-## GitLab CI/CD
+## CI/CD
 
-The root `.gitlab-ci.yml` defines the CI/CD pipeline for firmware builds, static analysis, TeSSLa verification, and documentation.
+The project supports both **GitLab CI/CD** and **GitHub Actions** for firmware builds, static analysis, TeSSLa verification, Docker image builds, and documentation.
 
-| Job                                                  | Check                                            |
-| ---------------------------------------------------- | ------------------------------------------------ |
-| `stm32_image`, `doxygen_image`, `verification_image` | Build and publish the required CI Docker images  |
-| `format`                                             | Check C and header files using `clang-format`    |
-| `build`                                              | Build all firmware configurations in parallel    |
-| `cppcheck`                                           | Run static analysis for all build configurations |
-| `verification`                                       | Run all TeSSLa verification fixtures             |
-| `pages`                                              | Generate and publish the Doxygen documentation   |
+| Job            | Check                                                             |
+| -------------- | ----------------------------------------------------------------- |
+| CI images      | Build the required STM32, Doxygen, and verification Docker images |
+| `format`       | Check C and header files using `clang-format`                     |
+| `build`        | Build all firmware configurations in parallel                     |
+| `cppcheck`     | Run static analysis for all build configurations                  |
+| `verification` | Run all TeSSLa verification fixtures                              |
+| documentation  | Generate and publish the Doxygen documentation                    |
 
 The firmware build uses a parallel matrix for:
 
@@ -38,10 +38,10 @@ The firmware build uses a parallel matrix for:
 
 Each build uses a separate CMake build directory. The generated firmware files and `compile_commands.json` are stored as CI artifacts.
 
-Cppcheck reuses the `compile_commands.json` files from the build jobs, so the project does not need to be configured again for static analysis.
+Cppcheck reuses the generated `compile_commands.json` files, so the project does not need to be configured again for static analysis.
 
 TeSSLa verification runs using the dedicated verification Docker image and executes all available verification fixtures with the Rust monitor backend.
 
-The documentation is generated with Doxygen and published through GitLab Pages on the default branch.
+Documentation is generated with Doxygen and published through **GitLab Pages** or **GitHub Pages**, depending on the platform.
 
-Merge-request-event pipelines are disabled.
+GitLab merge-request-event pipelines are disabled.

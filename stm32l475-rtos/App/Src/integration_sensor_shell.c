@@ -149,7 +149,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         }
     }
 
-    (void)HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
+    HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
 }
 
 /**
@@ -159,7 +159,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
     if (huart == &huart1) {
         __HAL_UART_CLEAR_OREFLAG(huart);
-        (void)HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
+        HAL_UART_Receive_IT(&huart1, &rx_byte, 1u);
     }
 }
 
@@ -192,7 +192,7 @@ void shell_update(void) {
 
         for (size_t i = 0u; i < NUM_COMMANDS; i++) {
             if (strcmp(argv[0], command_table[i].name) == 0) {
-                (void)command_table[i].function(argc, argv);
+                command_table[i].function(argc, argv);
                 found = 1u;
                 break;
             }
@@ -214,9 +214,6 @@ void shell_update(void) {
  * @return Zero.
  */
 static int cmd_help(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
-
     shell_print("Verfuegbare Befehle:\r\n");
     for (size_t i = 0u; i < NUM_COMMANDS; i++) {
         char text[128];
@@ -287,8 +284,6 @@ static int cmd_mode(int argc, char **argv) {
  * @return Zero when queued, otherwise @c -1.
  */
 static int cmd_reset(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
     return queue_sensor_command(APP_SENSOR_CMD_RESET);
 }
 
@@ -325,8 +320,6 @@ static int cmd_stream(int argc, char **argv) {
  * @return Zero when queued, otherwise @c -1.
  */
 static int cmd_status(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
     return queue_sensor_command(APP_SENSOR_CMD_STATUS);
 }
 

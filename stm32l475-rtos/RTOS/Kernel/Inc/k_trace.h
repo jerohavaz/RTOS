@@ -36,7 +36,7 @@ static inline trace_task_ref_t k_trace_task_ref(const kernel_task_t *task) {
         return trace_task_ref_none();
     }
 
-    return trace_task_ref(task->tcb.u8TaskId, task->tcb.u8TaskPrio);
+    return trace_task_ref(task->tcb.id, task->tcb.priority);
 }
 
 /**
@@ -73,8 +73,8 @@ static inline trace_task_info_t k_trace_task_info(const kernel_task_t *task,
 
     info.task = k_trace_task_ref(task);
     info.runtime_id = (uintptr_t)&task->tcb;
-    info.stack_base = (uintptr_t)task->tcb.au32TaskStack;
-    info.stack_size = (uint32_t)sizeof(task->tcb.au32TaskStack);
+    info.stack_base = (uintptr_t)task->tcb.stack;
+    info.stack_size = (uint32_t)sizeof(task->tcb.stack);
 
     return info;
 }
